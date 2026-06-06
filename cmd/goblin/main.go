@@ -6,6 +6,7 @@ import (
 	"goblin2/database"
 	"goblin2/disgobot"
 	"goblin2/games/heist"
+	"goblin2/games/race"
 	"goblin2/guild"
 	"goblin2/internal/log"
 	"goblin2/leaderboard"
@@ -84,6 +85,13 @@ func getPlugins(configPath string) []plugin.Plugin {
 	p, err = heist.NewPlugin(configPath)
 	if err != nil {
 		slog.Error("failed to create heist plugin", "error", err)
+		os.Exit(-1)
+	}
+	plugins = append(plugins, p)
+
+	p, err = race.NewPlugin(configPath)
+	if err != nil {
+		slog.Error("failed to create race plugin", "error", err)
 		os.Exit(-1)
 	}
 	plugins = append(plugins, p)

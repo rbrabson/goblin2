@@ -3,12 +3,15 @@ package race
 import (
 	"errors"
 	"goblin2/discordid"
+	"goblin2/internal/cache"
 	"goblin2/stats"
 	"log/slog"
 	"math/rand/v2"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/disgoorg/disgo/handler"
 )
 
 const (
@@ -18,9 +21,18 @@ const (
 	RaceFinished
 )
 
+const (
+	raceCacheTTL             = 2 * time.Hour
+	raceCacheCleanupInterval = 5 * time.Minute
+)
+
+type raceCacheKey struct {
+	guildID discordid.SnowflakeID
+}
+
 var (
-	lastRaceTimes = make(map[string]time.Time)
-	currentRaces  = make(map[string]*Race)
+	lastRaceTimes = cache.New[raceCacheKey, time.Time](raceCacheTTL, raceCacheCleanupInterval)
+	currentRaces  = cache.New[raceCacheKey, *Race](raceCacheTTL, raceCacheCleanupInterval)
 	raceLock      = sync.Mutex{}
 )
 
@@ -28,17 +40,17 @@ var (
 // It contains a list of racers who are particpaing in the race as well as
 // betters on the outcome of the race.
 type Race struct {
-	GuildID       discordid.SnowflakeID        // Guild (server) on which the race is taking place
-	Racers        []*RaceParticipant           // The list of participants who are racing
-	Betters       []*RaceBetter                // The list of members who are betting on the outcome of the race
-	RaceLegs      []*RaceLeg                   // The list of legs in the race
-	RaceResult    *RaceResult                  // The results of the race
-	RaceStartTime time.Time                    // The time at which the race is started (first created)
-	state         int                          // The state of the race
-	raceAvatars   []*Avatar                    // The avatars of the racers
-	interaction   *discordgo.InteractionCreate // Interaction used in sending message updates
-	config        *Config                      // Race configuration (avoids having to read from the database)
-	mutex         sync.Mutex                   // Lock used to synchronize access to the race
+	GuildID       discordid.SnowflakeID // Guild (server) on which the race is taking place
+	Racers        []*RaceParticipant    // The list of participants who are racing
+	Betters       []*RaceBetter         // The list of members who are betting on the outcome of the race
+	RaceLegs      []*RaceLeg            // The list of legs in the race
+	RaceResult    *RaceResult           // The results of the race
+	RaceStartTime time.Time             // The time at which the race is started (first created)
+	state         int                   // The state of the race
+	raceAvatars   []*Avatar             // The avatars of the racers
+	interaction   *handler.CommandEvent // Original interaction used for editing the race planning message
+	config        *Config               // Race configuration (avoids having to read from the database)
+	mutex         sync.Mutex            // Lock used to synchronize access to the race
 }
 
 // RaceParticipant is a member who is racing. This includes the member and the racer assigned to them.
@@ -84,16 +96,18 @@ type RaceParticipantPosition struct {
 }
 
 // GetCurrentRace gets the race for the guild. If a race isn't in progress, then a new one is created.
-func GetCurrentRace(guildID string) *Race {
-	raceLock.Lock()
-	defer raceLock.Unlock()
+func GetCurrentRace(guildID discordid.SnowflakeID) *Race {
+	key := raceCacheKey{
+		guildID: guildID,
+	}
 
-	return currentRaces[guildID]
+	race, _ := currentRaces.Get(key)
+	return race
 }
 
 // CreateNewRace creates a new race for the guild. If a race is already in progress or the racers are resting,
 // then an error is returned.
-func CreateNewRace(guildID string) (*Race, error) {
+func CreateNewRace(guildID discordid.SnowflakeID) (*Race, error) {
 	raceLock.Lock()
 	defer raceLock.Unlock()
 
@@ -115,7 +129,11 @@ func CreateNewRace(guildID string) (*Race, error) {
 		config:        config,
 		mutex:         sync.Mutex{},
 	}
-	currentRaces[guildID] = race
+
+	key := raceCacheKey{
+		guildID: guildID,
+	}
+	currentRaces.Set(key, race)
 
 	return race, nil
 }
@@ -135,13 +153,19 @@ func (r *Race) addRaceParticipant(member *RaceMember) (*RaceParticipant, error) 
 	defer r.mutex.Unlock()
 
 	if err := raceJoinChecks(r, member.MemberID); err != nil {
-		slog.Warn("unable to join the race", slog.String("guildID", r.GuildID), slog.String("memberID", member.MemberID), slog.Any("error", err))
+		slog.Warn("unable to join the race",
+			slog.Any("guildID", r.GuildID),
+			slog.Any("memberID", member.MemberID),
+			slog.Any("error", err),
+		)
 		return nil, err
 	}
 
 	currentRace := GetCurrentRace(r.GuildID)
 	if r != currentRace {
-		slog.Warn("current race has changed since addRaceParticipant was called", slog.String("guildID", r.GuildID))
+		slog.Warn("current race has changed since addRaceParticipant was called",
+			slog.Any("guildID", r.GuildID),
+		)
 		return nil, errors.New("current race has changed")
 	}
 
@@ -156,7 +180,7 @@ func (r *Race) addRaceParticipant(member *RaceMember) (*RaceParticipant, error) 
 
 // getRaceParticipant returns a racer for a given race. If the member isn't in the race, then
 // nil is returned.
-func (r *Race) getRaceParticipant(memberID string) *RaceParticipant {
+func (r *Race) getRaceParticipant(memberID discordid.SnowflakeID) *RaceParticipant {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -185,8 +209,8 @@ func (r *Race) addBetter(better *RaceBetter) error {
 
 	r.Betters = append(r.Betters, better)
 	slog.Debug("add better to current race",
-		slog.String("guildID", r.GuildID),
-		slog.String("memberID", better.Member.MemberID),
+		slog.Any("guildID", r.GuildID),
+		slog.Any("memberID", better.Member.MemberID),
 	)
 
 	return nil
@@ -241,14 +265,14 @@ func (r *Race) runRace(trackLength int) {
 
 	if len(r.Racers) <= 2 {
 		slog.Info("race finished",
-			slog.String("guildID", r.GuildID),
+			slog.Any("guildID", r.GuildID),
 			slog.Int("numRacers", len(r.Racers)),
 			slog.String("first", r.RaceResult.Win.Participant.Member.guildMember.Name),
 			slog.String("second", r.RaceResult.Place.Participant.Member.guildMember.Name),
 		)
 	} else {
 		slog.Info("race finished",
-			slog.String("guildID", r.GuildID),
+			slog.Any("guildID", r.GuildID),
 			slog.Int("numRacers", len(r.Racers)),
 			slog.String("first", r.RaceResult.Win.Participant.Member.guildMember.Name),
 			slog.String("second", r.RaceResult.Place.Participant.Member.guildMember.Name),
@@ -258,8 +282,8 @@ func (r *Race) runRace(trackLength int) {
 	lastLeg := r.RaceLegs[len(r.RaceLegs)-1]
 	for i, position := range lastLeg.ParticipantPositions {
 		slog.Info("race result",
-			slog.String("guildID", r.GuildID),
-			slog.String("memberID", position.RaceParticipant.Member.MemberID),
+			slog.Any("guildID", r.GuildID),
+			slog.Any("memberID", position.RaceParticipant.Member.MemberID),
 			slog.String("memberName", position.RaceParticipant.Member.guildMember.Name),
 			slog.Int("position", i+1),
 			slog.Float64("raceTime", position.Speed),
@@ -272,17 +296,24 @@ func (r *Race) End() {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
+	key := raceCacheKey{
+		guildID: r.GuildID,
+	}
+
 	// The race runs if there are 2 or more racers. If that is the case, then reset the time the last
 	// successful race ran.
 	raceLock.Lock()
 	if len(r.Racers) >= r.config.MinNumRacers {
-		lastRaceTimes[r.GuildID] = time.Now()
+		lastRaceTimes.SetWithTTL(key, time.Now(), r.config.WaitBetweenRaces)
 	}
-	delete(currentRaces, r.GuildID)
+	currentRaces.Delete(key)
 	raceLock.Unlock()
 
 	if r.RaceResult != nil && len(r.Racers) >= r.config.MinNumRacers {
-		slog.Debug("processing race results", slog.String("guildID", r.GuildID), slog.Int("numRacers", len(r.Racers)))
+		slog.Debug("processing race results",
+			slog.Any("guildID", r.GuildID),
+			slog.Int("numRacers", len(r.Racers)),
+		)
 		for _, racer := range r.Racers {
 			switch {
 			case r.RaceResult.Win != nil && racer.Member.MemberID == r.RaceResult.Win.Participant.Member.MemberID:
@@ -296,7 +327,10 @@ func (r *Race) End() {
 			}
 		}
 
-		slog.Debug("processing race bets", slog.String("guildID", r.GuildID), slog.Int("numBetters", len(r.Betters)))
+		slog.Debug("processing race bets",
+			slog.Any("guildID", r.GuildID),
+			slog.Int("numBetters", len(r.Betters)),
+		)
 		// Pay the winning bets
 		for _, better := range r.Betters {
 			if better.Winnings != 0 {
@@ -307,7 +341,7 @@ func (r *Race) End() {
 		}
 	}
 
-	memberIDs := make([]string, 0, len(r.Racers))
+	memberIDs := make([]discordid.SnowflakeID, 0, len(r.Racers))
 	for _, racer := range r.Racers {
 		memberIDs = append(memberIDs, racer.Member.MemberID)
 	}
@@ -317,13 +351,19 @@ func (r *Race) End() {
 }
 
 // ResetRace resets a hung race for a given guild.
-func ResetRace(guildID string) {
+func ResetRace(guildID discordid.SnowflakeID) {
 	raceLock.Lock()
 	defer raceLock.Unlock()
 
-	delete(currentRaces, guildID)
-	delete(lastRaceTimes, guildID)
-	slog.Info("reset race", slog.String("guildID", guildID))
+	key := raceCacheKey{
+		guildID: guildID,
+	}
+
+	currentRaces.Delete(key)
+	lastRaceTimes.Delete(key)
+	slog.Info("reset race",
+		slog.Any("guildID", guildID),
+	)
 }
 
 // IsFull checks to see if the race has already reached the maximum number of racers.
@@ -388,44 +428,58 @@ func moveRacer(previousPosition *RaceParticipantPosition, turn int) *RacePartici
 }
 
 // raceStartChecks checks to see if a race can be started.
-func raceStartChecks(guildID string) error {
+func raceStartChecks(guildID discordid.SnowflakeID) error {
 	config := GetConfig(guildID)
 
-	race := currentRaces[guildID]
+	key := raceCacheKey{
+		guildID: guildID,
+	}
+
+	race, _ := currentRaces.Get(key)
 	if race != nil {
-		slog.Debug("race already in progress", slog.String("guildID", guildID))
+		slog.Debug("race already in progress",
+			slog.Any("guildID", guildID),
+		)
 		return ErrRaceAlreadyInProgress
 	}
 
-	lastRaceTime := lastRaceTimes[guildID]
-	if time.Since(lastRaceTime) < config.WaitBetweenRaces {
+	lastRaceTime, ok := lastRaceTimes.Get(key)
+	if ok && time.Since(lastRaceTime) < config.WaitBetweenRaces {
 		timeSinceLastRace := time.Since(lastRaceTime)
 		timeUntilRaceCanStart := config.WaitBetweenRaces - timeSinceLastRace
 		slog.Debug("racers are resting",
-			slog.String("guildID", guildID),
+			slog.Any("guildID", guildID),
 			slog.Duration("timeUntilRaceCanStart", timeUntilRaceCanStart),
 		)
 		return ErrRacersAreResting{timeUntilRaceCanStart}
 	}
-	delete(lastRaceTimes, guildID)
+	lastRaceTimes.Delete(key)
 
 	return nil
 }
 
 // raceJoinChecks checks to see if a racer is able to join the race.
-func raceJoinChecks(race *Race, memberID string) error {
+func raceJoinChecks(race *Race, memberID discordid.SnowflakeID) error {
 	if race.state == RaceWaitingForBets {
-		slog.Debug("betting has opened", slog.String("guildID", race.GuildID))
+		slog.Debug("betting has opened",
+			slog.Any("guildID", race.GuildID),
+		)
 		return ErrBettingHasOpened
 	}
 
 	if race.state > RaceWaitingForBets {
-		slog.Debug("race has started", slog.String("guildID", race.GuildID))
+		slog.Debug("race has started",
+			slog.Any("guildID", race.GuildID),
+		)
 		return ErrRaceHasStarted
 	}
 
 	if len(race.Racers) >= race.config.MaxNumRacers {
-		slog.Debug("too many racers already joined", slog.String("guildID", race.GuildID), slog.Int("maxNumRacers", race.config.MaxNumRacers), slog.Int("numRacers", len(race.Racers)))
+		slog.Debug("too many racers already joined",
+			slog.Any("guildID", race.GuildID),
+			slog.Int("maxNumRacers", race.config.MaxNumRacers),
+			slog.Int("numRacers", len(race.Racers)),
+		)
 		return ErrRaceAlreadyFull
 	}
 
@@ -445,24 +499,32 @@ func placeBet(race *Race, better *RaceBetter) error {
 	}
 
 	if err := race.addBetter(better); err != nil {
-		slog.Debug("failed to add better", slog.String("guildID", race.GuildID), slog.String("memberID", better.Member.MemberID), slog.Any("error", err))
+		slog.Debug("failed to add better",
+			slog.Any("guildID", race.GuildID),
+			slog.Any("memberID", better.Member.MemberID),
+			slog.Any("error", err),
+		)
 		return err
 	}
 	return nil
 }
 
 // raceBetChecks checks to see if a better is able to place a bet on the current race.
-func raceBetChecks(race *Race, memberID string) error {
+func raceBetChecks(race *Race, memberID discordid.SnowflakeID) error {
 	race.mutex.Lock()
 	defer race.mutex.Unlock()
 
 	if race.state < RaceWaitingForBets {
-		slog.Debug("betting has not opened yet", slog.String("guildID", race.GuildID))
+		slog.Debug("betting has not opened yet",
+			slog.Any("guildID", race.GuildID),
+		)
 		return ErrBettingNotOpened
 	}
 
 	if race.state > RaceWaitingForBets {
-		slog.Debug("race has started, so not accepting bets", slog.String("guildID", race.GuildID))
+		slog.Debug("race has started, so not accepting bets",
+			slog.Any("guildID", race.GuildID),
+		)
 		return ErrRaceHasStarted
 	}
 
@@ -532,4 +594,10 @@ func calculateWinnings(race *Race, lastLeg *RaceLeg) {
 			}
 		}
 	}
+}
+
+// CloseRaceCaches stops the race cache cleanup goroutines and clears cached entries.
+func CloseRaceCaches() {
+	currentRaces.Destroy()
+	lastRaceTimes.Destroy()
 }

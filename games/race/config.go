@@ -1,18 +1,28 @@
 package race
 
 import (
-	"encoding/json"
+	"goblin2/config"
 	"goblin2/discordid"
+	"goblin2/internal/cache"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"time"
-	
+
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 const (
-	defaultBabyDragonBuffPercent = 50
+	raceConfigCacheTTL             = 30 * time.Minute
+	raceConfigCacheCleanupInterval = 5 * time.Minute
+)
+
+type configCacheKey struct {
+	guildID discordid.SnowflakeID
+}
+
+var (
+	defaultConfig Config
+	configCache   = cache.New[configCacheKey, Config](raceConfigCacheTTL, raceConfigCacheCleanupInterval)
 )
 
 // Config represents the configuration for the race game.
@@ -37,43 +47,75 @@ type Config struct {
 
 // GetConfig gets the race configuration for the guild. If the configuration does not
 // exist, then a new one is created.
-func GetConfig(guildID string) *Config {
-	config := readConfig(guildID)
-	if config == nil {
-		config = readConfigFromFile(guildID)
-	}
-	if config.BabyDragonBuffPercent == 0 {
-		config.BabyDragonBuffPercent = defaultBabyDragonBuffPercent
-		writeConfig(config)
-		slog.Debug("set baby dragon buff percent", slog.String("guildID", guildID), slog.Int("babydragon_buff_percent", config.BabyDragonBuffPercent))
-	}
-	return config
-}
-
-// readConfigFromFile gets a new configuration for the guild. If the oconfiguration cannot be
-// read from the configuration file or decdoded, then a default configuration is
-// returned.
-func readConfigFromFile(guildID string) *Config {
-	configFileName := filepath.Join(discord.ConfigDir, "race", "config", raceTheme+".json")
-	bytes, err := os.ReadFile(configFileName)
-	if err != nil {
-		slog.Error("failed to read race config", slog.String("guildID", guildID), slog.String("theme", raceTheme), slog.Any("error", err))
+func GetConfig(guildID discordid.SnowflakeID) *Config {
+	key := configCacheKey{
+		guildID: guildID,
 	}
 
-	config := &Config{}
-	err = json.Unmarshal(bytes, config)
-	if err != nil {
-		slog.Error("failed to unmarshal race config",
-			slog.String("guildID", guildID),
-			slog.String("theme", raceTheme),
-			slog.String("file", configFileName),
-			slog.Any("error", err),
+	if cfg, ok := configCache.Get(key); ok {
+		return copyConfig(&cfg)
+	}
+
+	cfg := readConfig(guildID)
+	if cfg == nil {
+		cfg = createNewConfig(guildID)
+	}
+	if cfg.BabyDragonBuffPercent == 0 {
+		cfg.BabyDragonBuffPercent = defaultConfig.BabyDragonBuffPercent
+		writeConfig(cfg)
+		slog.Debug("set baby dragon buff percent",
+			slog.Any("guildID", guildID),
+			slog.Int("babydragon_buff_percent", cfg.BabyDragonBuffPercent),
 		)
 	}
-	config.GuildID = guildID
 
-	writeConfig(config)
-	slog.Debug("create new race config", slog.String("guildID", guildID), slog.String("theme", raceTheme))
+	configCache.Set(key, *cfg)
 
-	return config
+	return copyConfig(cfg)
+}
+
+// createNewConfig creates a new default configuration for the guild.
+func createNewConfig(guildID discordid.SnowflakeID) *Config {
+	cfg := &Config{
+		GuildID:               guildID,
+		BetAmount:             defaultConfig.BetAmount,
+		Currency:              defaultConfig.Currency,
+		MaxPrizeAmount:        defaultConfig.MaxPrizeAmount,
+		MaxNumRacers:          defaultConfig.MaxNumRacers,
+		MinNumRacers:          defaultConfig.MinNumRacers,
+		MinPrizeAmount:        defaultConfig.MinPrizeAmount,
+		Theme:                 defaultConfig.Theme,
+		WaitBetweenRaces:      defaultConfig.WaitBetweenRaces,
+		WaitForBets:           defaultConfig.WaitForBets,
+		WaitToStart:           defaultConfig.WaitToStart,
+		StartingLine:          defaultConfig.StartingLine,
+		Track:                 defaultConfig.Track,
+		EndingLine:            defaultConfig.EndingLine,
+		BabyDragonBuffPercent: defaultConfig.BabyDragonBuffPercent,
+	}
+	writeConfig(cfg)
+	return cfg
+}
+
+func copyConfig(cfg *Config) *Config {
+	if cfg == nil {
+		return nil
+	}
+
+	return new(*cfg)
+}
+
+// CloseConfigCache stops the config cache cleanup goroutine and clears cached config entries.
+func CloseConfigCache() {
+	configCache.Destroy()
+}
+
+// LoadConfig loads the configuration from the specified YAML file path.
+func LoadConfig(path string) error {
+	filePath := filepath.Join(path, "race/config.yaml")
+	if err := config.LoadConfig(filePath, &defaultConfig); err != nil {
+		return err
+	}
+
+	return nil
 }

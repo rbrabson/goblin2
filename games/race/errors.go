@@ -2,9 +2,9 @@ package race
 
 import (
 	"errors"
+	"goblin2/internal/format"
 	"time"
 
-	"github.com/rbrabson/goblin/internal/format"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )
