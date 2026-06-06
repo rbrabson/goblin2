@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"goblin2/config"
 	"goblin2/discordid"
+	"goblin2/internal/cache"
 	"log/slog"
 	"path/filepath"
 	"time"
@@ -12,8 +13,18 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
+const (
+	heistConfigCacheTTL             = 30 * time.Minute
+	heistConfigCacheCleanupInterval = 5 * time.Minute
+)
+
+type configCacheKey struct {
+	guildID discordid.SnowflakeID
+}
+
 var (
 	defaultConfig Config
+	configCache   = cache.New[configCacheKey, Config](heistConfigCacheTTL, heistConfigCacheCleanupInterval)
 )
 
 // Config is the configuration data for new heists.
@@ -47,12 +58,26 @@ func LoadConfig(path string) error {
 
 // GetConfig retrieves the heist configuration for the specified guild.
 func GetConfig(guildID snowflake.ID) *Config {
-	cfg := readConfig(discordid.SnowflakeID(guildID))
+	key := configCacheKey{
+		guildID: discordid.NewSnowflakeID(guildID),
+	}
+
+	if cfg, ok := configCache.Get(key); ok {
+		copied := copyConfig(&cfg)
+		copied.Theme = GetTheme(guildID)
+		copied.Targets = GetTargets(guildID)
+		return copied
+	}
+
+	cfg := readConfig(key.guildID)
 	if cfg == nil {
 		cfg = createNewConfig(guildID)
+		writeConfig(cfg)
 	}
-	writeConfig(cfg)
 
+	configCache.Set(key, *cfg)
+
+	cfg = copyConfig(cfg)
 	cfg.Theme = GetTheme(guildID)
 	cfg.Targets = GetTargets(guildID)
 
@@ -82,25 +107,24 @@ func createNewConfig(guildID snowflake.ID) *Config {
 	return c
 }
 
-func defaultOrInt(value int, fallback int) int {
-	if value > 0 {
-		return value
+func copyConfig(cfg *Config) *Config {
+	if cfg == nil {
+		return nil
 	}
-	return fallback
+
+	copied := new(*cfg)
+	if cfg.Targets != nil {
+		copied.Targets = copyTargets(cfg.Targets)
+	}
+	if cfg.Theme != nil {
+		copied.Theme = copyTheme(cfg.Theme)
+	}
+
+	return copied
 }
 
-func defaultOrFloat(value float64, fallback float64) float64 {
-	if value > 0 {
-		return value
-	}
-	return fallback
-}
-
-func defaultOrDuration(value time.Duration, fallback time.Duration) time.Duration {
-	if value > 0 {
-		return value
-	}
-	return fallback
+func CloseConfigCache() {
+	configCache.Destroy()
 }
 
 // String returns a string representation of the heist configuration.

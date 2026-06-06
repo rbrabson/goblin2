@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"goblin2/discordid"
 	"goblin2/guild"
+	"goblin2/internal/cache"
 	"log/slog"
 	"time"
 
@@ -33,9 +34,23 @@ const (
 	OOB         MemberStatus = "Out on Bail"
 )
 
-// HeistMember is the heist-specific state for a guild member who has
+const (
+	heistMemberCacheTTL             = 30 * time.Minute
+	heistMemberCacheCleanupInterval = 5 * time.Minute
+)
+
+type memberCacheKey struct {
+	guildID  discordid.SnowflakeID
+	memberID discordid.SnowflakeID
+}
+
+var (
+	memberCache = cache.New[memberCacheKey, Member](heistMemberCacheTTL, heistMemberCacheCleanupInterval)
+)
+
+// Member is the heist-specific state for a guild member who has
 // participated in, or attempted to participate in, a heist.
-type HeistMember struct {
+type Member struct {
 	ID            bson.ObjectID         `json:"_id,omitempty" bson:"_id,omitempty"`
 	GuildID       discordid.SnowflakeID `json:"guild_id" bson:"guild_id"`
 	MemberID      discordid.SnowflakeID `json:"member_id" bson:"member_id"`
@@ -54,23 +69,36 @@ type HeistMember struct {
 	guildMember *guild.Member
 }
 
-// GetHeistMember returns the heist member for the given guild/member pair,
+// GetMember returns the heist member for the given guild/member pair,
 // creating a new in-memory member if one does not already exist.
 //
 // New members are not persisted until their state changes.
-func GetHeistMember(guildID, memberID snowflake.ID) *HeistMember {
-	member := readMember(discordid.NewSnowflakeID(guildID), discordid.NewSnowflakeID(memberID))
-	if member != nil {
+func GetMember(guildID, memberID snowflake.ID) *Member {
+	key := memberCacheKey{
+		guildID:  discordid.NewSnowflakeID(guildID),
+		memberID: discordid.NewSnowflakeID(memberID),
+	}
+
+	if cached, ok := memberCache.Get(key); ok {
+		member := copyMember(&cached)
 		member.UpdateStatus()
 		return member
 	}
 
-	return NewHeistMember(guildID, memberID)
+	member := readMember(key.guildID, key.memberID)
+	if member != nil {
+		memberCache.Set(key, *member)
+		member = copyMember(member)
+		member.UpdateStatus()
+		return member
+	}
+
+	return newMember(guildID, memberID)
 }
 
-// NewHeistMember creates a new heist member with a default state.
-func NewHeistMember(guildID snowflake.ID, memberID snowflake.ID) *HeistMember {
-	return &HeistMember{
+// newMember creates a new heist member with a default state.
+func newMember(guildID snowflake.ID, memberID snowflake.ID) *Member {
+	return &Member{
 		GuildID:       discordid.NewSnowflakeID(guildID),
 		MemberID:      discordid.NewSnowflakeID(memberID),
 		CriminalLevel: Greenhorn,
@@ -78,15 +106,27 @@ func NewHeistMember(guildID snowflake.ID, memberID snowflake.ID) *HeistMember {
 	}
 }
 
+func copyMember(member *Member) *Member {
+	if member == nil {
+		return nil
+	}
+
+	return new(*member)
+}
+
+func CloseMemberCache() {
+	memberCache.Destroy()
+}
+
 // SetGuildMember attaches the resolved guild member data to this heist member.
 // This is runtime-only data and is not persisted.
-func (m *HeistMember) SetGuildMember(member *guild.Member) {
+func (m *Member) SetGuildMember(member *guild.Member) {
 	m.guildMember = member
 }
 
 // UpdateStatus refreshes the member's status based on jail/death timers.
 // If the member becomes free, the updated state is persisted.
-func (m *HeistMember) UpdateStatus() {
+func (m *Member) UpdateStatus() {
 	now := time.Now()
 
 	switch m.Status {
@@ -110,7 +150,7 @@ func (m *HeistMember) UpdateStatus() {
 // RemainingJailTime returns the time remaining before the member is released
 // from jail. If the member is not jailed, or the timer has expired, zero is
 // returned.
-func (m *HeistMember) RemainingJailTime() time.Duration {
+func (m *Member) RemainingJailTime() time.Duration {
 	if m.JailTimer.IsZero() {
 		return 0
 	}
@@ -125,7 +165,7 @@ func (m *HeistMember) RemainingJailTime() time.Duration {
 
 // RemainingDeathTime returns the time remaining before the member returns from
 // death. If the member is not dead, or the timer has expired, zero is returned.
-func (m *HeistMember) RemainingDeathTime() time.Duration {
+func (m *Member) RemainingDeathTime() time.Duration {
 	if m.DeathTimer.IsZero() {
 		return 0
 	}
@@ -139,7 +179,7 @@ func (m *HeistMember) RemainingDeathTime() time.Duration {
 }
 
 // SendToJail marks the member as apprehended for the given sentence duration.
-func (m *HeistMember) SendToJail(sentence time.Duration, bailCost int) {
+func (m *Member) SendToJail(sentence time.Duration, bailCost int) {
 	now := time.Now()
 
 	m.Status = Apprehended
@@ -161,7 +201,7 @@ func (m *HeistMember) SendToJail(sentence time.Duration, bailCost int) {
 }
 
 // ReleaseOnBail marks the member as out on bail.
-func (m *HeistMember) ReleaseOnBail() {
+func (m *Member) ReleaseOnBail() {
 	m.Status = OOB
 	m.JailTimer = time.Time{}
 	m.Sentence = 0
@@ -176,7 +216,7 @@ func (m *HeistMember) ReleaseOnBail() {
 }
 
 // Kill marks the member as dead for the given duration.
-func (m *HeistMember) Kill(duration time.Duration) {
+func (m *Member) Kill(duration time.Duration) {
 	m.Status = Dead
 	m.Deaths++
 	m.DeathTimer = time.Now().Add(duration)
@@ -192,7 +232,7 @@ func (m *HeistMember) Kill(duration time.Duration) {
 }
 
 // MarkEscaped records that the member escaped successfully.
-func (m *HeistMember) MarkEscaped() {
+func (m *Member) MarkEscaped() {
 	m.Status = Free
 	m.Spree++
 	m.CriminalLevel = calculateCriminalLevel(m.Spree)
@@ -208,7 +248,7 @@ func (m *HeistMember) MarkEscaped() {
 }
 
 // FreeMember clears the jail / death state and marks the member as free.
-func (m *HeistMember) FreeMember() {
+func (m *Member) FreeMember() {
 	m.Status = Free
 	m.BailCost = 0
 	m.DeathTimer = time.Time{}
@@ -242,8 +282,8 @@ func calculateCriminalLevel(spree int) CriminalLevel {
 	}
 }
 
-// String returns a string representation of the HeistMember.
-func (m *HeistMember) String() string {
+// String returns a string representation of the Member.
+func (m *Member) String() string {
 	return fmt.Sprintf(
 		"HeistMember{ID=%s, GuildID=%s, MemberID=%s, Status=%s, CriminalLevel=%d, Spree=%d, Deaths=%d, JailCounter=%d}",
 		m.ID.Hex(),

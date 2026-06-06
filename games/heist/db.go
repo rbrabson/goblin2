@@ -49,13 +49,16 @@ func writeConfig(config *Config) {
 			slog.Any("guildID", config.GuildID),
 			slog.Any("error", err),
 		)
+		return
 	}
+
+	configCache.Set(configCacheKey{guildID: config.GuildID}, *config)
 }
 
 // readMember loads the heist member from the database. If it does not exist, then
 // a `nil` value is returned.
-func readMember(guildID, memberID discordid.SnowflakeID) *HeistMember {
-	var heistMember HeistMember
+func readMember(guildID, memberID discordid.SnowflakeID) *Member {
+	var heistMember Member
 	filter := bson.M{"guild_id": guildID, "member_id": memberID}
 	err := db.FindOne(memberCollection, filter, &heistMember)
 	if err != nil {
@@ -71,7 +74,7 @@ func readMember(guildID, memberID discordid.SnowflakeID) *HeistMember {
 }
 
 // Write creates or updates the heist member in the database
-func writeMember(member *HeistMember) {
+func writeMember(member *Member) {
 	var filter bson.M
 	if member.ID != bson.NilObjectID {
 		filter = bson.M{"_id": member.ID}
@@ -86,6 +89,8 @@ func writeMember(member *HeistMember) {
 		)
 		return
 	}
+
+	memberCache.Set(memberCacheKey{guildID: member.GuildID, memberID: member.MemberID}, *member)
 }
 
 // readAllTargets loads the targets that may be used in heists for all guilds
@@ -136,6 +141,8 @@ func writeTarget(target *Target) {
 		)
 		return
 	}
+
+	targetsCache.Delete(targetsCacheKey{guildID: target.GuildID, theme: target.Theme})
 }
 
 // readAllThemes loads all available themes for a guild
@@ -186,4 +193,7 @@ func writeTheme(theme *Theme) {
 		)
 		return
 	}
+
+	themeCache.Set(themeCacheKey{guildID: theme.GuildID}, *theme)
+	targetsCache.Delete(targetsCacheKey{guildID: theme.GuildID, theme: theme.Name})
 }

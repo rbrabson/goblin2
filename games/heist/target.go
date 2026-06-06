@@ -3,15 +3,28 @@ package heist
 import (
 	"goblin2/config"
 	"goblin2/discordid"
+	"goblin2/internal/cache"
 	"log/slog"
 	"path/filepath"
+	"time"
 
 	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
+const (
+	heistTargetsCacheTTL             = 30 * time.Minute
+	heistTargetsCacheCleanupInterval = 5 * time.Minute
+)
+
+type targetsCacheKey struct {
+	guildID discordid.SnowflakeID
+	theme   string
+}
+
 var (
 	defaultTargets []*Target
+	targetsCache   = cache.New[targetsCacheKey, []*Target](heistTargetsCacheTTL, heistTargetsCacheCleanupInterval)
 )
 
 // Target is a target of a heist.
@@ -45,9 +58,19 @@ func GetTargets(guildID snowflake.ID) []*Target {
 		themeName = theme.Name
 	}
 
-	targets, err := readTargets(discordid.NewSnowflakeID(guildID), themeName)
+	key := targetsCacheKey{
+		guildID: discordid.NewSnowflakeID(guildID),
+		theme:   themeName,
+	}
+
+	if targets, ok := targetsCache.Get(key); ok {
+		return copyTargets(targets)
+	}
+
+	targets, err := readTargets(key.guildID, themeName)
 	if err == nil && len(targets) > 0 {
-		return targets
+		targetsCache.Set(key, copyTargets(targets))
+		return copyTargets(targets)
 	}
 
 	targets = createNewTargets(guildID)
@@ -55,7 +78,9 @@ func GetTargets(guildID snowflake.ID) []*Target {
 		writeTarget(target)
 	}
 
-	return targets
+	targetsCache.Set(key, copyTargets(targets))
+
+	return copyTargets(targets)
 }
 
 // createNewTargets creates a list of targets for a guild with the default target values.
@@ -78,4 +103,26 @@ func createNewTargets(guildID snowflake.ID) []*Target {
 	)
 
 	return targets
+}
+
+func copyTargets(targets []*Target) []*Target {
+	if targets == nil {
+		return nil
+	}
+
+	copied := make([]*Target, 0, len(targets))
+	for _, target := range targets {
+		if target == nil {
+			copied = append(copied, nil)
+			continue
+		}
+
+		copied = append(copied, new(*target))
+	}
+
+	return copied
+}
+
+func CloseTargetsCache() {
+	targetsCache.Destroy()
 }

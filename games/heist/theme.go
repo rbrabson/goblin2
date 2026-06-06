@@ -3,15 +3,27 @@ package heist
 import (
 	"goblin2/config"
 	"goblin2/discordid"
+	"goblin2/internal/cache"
 	"log/slog"
 	"path/filepath"
+	"time"
 
 	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
+const (
+	heistThemeCacheTTL             = 30 * time.Minute
+	heistThemeCacheCleanupInterval = 5 * time.Minute
+)
+
+type themeCacheKey struct {
+	guildID discordid.SnowflakeID
+}
+
 var (
 	defaultTheme Theme
+	themeCache   = cache.New[themeCacheKey, Theme](heistThemeCacheTTL, heistThemeCacheCleanupInterval)
 )
 
 // A Theme is a set of messages that provide a "flavor" for a heist
@@ -19,9 +31,9 @@ type Theme struct {
 	ID                  bson.ObjectID         `bson:"_id,omitempty"`
 	GuildID             discordid.SnowflakeID `bson:"guild_id"`
 	Name                string                `bson:"name"`
-	EscapedMessages     []*HeistMessage       `bson:"escaped_messages"`
-	ApprehendedMessages []*HeistMessage       `bson:"apprehended_messages"`
-	DiedMessages        []*HeistMessage       `bson:"died_messages"`
+	EscapedMessages     []*Message            `bson:"escaped_messages"`
+	ApprehendedMessages []*Message            `bson:"apprehended_messages"`
+	DiedMessages        []*Message            `bson:"died_messages"`
 	Jail                string                `bson:"jail"`
 	OOB                 string                `bson:"oob"`
 	Police              string                `bson:"police"`
@@ -32,8 +44,8 @@ type Theme struct {
 	Vault               string                `bson:"vault"`
 }
 
-// A HeistMessage is a message for a successful heist outcome
-type HeistMessage struct {
+// A Message is a message for a successful heist outcome
+type Message struct {
 	Message     string       `bson:"message"`
 	BonusAmount int          `bson:"bonus_amount,omitempty"`
 	Result      MemberStatus `bson:"result"`
@@ -51,15 +63,24 @@ func LoadTheme(path string) error {
 
 // GetTheme returns the theme for a guild
 func GetTheme(guildID snowflake.ID) *Theme {
-	theme, err := readTheme(discordid.NewSnowflakeID(guildID))
-	if err == nil && theme != nil {
-		return theme
+	key := themeCacheKey{
+		guildID: discordid.NewSnowflakeID(guildID),
 	}
-	theme = createNewTheme(guildID)
 
+	if theme, ok := themeCache.Get(key); ok {
+		return copyTheme(&theme)
+	}
+
+	theme, err := readTheme(key.guildID)
+	if err == nil && theme != nil {
+		themeCache.Set(key, *theme)
+		return copyTheme(theme)
+	}
+
+	theme = createNewTheme(guildID)
 	writeTheme(theme)
 
-	return theme
+	return copyTheme(theme)
 }
 
 // createNewTheme creates a new theme for a guild with the default theme values.
@@ -67,9 +88,9 @@ func createNewTheme(guildID snowflake.ID) *Theme {
 	theme := &Theme{
 		GuildID:             discordid.NewSnowflakeID(guildID),
 		Name:                defaultTheme.Name,
-		EscapedMessages:     defaultTheme.EscapedMessages,
-		ApprehendedMessages: defaultTheme.ApprehendedMessages,
-		DiedMessages:        defaultTheme.DiedMessages,
+		EscapedMessages:     copyHeistMessages(defaultTheme.EscapedMessages),
+		ApprehendedMessages: copyHeistMessages(defaultTheme.ApprehendedMessages),
+		DiedMessages:        copyHeistMessages(defaultTheme.DiedMessages),
 		Jail:                defaultTheme.Jail,
 		OOB:                 defaultTheme.OOB,
 		Police:              defaultTheme.Police,
@@ -86,4 +107,39 @@ func createNewTheme(guildID snowflake.ID) *Theme {
 	)
 
 	return theme
+}
+
+func copyTheme(theme *Theme) *Theme {
+	if theme == nil {
+		return nil
+	}
+
+	copied := new(*theme)
+	copied.EscapedMessages = copyHeistMessages(theme.EscapedMessages)
+	copied.ApprehendedMessages = copyHeistMessages(theme.ApprehendedMessages)
+	copied.DiedMessages = copyHeistMessages(theme.DiedMessages)
+
+	return copied
+}
+
+func copyHeistMessages(messages []*Message) []*Message {
+	if messages == nil {
+		return nil
+	}
+
+	copied := make([]*Message, 0, len(messages))
+	for _, message := range messages {
+		if message == nil {
+			copied = append(copied, nil)
+			continue
+		}
+
+		copied = append(copied, new(*message))
+	}
+
+	return copied
+}
+
+func CloseThemeCache() {
+	themeCache.Destroy()
 }

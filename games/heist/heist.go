@@ -25,44 +25,44 @@ var (
 	alertTimesLock = sync.Mutex{}
 )
 
-type HeistState string
+type State string
 
 const (
-	Planning   HeistState = "Planning"
-	InProgress HeistState = "In Progress"
-	Cancelled  HeistState = "Cancelled"
-	Completed  HeistState = "Completed"
+	Planning   State = "Planning"
+	InProgress State = "In Progress"
+	Cancelled  State = "Cancelled"
+	Completed  State = "Completed"
 )
 
 // Heist is a heist that is being planned, is in progress, or has completed.
 type Heist struct {
 	GuildID      snowflake.ID
-	Organizer    *HeistMember
-	Crew         []*HeistMember
+	Organizer    *Member
+	Crew         []*Member
 	StartTime    time.Time
-	State        HeistState
+	State        State
 	Theme        *Theme
 	interaction  *handler.CommandEvent
 	config       *Config
 	mutex        sync.Mutex
-	goodMessages []*HeistMessage
-	badMessages  []*HeistMessage
+	goodMessages []*Message
+	badMessages  []*Message
 }
 
-// HeistResult are the results of a heist.
-type HeistResult struct {
-	AllResults  []*HeistMemberResult
-	Escaped     []*HeistMemberResult
-	Apprehended []*HeistMemberResult
-	Dead        []*HeistMemberResult
+// Result is the results of a heist.
+type Result struct {
+	AllResults  []*MemberResult
+	Escaped     []*MemberResult
+	Apprehended []*MemberResult
+	Dead        []*MemberResult
 	Target      *Target
 	TotalStolen int
 	heist       *Heist
 }
 
-// HeistMemberResult is the result for a single member of the heist.
-type HeistMemberResult struct {
-	Player        *HeistMember
+// MemberResult is the result for a single member of the heist.
+type MemberResult struct {
+	Player        *Member
 	Status        MemberStatus
 	Message       string
 	StolenCredits int
@@ -91,14 +91,14 @@ func NewHeist(guildID snowflake.ID, memberID snowflake.ID) (*Heist, error) {
 	config := GetConfig(guildID)
 	heist := &Heist{
 		GuildID:      guildID,
-		Organizer:    GetHeistMember(guildID, memberID),
-		Crew:         make([]*HeistMember, 0, 10),
+		Organizer:    GetMember(guildID, memberID),
+		Crew:         make([]*Member, 0, 10),
 		StartTime:    time.Now(),
 		State:        Planning,
 		config:       config,
 		mutex:        sync.Mutex{},
-		goodMessages: make([]*HeistMessage, 0, len(config.Theme.EscapedMessages)),
-		badMessages:  make([]*HeistMessage, 0, len(config.Theme.ApprehendedMessages)+len(config.Theme.DiedMessages)),
+		goodMessages: make([]*Message, 0, len(config.Theme.EscapedMessages)),
+		badMessages:  make([]*Message, 0, len(config.Theme.ApprehendedMessages)+len(config.Theme.DiedMessages)),
 	}
 
 	err := heistChecks(heist, heist.Organizer)
@@ -124,7 +124,7 @@ func NewHeist(guildID snowflake.ID, memberID snowflake.ID) (*Heist, error) {
 }
 
 // AddCrewMember adds a crew member to the heist.
-func (h *Heist) AddCrewMember(member *HeistMember) error {
+func (h *Heist) AddCrewMember(member *Member) error {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
@@ -145,7 +145,7 @@ func (h *Heist) AddCrewMember(member *HeistMember) error {
 }
 
 // Start runs the heist and returns the results of the heist.
-func (h *Heist) Start() (*HeistResult, error) {
+func (h *Heist) Start() (*Result, error) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
@@ -157,18 +157,18 @@ func (h *Heist) Start() (*HeistResult, error) {
 	h.State = InProgress
 	target := selectTarget(h.config.Targets, len(h.Crew))
 
-	results := &HeistResult{
-		AllResults:  make([]*HeistMemberResult, 0, len(h.Crew)),
-		Escaped:     make([]*HeistMemberResult, 0, len(h.Crew)),
-		Apprehended: make([]*HeistMemberResult, 0, len(h.Crew)),
-		Dead:        make([]*HeistMemberResult, 0, len(h.Crew)),
+	results := &Result{
+		AllResults:  make([]*MemberResult, 0, len(h.Crew)),
+		Escaped:     make([]*MemberResult, 0, len(h.Crew)),
+		Apprehended: make([]*MemberResult, 0, len(h.Crew)),
+		Dead:        make([]*MemberResult, 0, len(h.Crew)),
 		heist:       h,
 		Target:      target,
 	}
 
 	successRate := calculateSuccessRate(h, target)
 	for _, crewMember := range h.Crew {
-		heistMember := GetHeistMember(crewMember.GuildID.ID(), crewMember.MemberID.ID())
+		heistMember := GetMember(crewMember.GuildID.ID(), crewMember.MemberID.ID())
 		heistMember.guildMember = crewMember.guildMember
 
 		chance := rand.Float64()
@@ -178,7 +178,7 @@ func (h *Heist) Start() (*HeistResult, error) {
 
 			heistMember.MarkEscaped()
 
-			result := &HeistMemberResult{
+			result := &MemberResult{
 				Player:       heistMember,
 				Status:       Free,
 				Message:      msg,
@@ -196,7 +196,7 @@ func (h *Heist) Start() (*HeistResult, error) {
 				heistMember.SendToJail(h.config.SentenceBase, h.config.BailBase)
 			}
 
-			result := &HeistMemberResult{
+			result := &MemberResult{
 				Player:       heistMember,
 				Status:       badResult.Result,
 				Message:      badResult.Message,
@@ -241,7 +241,7 @@ func (h *Heist) Start() (*HeistResult, error) {
 
 // getGoodResult returns a random good result message, removing it from the list of available good messages
 // to ensure that each message is only used once per heist.
-func (h *Heist) getGoodResult() *HeistMessage {
+func (h *Heist) getGoodResult() *Message {
 	if len(h.goodMessages) == 0 {
 		h.goodMessages = append(h.goodMessages, h.config.Theme.EscapedMessages...)
 	}
@@ -255,7 +255,7 @@ func (h *Heist) getGoodResult() *HeistMessage {
 
 // getBadResult returns a random bad result message, removing it from the list of available bad messages
 // to ensure that each message is only used once per heist.
-func (h *Heist) getBadResult() *HeistMessage {
+func (h *Heist) getBadResult() *Message {
 	if len(h.badMessages) == 0 {
 		h.badMessages = append(h.badMessages, h.config.Theme.ApprehendedMessages...)
 		h.badMessages = append(h.badMessages, h.config.Theme.DiedMessages...)
@@ -271,7 +271,7 @@ func (h *Heist) getBadResult() *HeistMessage {
 // getBonusAmount calculates the bonus amount for a given good message, based on the heist's boost configuration.
 // It returns the bonus amount and the updated message to reflect the new bonus amount. If there is no boost in
 // effect, it simply returns the original bonus amount and message.
-func (h *Heist) getBonusAmount(goodMessage *HeistMessage) (int, string) {
+func (h *Heist) getBonusAmount(goodMessage *Message) (int, string) {
 	if !h.config.BoostEnabled || h.config.BoostPercentage <= 0 {
 		return goodMessage.BonusAmount, goodMessage.Message
 	}
@@ -343,7 +343,7 @@ func (h *Heist) removeCurrentHeist() {
 }
 
 // heistChecks returns an error, with the appropriate message if a heist cannot be started.
-func heistChecks(h *Heist, member *HeistMember) error {
+func heistChecks(h *Heist, member *Member) error {
 	if h.State != Planning {
 		slog.Debug("heist already started",
 			slog.Any("guildID", h.GuildID),
@@ -354,7 +354,7 @@ func heistChecks(h *Heist, member *HeistMember) error {
 
 	member.UpdateStatus()
 
-	if slices.ContainsFunc(h.Crew, func(m *HeistMember) bool {
+	if slices.ContainsFunc(h.Crew, func(m *Member) bool {
 		return m.MemberID == member.MemberID
 	}) {
 		slog.Debug("member already joined heist",
@@ -447,7 +447,7 @@ func calculateBonusRate(heist *Heist, target *Target) float64 {
 }
 
 // calculateCredits determines the number of credits stolen by each surviving crew member.
-func calculateCredits(results *HeistResult) {
+func calculateCredits(results *Result) {
 	if results.Target == nil {
 		return
 	}
@@ -493,8 +493,8 @@ func (h *Heist) String() string {
 	)
 }
 
-// String returns a string representation of the HeistResult.
-func (hr *HeistResult) String() string {
+// String returns a string representation of the Result.
+func (hr *Result) String() string {
 	return fmt.Sprintf("HeistResult{Escaped: %d, Apprehended: %d, Dead: %d, Target: %v, TotalStolen: %d}",
 		len(hr.Escaped),
 		len(hr.Apprehended),
@@ -504,8 +504,8 @@ func (hr *HeistResult) String() string {
 	)
 }
 
-// String returns a string representation of the HeistMemberResult.
-func (hmr *HeistMemberResult) String() string {
+// String returns a string representation of the MemberResult.
+func (hmr *MemberResult) String() string {
 	return fmt.Sprintf("HeistMemberResult{Player: %s, Status: %s, Message: %s, StolenCredits: %d, BonusCredits: %d}",
 		hmr.Player,
 		hmr.Status,

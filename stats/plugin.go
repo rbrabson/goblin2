@@ -31,7 +31,7 @@ func NewPlugin(_ string) (*Plugin, error) {
 }
 
 // Initialize initializes the stats plugin
-func (p Plugin) Initialize(mongoDB *database.MongoDB, _ *bot.Client) {
+func (p *Plugin) Initialize(mongoDB *database.MongoDB, _ *bot.Client) {
 	db = mongoDB
 }
 

@@ -91,21 +91,6 @@ func updatePlayerStats(ps *PlayerStats) error {
 	return nil
 }
 
-// deletePlayerStats removes the player statistics for a specific member in a guild.
-func deletePlayerStats(ps *PlayerStats) error {
-	var filter bson.M
-	if ps.ID != bson.NilObjectID {
-		filter = bson.M{"_id": ps.ID}
-	} else {
-		filter = bson.M{"guild_id": ps.GuildID, "member_id": ps.MemberID, "game": ps.Game}
-	}
-	_, err := db.DeleteMany(playerStatsCollection, filter)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 // readGameStats retrieves the game statistics for a specific game in a guild.
 func readGameStats(guildID discordid.SnowflakeID, game string, day time.Time) (*GameStats, error) {
 	var gs GameStats
@@ -174,21 +159,6 @@ func updateGameStats(gs *GameStats) error {
 
 	gs.Version++
 
-	return nil
-}
-
-// deleteGameStats removes the game statistics for a specific game in a guild.
-func deleteGameStats(gs *GameStats) error {
-	var filter bson.M
-	if gs.ID != bson.NilObjectID {
-		filter = bson.M{"_id": gs.ID}
-	} else {
-		filter = bson.M{"guild_id": gs.GuildID, "game": gs.Game, "day": gs.Day}
-	}
-	_, err := db.DeleteMany(gameStatsCollection, filter)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 

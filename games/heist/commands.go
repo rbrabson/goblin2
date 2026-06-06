@@ -349,7 +349,7 @@ func waitForMembersToJoin(heist *Heist) {
 }
 
 // sendHeistResults runs the heist and sends the results to the channel.
-func sendHeistResults(e *handler.CommandEvent, heist *Heist, res *HeistResult) error {
+func sendHeistResults(e *handler.CommandEvent, heist *Heist, res *Result) error {
 	if err := heistMessage(heist); err != nil {
 		slog.Error("failed to update heist message", slog.Any("error", err))
 	}
@@ -375,7 +375,7 @@ func sendHeistResults(e *handler.CommandEvent, heist *Heist, res *HeistResult) e
 }
 
 // sendMemberResults sends the results of the heist to the channel.
-func sendMemberResults(e *handler.CommandEvent, res *HeistResult) error {
+func sendMemberResults(e *handler.CommandEvent, res *Result) error {
 	p := message.NewPrinter(language.AmericanEnglish)
 	gID := guildID(e)
 	channelID := e.Channel().ID()
@@ -461,7 +461,7 @@ func sendMemberResults(e *handler.CommandEvent, res *HeistResult) error {
 	return heistMessage(res.heist)
 }
 
-func sendWinningsTable(e *handler.CommandEvent, res *HeistResult) error {
+func sendWinningsTable(e *handler.CommandEvent, res *Result) error {
 	p := message.NewPrinter(language.AmericanEnglish)
 	channelID := e.Channel().ID()
 
@@ -488,6 +488,12 @@ func sendWinningsTable(e *handler.CommandEvent, res *HeistResult) error {
 			},
 		}),
 	)
+	defer func(table *tablewriter.Table) {
+		err := table.Close()
+		if err != nil {
+
+		}
+	}(table)
 
 	numLines := 0
 	table.Header([]string{"Player", "Loot", "Bonus", "Total"})
@@ -563,7 +569,7 @@ func joinHeist(e *handler.ComponentEvent) error {
 	}
 
 	guildMember := resolvedGuildMember(member)
-	heistMember := GetHeistMember(member.GuildID, member.User.ID)
+	heistMember := GetMember(member.GuildID, member.User.ID)
 	heistMember.SetGuildMember(guildMember)
 
 	account := bank.GetAccount(member.GuildID, heistMember.MemberID.ID())
@@ -613,7 +619,7 @@ func playerStats(_ discord.SlashCommandInteractionData, e *handler.CommandEvent)
 	p := message.NewPrinter(language.AmericanEnglish)
 
 	guildMember := resolvedGuildMember(member)
-	player := GetHeistMember(member.GuildID, member.User.ID)
+	player := GetMember(member.GuildID, member.User.ID)
 	player.SetGuildMember(guildMember)
 
 	caser := cases.Title(language.Und, cases.NoLower)
@@ -677,12 +683,12 @@ func bailoutPlayer(data discord.SlashCommandInteractionData, e *handler.CommandE
 	}
 
 	initiatingGuildMember := resolvedGuildMember(member)
-	initiatingHeistMember := GetHeistMember(member.GuildID, member.User.ID)
+	initiatingHeistMember := GetMember(member.GuildID, member.User.ID)
 	initiatingHeistMember.SetGuildMember(initiatingGuildMember)
 
 	account := bank.GetAccount(member.GuildID, member.User.ID)
 
-	heistMember := GetHeistMember(member.GuildID, targetID)
+	heistMember := GetMember(member.GuildID, targetID)
 	targetGuildMember, _ := guild.GetMemberByID(member.GuildID, targetID)
 	if targetGuildMember != nil {
 		heistMember.SetGuildMember(targetGuildMember)
@@ -840,12 +846,11 @@ func heistMessage(heist *Heist) error {
 		},
 	}
 
-	empty := ""
 	_, err := heist.interaction.Client().Rest.UpdateInteractionResponse(
 		heist.interaction.ApplicationID(),
 		heist.interaction.Token(),
 		discord.MessageUpdate{
-			Content:    &empty,
+			Content:    new(""),
 			Embeds:     &embeds,
 			Components: &components,
 		},
@@ -971,6 +976,12 @@ func listTargets(_ discord.SlashCommandInteractionData, e *handler.CommandEvent)
 			},
 		}),
 	)
+	defer func(table *tablewriter.Table) {
+		err := table.Close()
+		if err != nil {
+
+		}
+	}(table)
 
 	table.Header([]string{"ID", "Max Crew", theme.Vault, "Max " + theme.Vault, "Success Rate"})
 	for _, target := range targets {
@@ -1019,7 +1030,7 @@ func clearMember(data discord.SlashCommandInteractionData, e *handler.CommandEve
 		})
 	}
 
-	heistMember := GetHeistMember(gID, user.ID)
+	heistMember := GetMember(gID, user.ID)
 	heistMember.FreeMember()
 
 	return e.CreateMessage(discord.MessageCreate{
