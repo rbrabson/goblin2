@@ -47,26 +47,6 @@ func GetMember(guildID, memberID snowflake.ID) *Member {
 	return copyMember(member)
 }
 
-// getMember retrieves a member from the database.
-func getMember(guildID, memberID snowflake.ID) (*Member, error) {
-	key := memberCacheKey{
-		guildID:  discordid.NewSnowflakeID(guildID),
-		memberID: discordid.NewSnowflakeID(memberID),
-	}
-
-	if member, ok := memberCache.Get(key); ok {
-		return copyMember(&member), nil
-	}
-
-	member, err := readMember(key.guildID, key.memberID)
-	if err != nil {
-		return nil, err
-	}
-
-	memberCache.Set(key, *member)
-	return copyMember(member), nil
-}
-
 // newMember creates a new member with the given guild ID and member ID.
 func newMember(guildID, memberID snowflake.ID) *Member {
 	return &Member{
@@ -156,30 +136,4 @@ func (m *Member) RemoveRestriction(restriction string) error {
 // HasRestriction checks if the member has a specific restriction.
 func (m *Member) HasRestriction(restriction string) bool {
 	return slices.Contains(m.Restrictions, restriction)
-}
-
-// GetRestrictedMembers retrieves all members with a specific restriction in a guild.
-func GetRestrictedMembers(guildID, restriction string) ([]*Member, error) {
-	allMembers, err := listMembers(guildID)
-	if err != nil {
-		return nil, err
-	}
-
-	restrictedMembers := make([]*Member, 0, len(allMembers))
-	for _, member := range allMembers {
-		if member.HasRestriction(restriction) {
-			restrictedMembers = append(restrictedMembers, member)
-		}
-	}
-
-	slices.SortFunc(restrictedMembers, func(a, b *Member) int {
-		if a.MemberID < b.MemberID {
-			return -1
-		} else if a.MemberID > b.MemberID {
-			return 1
-		}
-		return 0
-	})
-
-	return restrictedMembers, nil
 }
