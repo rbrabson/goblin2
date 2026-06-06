@@ -10,8 +10,8 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// RaceMember represents a member of a guild that is assigned a racer
-type RaceMember struct {
+// Member represents a member of a guild that is assigned a racer
+type Member struct {
 	ID            bson.ObjectID         `json:"_id,omitempty" bson:"_id,omitempty"`
 	GuildID       discordid.SnowflakeID `json:"guild_id" bson:"guild_id"`
 	MemberID      discordid.SnowflakeID `json:"member_id" bson:"member_id"`
@@ -27,11 +27,11 @@ type RaceMember struct {
 	guildMember   *guild.Member         `bson:"-"`
 }
 
-// getRaceMember gets a race member. THe member is created if it doesn't exist.
-func getRaceMember(guildID discordid.SnowflakeID, guildMember *guild.Member) *RaceMember {
+// getMember gets a race member. THe member is created if it doesn't exist.
+func getMember(guildID discordid.SnowflakeID, guildMember *guild.Member) *Member {
 	member := readRaceMember(guildID, guildMember.MemberID)
 	if member == nil {
-		member = newRaceMember(guildID, guildMember.MemberID)
+		member = newMember(guildID, guildMember.MemberID)
 	}
 	var err error
 	member.guildMember, err = guild.GetMemberByID(guildID, guildMember.MemberID)
@@ -45,10 +45,10 @@ func getRaceMember(guildID discordid.SnowflakeID, guildMember *guild.Member) *Ra
 	return member
 }
 
-// newRaceMember returns a new race member for the guild. The member is saved to
+// newMember returns a new race member for the guild. The member is saved to
 // the database.
-func newRaceMember(guildID, memberID discordid.SnowflakeID) *RaceMember {
-	member := &RaceMember{
+func newMember(guildID, memberID discordid.SnowflakeID) *Member {
+	member := &Member{
 		GuildID:  guildID,
 		MemberID: memberID,
 	}
@@ -63,7 +63,7 @@ func newRaceMember(guildID, memberID discordid.SnowflakeID) *RaceMember {
 }
 
 // WinRace is called when the race member won a race.
-func (m *RaceMember) WinRace(amount int) {
+func (m *Member) WinRace(amount int) {
 	bankAccount := bank.GetAccount(m.GuildID, m.MemberID)
 	if err := bankAccount.Deposit(amount); err != nil {
 		slog.Error("error depositing race win amount",
@@ -87,7 +87,7 @@ func (m *RaceMember) WinRace(amount int) {
 }
 
 // PlaceInRace is called when the race member places (comes in 2nd) in a race.
-func (m *RaceMember) PlaceInRace(amount int) {
+func (m *Member) PlaceInRace(amount int) {
 	bankAccount := bank.GetAccount(m.GuildID, m.MemberID)
 	if err := bankAccount.Deposit(amount); err != nil {
 		slog.Error("error depositing race place amount",
@@ -111,7 +111,7 @@ func (m *RaceMember) PlaceInRace(amount int) {
 }
 
 // ShowInRace is called when the race member shows (comes in 3rd) in a race.
-func (m *RaceMember) ShowInRace(amount int) {
+func (m *Member) ShowInRace(amount int) {
 	bankAccount := bank.GetAccount(m.GuildID, m.MemberID)
 	if err := bankAccount.Deposit(amount); err != nil {
 		slog.Error("error depositing race show amount",
@@ -135,7 +135,7 @@ func (m *RaceMember) ShowInRace(amount int) {
 }
 
 // LoseRace is called when the race member fails to win, place, or show in a race.
-func (m *RaceMember) LoseRace() {
+func (m *Member) LoseRace() {
 	m.TotalRaces++
 	m.RacesLost++
 	writeRaceMember(m)
@@ -146,8 +146,8 @@ func (m *RaceMember) LoseRace() {
 	)
 }
 
-// placeBet is used to place a bet on a member of a race.
-func (m *RaceMember) placeBet(betAmount int) error {
+// PlaceBet is used to place a bet on a member of a race.
+func (m *Member) PlaceBet(betAmount int) error {
 	bankAccount := bank.GetAccount(m.GuildID, m.MemberID)
 	err := bankAccount.Withdraw(betAmount)
 	if err != nil {
@@ -167,7 +167,7 @@ func (m *RaceMember) placeBet(betAmount int) error {
 }
 
 // WinBet is used when a member wins a bet on a race.
-func (m *RaceMember) WinBet(winnings int) {
+func (m *Member) WinBet(winnings int) {
 	bankAccount := bank.GetAccount(m.GuildID, m.MemberID)
 	if err := bankAccount.Deposit(winnings); err != nil {
 		slog.Error("error depositing race win bet amount",
@@ -191,7 +191,7 @@ func (m *RaceMember) WinBet(winnings int) {
 }
 
 // LoseBet is used when a member loses a bet on a race.
-func (m *RaceMember) LoseBet() {
+func (m *Member) LoseBet() {
 	writeRaceMember(m)
 
 	slog.Debug("lost bet",
@@ -200,7 +200,7 @@ func (m *RaceMember) LoseBet() {
 	)
 }
 
-func (m *RaceMember) String() string {
+func (m *Member) String() string {
 	return fmt.Sprintf("RaceMember{GuildID: %s, MemberID: %s, RacesLost: %d, RacesPlaced: %d, RacesShowed: %d, RacesWon: %d, TotalRaces: %d, BetsEarnings: %d, BetsMade: %d, BetsWon: %d, TotalEarnings: %d}",
 		m.GuildID,
 		m.MemberID,

@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	RaceWaitingForRacers = iota
-	RaceWaitingForBets
-	RaceInProgress
-	RaceFinished
+	raceWaitingForRacers = iota
+	raceWaitingForBets
+	raceInProgress
+	raceFinished
 )
 
 const (
@@ -41,10 +41,10 @@ var (
 // betters on the outcome of the race.
 type Race struct {
 	GuildID       discordid.SnowflakeID // Guild (server) on which the race is taking place
-	Racers        []*RaceParticipant    // The list of participants who are racing
-	Betters       []*RaceBetter         // The list of members who are betting on the outcome of the race
-	RaceLegs      []*RaceLeg            // The list of legs in the race
-	RaceResult    *RaceResult           // The results of the race
+	Racers        []*Participant        // The list of participants who are racing
+	Betters       []*Better             // The list of members who are betting on the outcome of the race
+	RaceLegs      []*Leg                // The list of legs in the race
+	RaceResult    *Result               // The results of the race
 	RaceStartTime time.Time             // The time at which the race is started (first created)
 	state         int                   // The state of the race
 	raceAvatars   []*Avatar             // The avatars of the racers
@@ -53,46 +53,46 @@ type Race struct {
 	mutex         sync.Mutex            // Lock used to synchronize access to the race
 }
 
-// RaceParticipant is a member who is racing. This includes the member and the racer assigned to them.
-type RaceParticipant struct {
-	Member *RaceMember // Member who is racing
-	Racer  *Avatar     // Racer assigned to the member
+// Participant is a member who is racing. This includes the member and the racer assigned to them.
+type Participant struct {
+	Member *Member // Member who is racing
+	Racer  *Avatar // Racer assigned to the member
 }
 
-// RaceBetter is a member who is betting on the outcome of the race.
-type RaceBetter struct {
-	Member   *RaceMember      // Member who is betting on the outcome of the race
-	Racer    *RaceParticipant // Racer on which the member is betting
-	Winnings int              // Amount won by the better
+// Better is a member betting on the outcome of the race.
+type Better struct {
+	Member   *Member      // Member who is betting on the outcome of the race
+	Racer    *Participant // Racer on which the member is betting
+	Winnings int          // Amount won by the better
 }
 
-// RaceResult is the final results of the race. This includes the winner, 2nd place, and 3rd place finishers, as
+// Result is the final results of the race. This includes the winner, 2nd place, and 3rd place finishers, as
 // well as the speed at which they finished.
-type RaceResult struct {
-	Win   *RaceParticipantResult // First place in the race
-	Place *RaceParticipantResult // Second place in the race
-	Show  *RaceParticipantResult // Third place in the race
+type Result struct {
+	Win   *ParticipantResult // First place in the race
+	Place *ParticipantResult // Second place in the race
+	Show  *ParticipantResult // Third place in the race
 }
 
-type RaceParticipantResult struct {
-	Participant *RaceParticipant // Participant in the race
-	RaceTime    float64          // Time at which the participant finished
-	Winnings    int              // Amount the participant won
+type ParticipantResult struct {
+	Participant *Participant // Participant in the race
+	RaceTime    float64      // Time at which the participant finished
+	Winnings    int          // Amount the participant won
 }
 
-// RaceLeg is a single leg in a race. This covers the movement for all racers during the given turn.
-type RaceLeg struct {
-	ParticipantPositions []*RaceParticipantPosition // The results for each member in a given leg of the race
+// Leg is a single leg in a race. This covers the movement for all racers during the given turn.
+type Leg struct {
+	ParticipantPositions []*ParticipantPosition // The results for each member in a given leg of the race
 }
 
-// RaceParticipantPosition is used to track the movement of a given member during a single leg of a race.
-type RaceParticipantPosition struct {
-	RaceParticipant *RaceParticipant // Member who is racing
-	Position        int              // Position of the member on the track for a given leg of the race
-	Movement        int              // Amount of movement for the member on the track for a given leg of the race
-	Speed           float64          // Speed at which the member moved during the leg of the race
-	Turn            int              // Turn in which the member is racing
-	Finished        bool             // The member has crossed the finish line
+// ParticipantPosition is used to track the movement of a given member during a single leg of a race.
+type ParticipantPosition struct {
+	RaceParticipant *Participant // Member who is racing
+	Position        int          // Position of the member on the track for a given leg of the race
+	Movement        int          // Amount of movement for the member on the track for a given leg of the race
+	Speed           float64      // Speed at which the member moved during the leg of the race
+	Turn            int          // Turn in which the member is racing
+	Finished        bool         // The member has crossed the finish line
 }
 
 // GetCurrentRace gets the race for the guild. If a race isn't in progress, then a new one is created.
@@ -119,11 +119,11 @@ func CreateNewRace(guildID discordid.SnowflakeID) (*Race, error) {
 
 	race := &Race{
 		GuildID:       guildID,
-		Racers:        make([]*RaceParticipant, 0, 10),
-		Betters:       make([]*RaceBetter, 0, 10),
+		Racers:        make([]*Participant, 0, 10),
+		Betters:       make([]*Better, 0, 10),
 		RaceStartTime: time.Now(),
-		RaceResult:    &RaceResult{},
-		state:         RaceWaitingForRacers,
+		RaceResult:    &Result{},
+		state:         raceWaitingForRacers,
 		raceAvatars:   getRaceAvatars(guildID, config.Theme),
 		interaction:   nil,
 		config:        config,
@@ -146,9 +146,9 @@ func (r *Race) setState(state int) {
 	r.state = state
 }
 
-// addRaceParticiapnt returns a new race participant for a member in the race. The race
+// addRaceParticipant returns a new race participant for a member in the race. The race
 // participant is added to the race.
-func (r *Race) addRaceParticipant(member *RaceMember) (*RaceParticipant, error) {
+func (r *Race) addRaceParticipant(member *Member) (*Participant, error) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -169,7 +169,7 @@ func (r *Race) addRaceParticipant(member *RaceMember) (*RaceParticipant, error) 
 		return nil, errors.New("current race has changed")
 	}
 
-	participant := &RaceParticipant{
+	participant := &Participant{
 		Member: member,
 		Racer:  getRaceAvatar(r),
 	}
@@ -180,7 +180,7 @@ func (r *Race) addRaceParticipant(member *RaceMember) (*RaceParticipant, error) 
 
 // getRaceParticipant returns a racer for a given race. If the member isn't in the race, then
 // nil is returned.
-func (r *Race) getRaceParticipant(memberID discordid.SnowflakeID) *RaceParticipant {
+func (r *Race) getRaceParticipant(memberID discordid.SnowflakeID) *Participant {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -193,8 +193,8 @@ func (r *Race) getRaceParticipant(memberID discordid.SnowflakeID) *RaceParticipa
 }
 
 // getRaceBetter returns a new better for a race.
-func getRaceBetter(member *RaceMember, racer *RaceParticipant) *RaceBetter {
-	raceBetter := &RaceBetter{
+func getRaceBetter(member *Member, racer *Participant) *Better {
+	raceBetter := &Better{
 		Member: member,
 		Racer:  racer,
 	}
@@ -203,7 +203,7 @@ func getRaceBetter(member *RaceMember, racer *RaceParticipant) *RaceBetter {
 }
 
 // addBetter adds a better for the given race.
-func (r *Race) addBetter(better *RaceBetter) error {
+func (r *Race) addBetter(better *Better) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -223,11 +223,11 @@ func (r *Race) runRace(trackLength int) {
 	defer r.mutex.Unlock()
 
 	// Create the initial starting positions and add them to an initial race leg
-	raceLeg := &RaceLeg{
-		ParticipantPositions: make([]*RaceParticipantPosition, 0, len(r.Racers)),
+	raceLeg := &Leg{
+		ParticipantPositions: make([]*ParticipantPosition, 0, len(r.Racers)),
 	}
 	for _, racer := range r.Racers {
-		participantPosition := &RaceParticipantPosition{
+		participantPosition := &ParticipantPosition{
 			RaceParticipant: racer,
 			Position:        trackLength,
 		}
@@ -243,8 +243,8 @@ func (r *Race) runRace(trackLength int) {
 		turn++
 
 		// Create and add a new race leg
-		newRaceLeg := &RaceLeg{
-			ParticipantPositions: make([]*RaceParticipantPosition, 0, len(r.Racers)),
+		newRaceLeg := &Leg{
+			ParticipantPositions: make([]*ParticipantPosition, 0, len(r.Racers)),
 		}
 
 		// Run the new race leg
@@ -399,11 +399,11 @@ func getRaceAvatar(race *Race) *Avatar {
 	return avatar
 }
 
-// moveRacer returns the new race position for a particpant based on the previous position and the current turn.
-func moveRacer(previousPosition *RaceParticipantPosition, turn int) *RaceParticipantPosition {
+// moveRacer returns the new race position for a participant based on the previous position and the current turn.
+func moveRacer(previousPosition *ParticipantPosition, turn int) *ParticipantPosition {
 	// Already done with the race
 	if previousPosition.Position <= 0 {
-		newPosition := &RaceParticipantPosition{
+		newPosition := &ParticipantPosition{
 			RaceParticipant: previousPosition.RaceParticipant,
 			Finished:        true,
 			Speed:           previousPosition.Speed,
@@ -412,7 +412,7 @@ func moveRacer(previousPosition *RaceParticipantPosition, turn int) *RacePartici
 	}
 
 	movement := previousPosition.RaceParticipant.Racer.calculateMovement(turn)
-	newPosition := &RaceParticipantPosition{
+	newPosition := &ParticipantPosition{
 		RaceParticipant: previousPosition.RaceParticipant,
 		Position:        previousPosition.Position - movement,
 		Movement:        movement,
@@ -460,14 +460,14 @@ func raceStartChecks(guildID discordid.SnowflakeID) error {
 
 // raceJoinChecks checks to see if a racer is able to join the race.
 func raceJoinChecks(race *Race, memberID discordid.SnowflakeID) error {
-	if race.state == RaceWaitingForBets {
+	if race.state == raceWaitingForBets {
 		slog.Debug("betting has opened",
 			slog.Any("guildID", race.GuildID),
 		)
 		return ErrBettingHasOpened
 	}
 
-	if race.state > RaceWaitingForBets {
+	if race.state > raceWaitingForBets {
 		slog.Debug("race has started",
 			slog.Any("guildID", race.GuildID),
 		)
@@ -493,8 +493,8 @@ func raceJoinChecks(race *Race, memberID discordid.SnowflakeID) error {
 }
 
 // placeBet processes a bet placed by a member on the race
-func placeBet(race *Race, better *RaceBetter) error {
-	if err := better.Member.placeBet(race.config.BetAmount); err != nil {
+func placeBet(race *Race, better *Better) error {
+	if err := better.Member.PlaceBet(race.config.BetAmount); err != nil {
 		return err
 	}
 
@@ -514,14 +514,14 @@ func raceBetChecks(race *Race, memberID discordid.SnowflakeID) error {
 	race.mutex.Lock()
 	defer race.mutex.Unlock()
 
-	if race.state < RaceWaitingForBets {
+	if race.state < raceWaitingForBets {
 		slog.Debug("betting has not opened yet",
 			slog.Any("guildID", race.GuildID),
 		)
 		return ErrBettingNotOpened
 	}
 
-	if race.state > RaceWaitingForBets {
+	if race.state > raceWaitingForBets {
 		slog.Debug("race has started, so not accepting bets",
 			slog.Any("guildID", race.GuildID),
 		)
@@ -537,8 +537,8 @@ func raceBetChecks(race *Race, memberID discordid.SnowflakeID) error {
 	return nil
 }
 
-// calculateWinngins calculates the earnings for the racers that wins, places and shows.
-func calculateWinnings(race *Race, lastLeg *RaceLeg) {
+// calculateWinnings calculates the earnings for the racers that win, place, or show.
+func calculateWinnings(race *Race, lastLeg *Leg) {
 	source := rand.NewPCG(rand.Uint64(), rand.Uint64())
 	r := rand.New(source)
 
@@ -557,7 +557,7 @@ func calculateWinnings(race *Race, lastLeg *RaceLeg) {
 	// Assign the purse for the winner
 	if len(lastLeg.ParticipantPositions) > 0 {
 		racePosition := lastLeg.ParticipantPositions[0]
-		race.RaceResult.Win = &RaceParticipantResult{
+		race.RaceResult.Win = &ParticipantResult{
 			Participant: racePosition.RaceParticipant,
 			RaceTime:    racePosition.Speed,
 			Winnings:    prize,
@@ -567,7 +567,7 @@ func calculateWinnings(race *Race, lastLeg *RaceLeg) {
 	// Assign the purse for the second place finisher
 	if len(lastLeg.ParticipantPositions) > 1 {
 		racePosition := lastLeg.ParticipantPositions[1]
-		race.RaceResult.Place = &RaceParticipantResult{
+		race.RaceResult.Place = &ParticipantResult{
 			Participant: racePosition.RaceParticipant,
 			RaceTime:    racePosition.Speed,
 			Winnings:    int(float64(prize) * 0.75),
@@ -577,7 +577,7 @@ func calculateWinnings(race *Race, lastLeg *RaceLeg) {
 	// Assign the purse for the third place finisher
 	if len(lastLeg.ParticipantPositions) > 2 {
 		racePosition := lastLeg.ParticipantPositions[2]
-		race.RaceResult.Show = &RaceParticipantResult{
+		race.RaceResult.Show = &ParticipantResult{
 			Participant: racePosition.RaceParticipant,
 			RaceTime:    racePosition.Speed,
 			Winnings:    int(float64(prize) * 0.50),
