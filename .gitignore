@@ -29,3 +29,7 @@ yaml/
 # env file
 .env
 
+# IDE files
+.idea/
+.vscode/
+

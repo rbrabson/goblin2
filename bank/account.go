@@ -49,30 +49,30 @@ func GetAccount(guildID snowflake.ID, memberID snowflake.ID) *Account {
 	}
 
 	if account, ok := accountCache.Get(key); ok {
+		slog.Error("account found in the cache",
+			slog.Any("guildID", guildID),
+			slog.Any("memberID", memberID),
+		)
 		return copyAccount(&account)
 	}
 
 	account := readAccount(key.guildID, key.memberID)
 	if account != nil {
+		slog.Error("account not found in the cache, read from database",
+			slog.Any("guildID", guildID),
+			slog.Any("memberID", memberID),
+		)
 		accountCache.Set(key, *account)
 		return copyAccount(account)
 	}
 
-	return createNewAccount(guildID, memberID)
-}
-
-func copyAccount(account *Account) *Account {
-	if account == nil {
-		return nil
-	}
-
-	return new(*account)
-}
-
-// CloseAccountCache stops the account cache cleanup goroutine and clears all
-// cached account entries.
-func CloseAccountCache() {
-	accountCache.Destroy()
+	slog.Error("account not found in the database, creating a new one",
+		slog.Any("guildID", guildID),
+		slog.Any("memberID", memberID),
+	)
+	account = createNewAccount(guildID, memberID)
+	accountCache.Set(key, *account)
+	return copyAccount(account)
 }
 
 // createNewAccount creates a new account for the given guild and member.
@@ -85,6 +85,22 @@ func createNewAccount(guildID snowflake.ID, memberID snowflake.ID) *Account {
 		MonthlyBalance:  theme.DefaultBalance,
 		LifetimeBalance: theme.DefaultBalance,
 	}
+}
+
+// copyAccount returns a copy of the given account. This is necessary to prevent external code from modifying the
+// cached account directly, which could lead to race conditions and data inconsistencies.
+func copyAccount(account *Account) *Account {
+	if account == nil {
+		return nil
+	}
+
+	return new(*account)
+}
+
+// CloseAccountCache stops the account cache cleanup goroutine and clears all
+// cached account entries.
+func CloseAccountCache() {
+	accountCache.Destroy()
 }
 
 // GetAccounts returns a list of all accounts for the given bank
