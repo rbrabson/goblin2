@@ -26,6 +26,12 @@ func GetShop(guildID string) *Shop {
 		shop.Items = make([]*Item, 0)
 	}
 
+	cacheShopItems(shop.Items)
+
+	for i, item := range shop.Items {
+		shop.Items[i] = copyItem(item)
+	}
+
 	shopItemCmp := func(a, b *Item) int {
 		return cmp.Or(
 			cmp.Compare(a.Type, b.Type),
@@ -41,7 +47,7 @@ func GetShop(guildID string) *Shop {
 func (s *Shop) GetShopItem(name string, itemType string) *Item {
 	for _, item := range s.Items {
 		if item.Name == name && item.Type == itemType {
-			return item
+			return copyItem(item)
 		}
 	}
 

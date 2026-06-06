@@ -1,6 +1,7 @@
 package shop
 
 import (
+	"errors"
 	"fmt"
 	"goblin2/bank"
 	"goblin2/discordid"
@@ -21,17 +22,29 @@ type Item struct {
 	Duration      string                `json:"duration,omitempty" bson:"duration,omitempty"`
 	AutoRenewable bool                  `json:"auto_renewable,omitempty" bson:"auto_renewable,omitempty"`
 	MaxPurchases  int                   `json:"max_purchases,omitempty" bson:"max_purchases,omitempty"`
+	Version       int                   `json:"version" bson:"version"`
 }
 
 // getShopItem returns the shop item with the given guild ID, name, and type. If the item does
 // not exist, nil is returned.
 func getShopItem(guildID discordid.SnowflakeID, name string, itemType string) *Item {
+	key := itemCacheKey{
+		guildID:  guildID,
+		name:     name,
+		itemType: itemType,
+	}
+
+	if item, ok := itemCache.Get(key); ok {
+		return copyItem(&item)
+	}
+
 	item, err := readShopItem(guildID, name, itemType)
 	if err != nil || item == nil {
 		return nil
 	}
 
-	return item
+	itemCache.Set(key, *item)
+	return copyItem(item)
 }
 
 // newShopItem creates a new ShopItem with the given guild ID, name, description, type, and price.
@@ -53,9 +66,59 @@ func newShopItem(guildID snowflake.ID, name string, description string, itemType
 		return nil
 	}
 
+	itemCache.Set(itemKey(item), *item)
+
 	slog.Info("new shop item created", "guild", guildID, "name", name, "type", itemType)
 
-	return item
+	return copyItem(item)
+}
+
+// UpdateShopItem updates the shop item with the given mutation, retrying on version conflicts.
+func UpdateShopItem(guildID snowflake.ID, name string, itemType string, mutate func(*Item) error) error {
+	const maxRetries = 3
+
+	itemMu.RLock()
+	defer itemMu.RUnlock()
+
+	key := itemCacheKey{
+		guildID:  discordid.NewSnowflakeID(guildID),
+		name:     name,
+		itemType: itemType,
+	}
+
+	for range maxRetries {
+		item := getShopItem(key.guildID, key.name, key.itemType)
+		if item == nil {
+			return fmt.Errorf("%s `%s` not found in the shop", itemType, name)
+		}
+
+		oldKey := itemKey(item)
+
+		if err := mutate(item); err != nil {
+			return err
+		}
+
+		err := updateShopItem(item)
+		if err == nil {
+			itemCache.Delete(oldKey)
+			itemCache.Set(itemKey(item), *item)
+			return nil
+		}
+		if !errors.Is(err, bank.ErrVersionConflict) {
+			itemCache.Delete(oldKey)
+			return err
+		}
+
+		itemCache.Delete(oldKey)
+
+		slog.Warn("version conflict on shop item, retrying",
+			slog.Any("guildID", guildID),
+			slog.String("name", name),
+			slog.String("type", itemType),
+		)
+	}
+
+	return fmt.Errorf("failed to update shop item after %d retries: %w", maxRetries, bank.ErrVersionConflict)
 }
 
 // update updates the shop item with the given name and type. If the item does not exist, an error is returned.
@@ -65,19 +128,24 @@ func (item *Item) update(name string, description string, itemType string, price
 		return fmt.Errorf("no change to the shop item")
 	}
 
-	item.Name = name
-	item.Description = description
-	item.Type = itemType
-	item.Price = price
-	item.Duration = duration
-	item.AutoRenewable = autoRenewable
+	oldName := item.Name
+	oldType := item.Type
 
-	err := writeShopItem(item)
+	err := UpdateShopItem(item.GuildID.ID(), oldName, oldType, func(latest *Item) error {
+		latest.Name = name
+		latest.Description = description
+		latest.Type = itemType
+		latest.Price = price
+		latest.Duration = duration
+		latest.AutoRenewable = autoRenewable
+		return nil
+	})
 	if err != nil {
 		slog.Error("unable to update shop item to the database", "guild", item.GuildID, "name", item.Name, "type", item.Type, "error", err)
 		return fmt.Errorf("unable to add item")
 	}
-	slog.Info("shop item updated", "guild", item.GuildID, "name", item.Name, "type", item.Type)
+
+	slog.Info("shop item updated", "guild", item.GuildID, "name", name, "type", itemType)
 	return nil
 }
 
@@ -94,27 +162,27 @@ func (item *Item) addToShop(s *Shop) error {
 		return fmt.Errorf("unable to add %s to shop", item.Type)
 	}
 
-	s.Items = append(s.Items, item)
+	itemCache.Set(itemKey(item), *item)
+	s.Items = append(s.Items, copyItem(item))
 	slog.Info("shop item added to shop", "guild", item.GuildID, "name", item.Name, "type", item.Type)
 	return nil
 }
 
 // removeFromShop removes the shop item from the given shop. If the item does not exist in the shop, an error is returned.
 func (item *Item) removeFromShop(s *Shop) error {
-	// Check if the item exists in the shop
 	existingItem := s.GetShopItem(item.Name, item.Type)
 	if existingItem == nil {
 		return fmt.Errorf("%s does not exist in the shop", item.Type)
 	}
 
-	// Remove the item from the database
 	err := deleteShopItem(item)
 	if err != nil {
 		slog.Error("unable to remove shop item from the database", "guild", item.GuildID, "name", item.Name, "type", item.Type, "error", err)
 		return fmt.Errorf("unable to remove %s from shop", item.Type)
 	}
 
-	// Remove the item from the shop's item slice
+	itemCache.Delete(itemKey(item))
+
 	for i, it := range s.Items {
 		if it.ID == item.ID {
 			s.Items = append(s.Items[:i], s.Items[i+1:]...)
@@ -151,7 +219,7 @@ func createChecks(guildID snowflake.ID, itemName string, itemType string) error 
 
 // purchaseChecks performs checks to see if a member can purchase the shop item.
 func purchaseChecks(guildID snowflake.ID, memberID snowflake.ID, itemType string, itemName string) error {
-	purchase, _ := readPurchase(discordid.NewSnowflakeID(guildID), discordid.SnowflakeID(memberID), itemName, itemType)
+	purchase := getPurchase(discordid.NewSnowflakeID(guildID), discordid.NewSnowflakeID(memberID), itemName, itemType)
 	if purchase != nil && !purchase.IsExpired {
 		slog.Debug("item already purchased", "guild", guildID, "member", memberID, "name", itemName, "type", itemType)
 		return fmt.Errorf("you have already purchased %s `%s`", itemType, itemName)

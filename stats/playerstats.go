@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"errors"
 	"fmt"
 	"goblin2/discordid"
 	"log/slog"
@@ -22,6 +23,7 @@ var (
 )
 
 // PlayerStats holds the statistics of a player in a game.
+// PlayerStats holds the statistics of a player in a game.
 type PlayerStats struct {
 	ID                  bson.ObjectID         `bson:"_id,omitempty"`
 	GuildID             discordid.SnowflakeID `bson:"guild_id"`
@@ -30,6 +32,7 @@ type PlayerStats struct {
 	FirstPlayed         time.Time             `bson:"first_played"`
 	LastPlayed          time.Time             `bson:"last_played"`
 	NumberOfTimesPlayed int                   `bson:"number_of_times_played"`
+	Version             int                   `bson:"version"`
 }
 
 // PlayerRetention holds the retention statistics of players in a game.
@@ -62,7 +65,7 @@ func newPlayerStats(guildID snowflake.ID, memberID snowflake.ID, game string) *P
 		LastPlayed:          time.Time{},
 		NumberOfTimesPlayed: 0,
 	}
-	err := writePlayerStats(ps)
+	err := writeNewPlayerStats(ps)
 	if err != nil {
 		slog.Error("failed to write player stats",
 			slog.String("guild_id", guildID.String()),
@@ -73,6 +76,37 @@ func newPlayerStats(guildID snowflake.ID, memberID snowflake.ID, game string) *P
 		return nil
 	}
 	return ps
+}
+
+// updatePlayerStatsWithRetry updates player stats using optimistic locking.
+func updatePlayerStatsWithRetry(guildID snowflake.ID, memberID snowflake.ID, game string, update func(*PlayerStats)) (*PlayerStats, error) {
+	const maxRetries = 3
+
+	for range maxRetries {
+		ps := getPlayerStats(guildID, memberID, game)
+		if ps == nil {
+			return nil, fmt.Errorf("unable to get or create player stats")
+		}
+
+		update(ps)
+
+		err := updatePlayerStats(ps)
+		if err == nil {
+			return ps, nil
+		}
+		if !errors.Is(err, ErrVersionConflict) {
+			return nil, err
+		}
+
+		slog.Debug("retrying player stats update after version conflict",
+			slog.Any("guild_id", guildID),
+			slog.Any("member_id", memberID),
+			slog.String("game", game),
+			slog.Int("version", ps.Version),
+		)
+	}
+
+	return nil, fmt.Errorf("failed to update player stats after %d retries: %w", maxRetries, ErrVersionConflict)
 }
 
 // GetUniquePlayers retrieves the number of unique players for a specific guild, game, and date range.
@@ -127,7 +161,7 @@ func GetUniquePlayers(guildID string, game string, startDate time.Time, endDate 
 		{Key: "$count", Value: "unique_players"},
 	})
 
-	docs, err := db.Aggregate(PlayerStatsCollection, pipeline)
+	docs, err := db.Aggregate(playerStatsCollection, pipeline)
 	if err != nil {
 		slog.Error("failed to get unique players count",
 			slog.String("guild_id", guildID),
@@ -274,7 +308,7 @@ func GetPlayerRetention(guildID string, game string, after time.Time, inactiveDu
 		}},
 	})
 
-	docs, err := db.Aggregate(PlayerStatsCollection, pipeline)
+	docs, err := db.Aggregate(playerStatsCollection, pipeline)
 	if err != nil {
 		return nil, err
 	}
@@ -377,7 +411,7 @@ func getAggregatePlayerStats(guildID string, memberID string, game string) (*Pla
 		{Key: "$limit", Value: 1},
 	})
 
-	docs, err := db.Aggregate(PlayerStatsCollection, pipeline)
+	docs, err := db.Aggregate(playerStatsCollection, pipeline)
 	if err != nil {
 		slog.Error("failed to get aggregated player stats",
 			slog.String("guild_id", guildID),
@@ -491,7 +525,7 @@ func getPlayerStatsForMostActiveMembers(guildID string, game string) []*PlayerSt
 		}},
 	})
 
-	docs, err := db.Aggregate(PlayerStatsCollection, pipeline)
+	docs, err := db.Aggregate(playerStatsCollection, pipeline)
 	if err != nil {
 		slog.Error("failed to get most active members",
 			slog.String("guild_id", guildID),

@@ -1,6 +1,8 @@
 package stats
 
 import (
+	"errors"
+	"fmt"
 	"goblin2/discordid"
 	"log/slog"
 	"time"
@@ -18,6 +20,7 @@ type GameStats struct {
 	UniquePlayers int                   `bson:"unique_players"`
 	TotalPlayers  int                   `bson:"total_players"`
 	GamesPlayed   int                   `bson:"games_played"`
+	Version       int                   `bson:"version"`
 }
 
 // GamesPlayed represents the statistics for games played in a guild on a specific day.
@@ -45,11 +48,52 @@ func getGameStats(guildID snowflake.ID, game string, day time.Time) *GameStats {
 
 // newGameStats creates a new GameStats instance for a specific game in a guild on a specific day.
 func newGameStats(guildID snowflake.ID, game string, day time.Time) *GameStats {
-	return &GameStats{
+	gs := &GameStats{
 		GuildID: discordid.NewSnowflakeID(guildID),
 		Game:    game,
 		Day:     day,
 	}
+	if err := writeNewGameStats(gs); err != nil {
+		slog.Error("failed to write game stats",
+			slog.Any("guild_id", guildID),
+			slog.String("game", game),
+			slog.Time("day", day),
+			slog.Any("error", err),
+		)
+		return nil
+	}
+	return gs
+}
+
+// updateGameStatsWithRetry updates game stats using optimistic locking.
+func updateGameStatsWithRetry(guildID snowflake.ID, game string, day time.Time, update func(*GameStats)) (*GameStats, error) {
+	const maxRetries = 3
+
+	for range maxRetries {
+		gs := getGameStats(guildID, game, day)
+		if gs == nil {
+			return nil, fmt.Errorf("unable to get or create game stats")
+		}
+
+		update(gs)
+
+		err := updateGameStats(gs)
+		if err == nil {
+			return gs, nil
+		}
+		if !errors.Is(err, ErrVersionConflict) {
+			return nil, err
+		}
+
+		slog.Debug("retrying game stats update after version conflict",
+			slog.Any("guild_id", guildID),
+			slog.String("game", game),
+			slog.Time("day", day),
+			slog.Int("version", gs.Version),
+		)
+	}
+
+	return nil, fmt.Errorf("failed to update game stats after %d retries: %w", maxRetries, ErrVersionConflict)
 }
 
 // UpdateGameStats updates the game statistics for a specific game in a guild.
@@ -61,30 +105,15 @@ func UpdateGameStats(guildID snowflake.ID, game string, memberIDs []snowflake.ID
 
 	var newUniquePlayersForGame, newUniquePlayersForAllGames int
 	for _, memberID := range memberIDs {
-		ps := getPlayerStats(guildID, memberID, game)
-		if ps == nil {
-			slog.Error("unable to get or create player stats",
-				slog.Any("guild_id", guildID),
-				slog.Any("member_id", memberID),
-				slog.String("game", game),
-			)
-			continue
-		}
+		ps, err := updatePlayerStatsWithRetry(guildID, memberID, game, func(ps *PlayerStats) {
+			// Check if this is the first time the player has played this game today.
+			if ps.LastPlayed.Before(todayTime) {
+				newUniquePlayersForGame++
+			}
 
-		// Check if this is the first time the player has played this game today
-		// and if this is the first time the player has played any game today
-		if ps.LastPlayed.Before(todayTime) {
-			newUniquePlayersForGame++
-		}
-		lastDatePlayed := getLastDatePlayed(guildID, memberID)
-		if lastDatePlayed.Before(todayTime) {
-			newUniquePlayersForAllGames++
-		}
-
-		ps.LastPlayed = todayTime
-		ps.NumberOfTimesPlayed++
-
-		err := writePlayerStats(ps)
+			ps.LastPlayed = todayTime
+			ps.NumberOfTimesPlayed++
+		})
 		if err != nil {
 			slog.Error("failed to update player stats",
 				slog.Any("guild_id", guildID),
@@ -92,6 +121,11 @@ func UpdateGameStats(guildID snowflake.ID, game string, memberIDs []snowflake.ID
 				slog.String("game", game),
 				slog.Any("error", err))
 			return
+		}
+
+		lastDatePlayed := getLastDatePlayed(guildID, memberID)
+		if lastDatePlayed.Before(todayTime) {
+			newUniquePlayersForAllGames++
 		}
 
 		slog.Debug("player stats updated",
@@ -103,17 +137,16 @@ func UpdateGameStats(guildID snowflake.ID, game string, memberIDs []snowflake.ID
 		)
 	}
 
-	gs := getGameStats(guildID, game, todayTime)
-	gs.UniquePlayers += newUniquePlayersForGame
-	gs.TotalPlayers += len(memberIDs)
-	gs.GamesPlayed++
-
-	err := writeGameStats(gs)
+	gs, err := updateGameStatsWithRetry(guildID, game, todayTime, func(gs *GameStats) {
+		gs.UniquePlayers += newUniquePlayersForGame
+		gs.TotalPlayers += len(memberIDs)
+		gs.GamesPlayed++
+	})
 	if err != nil {
 		slog.Error("failed to update server stats",
 			slog.Any("guild_id", guildID),
 			slog.String("game", game),
-			slog.Time("day", gs.Day),
+			slog.Time("day", todayTime),
 			slog.Any("error", err))
 		return
 	}
@@ -130,16 +163,16 @@ func UpdateGameStats(guildID snowflake.ID, game string, memberIDs []snowflake.ID
 	)
 
 	// Update unique players for all games
-	gsAll := getGameStats(guildID, "all", todayTime)
-	gsAll.UniquePlayers += newUniquePlayersForAllGames
-	gsAll.TotalPlayers += len(memberIDs)
-	gsAll.GamesPlayed++
-
-	if err := writeGameStats(gsAll); err != nil {
+	gsAll, err := updateGameStatsWithRetry(guildID, "all", todayTime, func(gsAll *GameStats) {
+		gsAll.UniquePlayers += newUniquePlayersForAllGames
+		gsAll.TotalPlayers += len(memberIDs)
+		gsAll.GamesPlayed++
+	})
+	if err != nil {
 		slog.Error("failed to update server stats for all games",
 			slog.Any("guild_id", guildID),
 			slog.String("game", "all"),
-			slog.Time("day", gsAll.Day),
+			slog.Time("day", todayTime),
 			slog.Any("error", err))
 		return
 	}
@@ -182,7 +215,7 @@ func GetGamesPlayed(guildID string, game string, startDate time.Time, endDate ti
 		}}},
 	}
 
-	docs, err := db.Aggregate(GameStatsCollection, pipeline)
+	docs, err := db.Aggregate(gameStatsCollection, pipeline)
 	if err != nil {
 		return nil, err
 	}

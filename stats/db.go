@@ -12,9 +12,8 @@ import (
 )
 
 const (
-	PlayerStatsCollection = "player_stats"
-	ServerStatsCollection = "server_stats"
-	GameStatsCollection   = "game_stats"
+	playerStatsCollection = "player_stats"
+	gameStatsCollection   = "server_stats"
 )
 
 var (
@@ -25,27 +24,70 @@ var (
 func readPlayerStats(guildID discordid.SnowflakeID, memberID discordid.SnowflakeID, game string) (*PlayerStats, error) {
 	var ps PlayerStats
 	filter := bson.M{"guild_id": guildID, "member_id": memberID, "game": game}
-	err := db.FindOne(PlayerStatsCollection, filter, &ps)
+	err := db.FindOne(playerStatsCollection, filter, &ps)
 	if err != nil {
 		return nil, err
 	}
 	return &ps, nil
 }
 
-// writePlayerStats updates or inserts the player statistics for a specific member in a guild.
-func writePlayerStats(ps *PlayerStats) error {
-	var filter bson.M
-	if ps.ID != bson.NilObjectID {
-		filter = bson.M{"_id": ps.ID}
-	} else {
-		filter = bson.M{"guild_id": ps.GuildID, "member_id": ps.MemberID, "game": ps.Game}
-	}
+// writeNewPlayerStats inserts new player statistics for a specific member in a guild.
+func writeNewPlayerStats(ps *PlayerStats) error {
+	ps.Version = 0
 
-	_, err := db.ReplaceOneUpsert(PlayerStatsCollection, filter, ps)
+	result, err := db.InsertOne(playerStatsCollection, ps)
 	if err != nil {
-		slog.Debug("writing player stats", "collection", PlayerStatsCollection, "PlayerStats", ps, "filter", filter, "error", err)
+		slog.Debug("writing new player stats", "collection", playerStatsCollection, "PlayerStats", ps, "error", err)
 		return err
 	}
+
+	if id, ok := result.InsertedID.(bson.ObjectID); ok {
+		ps.ID = id
+	}
+
+	return nil
+}
+
+// updatePlayerStats updates player statistics using optimistic locking via the version field.
+// Returns ErrVersionConflict if another writer updated the stats since they were read.
+func updatePlayerStats(ps *PlayerStats) error {
+	filter := bson.M{
+		"guild_id":  ps.GuildID,
+		"member_id": ps.MemberID,
+		"game":      ps.Game,
+	}
+
+	if ps.Version == 0 {
+		filter["$or"] = bson.A{
+			bson.M{"version": ps.Version},
+			bson.M{"version": bson.M{"$exists": false}},
+		}
+	} else {
+		filter["version"] = ps.Version
+	}
+
+	update := bson.M{
+		"$set": bson.M{
+			"first_played":           ps.FirstPlayed,
+			"last_played":            ps.LastPlayed,
+			"number_of_times_played": ps.NumberOfTimesPlayed,
+		},
+		"$inc": bson.M{
+			"version": 1,
+		},
+	}
+
+	result, err := db.UpdateOne(playerStatsCollection, filter, update)
+	if err != nil {
+		slog.Debug("updating player stats", "collection", playerStatsCollection, "PlayerStats", ps, "filter", filter, "error", err)
+		return err
+	}
+	if result.MatchedCount == 0 {
+		return ErrVersionConflict
+	}
+
+	ps.Version++
+
 	return nil
 }
 
@@ -57,7 +99,7 @@ func deletePlayerStats(ps *PlayerStats) error {
 	} else {
 		filter = bson.M{"guild_id": ps.GuildID, "member_id": ps.MemberID, "game": ps.Game}
 	}
-	_, err := db.DeleteMany(PlayerStatsCollection, filter)
+	_, err := db.DeleteMany(playerStatsCollection, filter)
 	if err != nil {
 		return err
 	}
@@ -68,27 +110,70 @@ func deletePlayerStats(ps *PlayerStats) error {
 func readGameStats(guildID discordid.SnowflakeID, game string, day time.Time) (*GameStats, error) {
 	var gs GameStats
 	filter := bson.M{"guild_id": guildID, "game": game, "day": day}
-	err := db.FindOne(GameStatsCollection, filter, &gs)
+	err := db.FindOne(gameStatsCollection, filter, &gs)
 	if err != nil {
 		return nil, err
 	}
 	return &gs, nil
 }
 
-// writeGameStats updates or inserts the game statistics a guild.
-func writeGameStats(gs *GameStats) error {
-	var filter bson.M
-	if gs.ID != bson.NilObjectID {
-		filter = bson.M{"_id": gs.ID}
-	} else {
-		filter = bson.M{"guild_id": gs.GuildID, "game": gs.Game, "day": gs.Day}
-	}
+// writeNewGameStats inserts new game statistics for a guild.
+func writeNewGameStats(gs *GameStats) error {
+	gs.Version = 0
 
-	_, err := db.ReplaceOneUpsert(GameStatsCollection, filter, gs)
+	result, err := db.InsertOne(gameStatsCollection, gs)
 	if err != nil {
-		slog.Debug("writing game stats", "collection", GameStatsCollection, "GameStats", gs, "filter", filter, "error", err)
+		slog.Debug("writing new game stats", "collection", gameStatsCollection, "GameStats", gs, "error", err)
 		return err
 	}
+
+	if id, ok := result.InsertedID.(bson.ObjectID); ok {
+		gs.ID = id
+	}
+
+	return nil
+}
+
+// updateGameStats updates game statistics using optimistic locking via the version field.
+// Returns ErrVersionConflict if another writer updated the stats since they were read.
+func updateGameStats(gs *GameStats) error {
+	filter := bson.M{
+		"guild_id": gs.GuildID,
+		"game":     gs.Game,
+		"day":      gs.Day,
+	}
+
+	if gs.Version == 0 {
+		filter["$or"] = bson.A{
+			bson.M{"version": gs.Version},
+			bson.M{"version": bson.M{"$exists": false}},
+		}
+	} else {
+		filter["version"] = gs.Version
+	}
+
+	update := bson.M{
+		"$set": bson.M{
+			"unique_players": gs.UniquePlayers,
+			"total_players":  gs.TotalPlayers,
+			"games_played":   gs.GamesPlayed,
+		},
+		"$inc": bson.M{
+			"version": 1,
+		},
+	}
+
+	result, err := db.UpdateOne(gameStatsCollection, filter, update)
+	if err != nil {
+		slog.Debug("updating game stats", "collection", gameStatsCollection, "GameStats", gs, "filter", filter, "error", err)
+		return err
+	}
+	if result.MatchedCount == 0 {
+		return ErrVersionConflict
+	}
+
+	gs.Version++
+
 	return nil
 }
 
@@ -100,7 +185,7 @@ func deleteGameStats(gs *GameStats) error {
 	} else {
 		filter = bson.M{"guild_id": gs.GuildID, "game": gs.Game, "day": gs.Day}
 	}
-	_, err := db.DeleteMany(GameStatsCollection, filter)
+	_, err := db.DeleteMany(gameStatsCollection, filter)
 	if err != nil {
 		return err
 	}
@@ -129,7 +214,7 @@ func getLastDatePlayed(guildID snowflake.ID, memberID snowflake.ID) time.Time {
 		},
 	}
 
-	docs, err := db.Aggregate(PlayerStatsCollection, pipeline)
+	docs, err := db.Aggregate(playerStatsCollection, pipeline)
 	if err != nil {
 		slog.Error("failed to get last date played",
 			slog.Any("guild_id", guildID),
@@ -196,7 +281,7 @@ func getFirstGameDate(guildID string, game string) time.Time {
 		}
 	}
 
-	docs, err := db.Aggregate(PlayerStatsCollection, pipeline)
+	docs, err := db.Aggregate(playerStatsCollection, pipeline)
 	if err != nil {
 		slog.Error("failed to get first game date",
 			slog.String("guild_id", guildID),
@@ -263,7 +348,7 @@ func getFirstServerGameDate(guildID string, game string) time.Time {
 		}
 	}
 
-	docs, err := db.Aggregate(GameStatsCollection, pipeline)
+	docs, err := db.Aggregate(gameStatsCollection, pipeline)
 	if err != nil {
 		slog.Error("failed to get first game date",
 			slog.String("guild_id", guildID),

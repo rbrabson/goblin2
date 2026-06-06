@@ -35,6 +35,7 @@ type Purchase struct {
 	ExpiresOn   time.Time             `json:"expires_on" bson:"expires_on"`
 	AutoRenew   bool                  `json:"auto_renew" bson:"auto_renew"`
 	IsExpired   bool                  `json:"is_expired" bson:"is_expired"`
+	Version     int                   `json:"version" bson:"version"`
 }
 
 // GetAllPurchases returns all the purchases made by a member in the guild.
@@ -44,6 +45,8 @@ func GetAllPurchases(guildID string, memberID string) []*Purchase {
 		slog.Error("unable to read purchases from the database", "guildID", guildID, "memberID", memberID, "error", err)
 		return nil
 	}
+
+	cachePurchases(purchases)
 
 	for _, purchase := range purchases {
 		purchase.HasExpired()
@@ -82,6 +85,78 @@ func GetAllPurchases(guildID string, memberID string) []*Purchase {
 	slices.SortFunc(purchases, purchaseCmp)
 
 	return purchases
+}
+
+func getPurchase(guildID discordid.SnowflakeID, memberID discordid.SnowflakeID, itemName string, itemType string) *Purchase {
+	key := purchaseCacheKey{
+		guildID:   guildID,
+		memberID:  memberID,
+		itemName:  itemName,
+		itemType:  itemType,
+		isExpired: false,
+	}
+
+	if purchase, ok := purchaseCache.Get(key); ok {
+		return copyPurchase(&purchase)
+	}
+
+	purchase, err := readPurchase(guildID, memberID, itemName, itemType)
+	if err != nil || purchase == nil {
+		return nil
+	}
+
+	purchaseCache.Set(key, *purchase)
+	return copyPurchase(purchase)
+}
+
+func UpdatePurchase(purchase *Purchase, mutate func(*Purchase) error) error {
+	const maxRetries = 3
+
+	purchaseMu.RLock()
+	defer purchaseMu.RUnlock()
+
+	key := purchaseKey(purchase)
+
+	for range maxRetries {
+		latest := getPurchase(purchase.GuildID, purchase.MemberID, purchase.Item.Name, purchase.Item.Type)
+		if latest == nil {
+			latest = copyPurchase(purchase)
+		}
+
+		oldKey := purchaseKey(latest)
+
+		if err := mutate(latest); err != nil {
+			return err
+		}
+
+		var err error
+		if latest.ID.IsZero() {
+			err = writePurchase(latest)
+		} else {
+			err = updatePurchase(latest)
+		}
+
+		if err == nil {
+			purchaseCache.Delete(oldKey)
+			purchaseCache.Set(purchaseKey(latest), *latest)
+			return nil
+		}
+		if !errors.Is(err, bank.ErrVersionConflict) {
+			purchaseCache.Delete(key)
+			return err
+		}
+
+		purchaseCache.Delete(key)
+
+		slog.Warn("version conflict on shop purchase, retrying",
+			slog.Any("guildID", purchase.GuildID),
+			slog.Any("memberID", purchase.MemberID),
+			slog.String("itemName", purchase.Item.Name),
+			slog.String("itemType", purchase.Item.Type),
+		)
+	}
+
+	return fmt.Errorf("failed to update shop purchase after %d retries: %w", maxRetries, bank.ErrVersionConflict)
 }
 
 // PurchaseItem creates a new Purchase with the given guild ID, member ID, and a purchasable
@@ -176,11 +251,15 @@ func (p *Purchase) HasExpired() bool {
 	}
 
 	if p.IsExpired != oldIsExpired {
-		if err := writePurchase(p); err != nil {
+		if err := UpdatePurchase(p, func(latest *Purchase) error {
+			latest.IsExpired = p.IsExpired
+			return nil
+		}); err != nil {
 			slog.Error("unable to write purchase to the database", "guildID", p.GuildID, "memberID", p.MemberID, "itemName", p.Item.Name, "itemType", p.Item.Type, "error", err)
 		}
 
 		g, err := client.Rest.GetGuild(p.GuildID.ID(), false)
+
 		var msg string
 		if err == nil && g.Name != "" {
 			msg = fmt.Sprintf("Your purchase of %s `%s` on `%s` has expired", p.Item.Type, p.Item.Name, g.Name)
@@ -258,8 +337,10 @@ func (p *Purchase) Update(autoRenew bool) error {
 		return fmt.Errorf("purchase already has the same autoRenew value")
 	}
 
-	p.AutoRenew = autoRenew
-	err := writePurchase(p)
+	err := UpdatePurchase(p, func(latest *Purchase) error {
+		latest.AutoRenew = autoRenew
+		return nil
+	})
 	if err != nil {
 		slog.Error("unable to update purchase autorenew in the database", "guildID", p.GuildID, "memberID", p.MemberID, "itemName", p.Item.Name, "autoRenew", autoRenew, "error", err)
 		return fmt.Errorf("unable to update purchase in the database: %w", err)
