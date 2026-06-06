@@ -1,13 +1,30 @@
 package bank
 
 import (
+	"errors"
 	"fmt"
 	"goblin2/discordid"
+	"goblin2/internal/cache"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
+)
+
+const (
+	bankCacheTTL             = 30 * time.Minute
+	bankCacheCleanupInterval = 5 * time.Minute
+)
+
+type bankCacheKey struct {
+	guildID discordid.SnowflakeID
+}
+
+var (
+	bankCache = cache.New[bankCacheKey, Bank](bankCacheTTL, bankCacheCleanupInterval)
+	bankMu    sync.RWMutex
 )
 
 // A Bank is the repository for all bank accounts for a given guild.
@@ -17,136 +34,163 @@ type Bank struct {
 	Name           string                `bson:"bank_name"`
 	Currency       string                `bson:"currency"`
 	DefaultBalance int                   `bson:"default_balance"`
-	mutex          *sync.RWMutex         `bson:"-"`
+	Version        int                   `bson:"version"`
 }
 
 // GetBank returns the bank for the given guild.
 func GetBank(guildID snowflake.ID) *Bank {
-	// TODO: implement bank retrieval logic
-	b := &Bank{
-		GuildID: discordid.NewSnowflakeID(guildID),
-		mutex:   &sync.RWMutex{},
+	key := bankCacheKey{
+		guildID: discordid.NewSnowflakeID(guildID),
 	}
-	return b
+
+	if bank, ok := bankCache.Get(key); ok {
+		return copyBank(&bank)
+	}
+
+	bank := readBank(key.guildID)
+	if bank != nil {
+		bankCache.Set(key, *bank)
+		return copyBank(bank)
+	}
+
+	bank = createDefaultBank(guildID)
+	bankCache.Set(key, *bank)
+	return copyBank(bank)
 }
 
-// snapshot returns a copy of the bank with an independent mutex.
-func (b *Bank) snapshot() *Bank {
-	b.mutex.RLock()
-	defer b.mutex.RUnlock()
-
-	return b.snapshotLocked()
-}
-
-// snapshotLocked returns a copy of the bank's persisted fields.
-// The caller must already hold b.mutex.
-func (b *Bank) snapshotLocked() *Bank {
+// createDefaultBank creates a new bank for the given guild using the configured theme defaults.
+func createDefaultBank(guildID snowflake.ID) *Bank {
 	return &Bank{
-		ID:             b.ID,
-		GuildID:        b.GuildID,
-		Name:           b.Name,
-		Currency:       b.Currency,
-		DefaultBalance: b.DefaultBalance,
-		mutex:          &sync.RWMutex{},
+		GuildID:        discordid.NewSnowflakeID(guildID),
+		Name:           theme.BankName,
+		Currency:       theme.Currency,
+		DefaultBalance: theme.DefaultBalance,
 	}
+}
+
+// copyBank returns a copy of the given bank. This prevents callers from mutating the cached bank directly.
+func copyBank(bank *Bank) *Bank {
+	if bank == nil {
+		return nil
+	}
+
+	return new(*bank)
+}
+
+// CloseBankCache stops the bank cache cleanup goroutine and clears all cached bank entries.
+func CloseBankCache() {
+	bankCache.Destroy()
+}
+
+// UpdateBank updates the bank with the given mutation, retrying on version conflicts.
+func UpdateBank(guildID snowflake.ID, mutate func(*Bank) error) error {
+	const maxRetries = 3
+
+	bankMu.RLock()
+	defer bankMu.RUnlock()
+
+	key := bankCacheKey{
+		guildID: discordid.NewSnowflakeID(guildID),
+	}
+
+	for range maxRetries {
+		bank := GetBank(guildID)
+
+		if err := mutate(bank); err != nil {
+			return err
+		}
+
+		var err error
+		if bank.ID.IsZero() {
+			err = writeBank(bank)
+		} else {
+			err = updateBank(bank)
+		}
+
+		if err == nil {
+			bankCache.Set(key, *bank)
+			return nil
+		}
+		if !errors.Is(err, ErrVersionConflict) {
+			bankCache.Delete(key)
+			return err
+		}
+
+		bankCache.Delete(key)
+
+		slog.Warn("version conflict on bank, retrying",
+			slog.Any("guildID", guildID),
+		)
+	}
+
+	return fmt.Errorf("failed to update bank after %d retries: %w", maxRetries, ErrVersionConflict)
 }
 
 // SetDefaultBalance sets the default balance for the bank.
 func (b *Bank) SetDefaultBalance(balance int) {
-	b.mutex.Lock()
+	if err := UpdateBank(b.GuildID.ID(), func(bank *Bank) error {
+		if balance == bank.DefaultBalance {
+			return nil
+		}
 
-	if balance == b.DefaultBalance {
-		b.mutex.Unlock()
-		return
-	}
-
-	b.DefaultBalance = balance
-	bankCopy := b.snapshotLocked()
-	b.mutex.Unlock()
-
-	if err := updateBankDefaultBalance(bankCopy); err != nil {
+		bank.DefaultBalance = balance
+		slog.Info("set default balance",
+			slog.Any("guildID", bank.GuildID),
+			slog.Int("balance", bank.DefaultBalance),
+		)
+		return nil
+	}); err != nil {
 		slog.Error("error writing bank",
-			slog.Any("guildID", bankCopy.GuildID),
+			slog.Any("guildID", b.GuildID),
 			slog.Any("error", err),
 		)
-		return
 	}
-
-	slog.Info("set default balance",
-		slog.Any("guildID", bankCopy.GuildID),
-		slog.Int("balance", bankCopy.DefaultBalance),
-	)
 }
 
 // SetName sets the name of the bank.
 func (b *Bank) SetName(name string) {
-	b.mutex.Lock()
+	if err := UpdateBank(b.GuildID.ID(), func(bank *Bank) error {
+		if name == bank.Name {
+			return nil
+		}
 
-	if name == b.Name {
-		b.mutex.Unlock()
-		return
-	}
-
-	b.Name = name
-	bankCopy := b.snapshotLocked()
-	b.mutex.Unlock()
-
-	if err := updateBankName(bankCopy); err != nil {
+		bank.Name = name
+		slog.Info("set bank name",
+			slog.String("name", bank.Name),
+			slog.Any("guildID", bank.GuildID),
+		)
+		return nil
+	}); err != nil {
 		slog.Error("error writing bank",
-			slog.Any("guildID", bankCopy.GuildID),
+			slog.Any("guildID", b.GuildID),
 			slog.Any("error", err),
 		)
-		return
 	}
-
-	slog.Info("set bank name",
-		slog.String("name", bankCopy.Name),
-		slog.Any("guildID", bankCopy.GuildID),
-	)
 }
 
 // SetCurrency sets the currency used by the bank.
 func (b *Bank) SetCurrency(currency string) {
-	b.mutex.Lock()
+	if err := UpdateBank(b.GuildID.ID(), func(bank *Bank) error {
+		if currency == bank.Currency {
+			return nil
+		}
 
-	if currency == b.Currency {
-		b.mutex.Unlock()
-		return
-	}
-
-	b.Currency = currency
-	bankCopy := b.snapshotLocked()
-	b.mutex.Unlock()
-
-	if err := updateBankCurrency(bankCopy); err != nil {
+		bank.Currency = currency
+		slog.Info("set currency",
+			slog.Any("guildID", bank.GuildID),
+			slog.String("currency", bank.Currency),
+		)
+		return nil
+	}); err != nil {
 		slog.Error("error writing bank",
-			slog.Any("guildID", bankCopy.GuildID),
+			slog.Any("guildID", b.GuildID),
 			slog.Any("error", err),
 		)
-		return
 	}
-
-	slog.Info("set currency",
-		slog.Any("guildID", bankCopy.GuildID),
-		slog.String("currency", bankCopy.Currency),
-	)
-}
-
-// lock and unlock are used to lock and unlock the bank.
-func (b *Bank) lock() {
-	b.mutex.Lock()
-}
-
-// unlock is used to unlock the bank.
-func (b *Bank) unlock() {
-	b.mutex.Unlock()
 }
 
 // String returns a string representation of the Bank.
 func (b *Bank) String() string {
-	b.mutex.RLock()
-	defer b.mutex.RUnlock()
-
 	return fmt.Sprintf("Bank{ID: %s, GuildID: %s, Name: %s, Currency: %s, DefaultBalance: %d}",
 		b.ID.Hex(),
 		b.GuildID,

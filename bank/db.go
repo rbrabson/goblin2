@@ -4,7 +4,6 @@ import (
 	"goblin2/database"
 	"goblin2/discordid"
 	"log/slog"
-	"sync"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -20,112 +19,82 @@ var (
 
 // readBank gets the bank from the database and returns the value if it exists, or returns nil if the
 // bank does not exist in the database.
-func readBank(guildID string) *Bank {
+func readBank(guildID discordid.SnowflakeID) *Bank {
 	filter := bson.M{"guild_id": guildID}
 	var bank Bank
 	err := db.FindOne(bankCollection, filter, &bank)
 	if err != nil {
-		slog.Debug("bank not found in the database", "guildID", guildID, "error", err)
+		slog.Debug("bank not found in the database",
+			slog.Any("guildID", guildID),
+			slog.Any("error", err),
+		)
 		return nil
 	}
 
-	bank.mutex = &sync.RWMutex{}
 	return &bank
 }
 
-// writeBank creates or replaces the bank data in the database being used by the Discord bot.
+// writeBank inserts a new bank into the database.
 func writeBank(bank *Bank) error {
-	filter := bankFilter(bank)
+	bank.Version = 0
 
-	_, err := db.ReplaceOneUpsert(bankCollection, filter, bank)
+	result, err := db.InsertOne(bankCollection, bank)
 	if err != nil {
-		slog.Error("unable to save bank to the database",
+		slog.Error("unable to create bank",
 			slog.Any("guildID", bank.GuildID),
 			slog.Any("error", err),
 		)
 		return err
 	}
 
-	return nil
-}
-
-// updateBankDefaultBalance updates only the default balance for a bank.
-func updateBankDefaultBalance(bank *Bank) error {
-	filter := bankFilter(bank)
-	update := bson.M{
-		"$set": bson.M{
-			"default_balance": bank.DefaultBalance,
-		},
-		"$setOnInsert": bson.M{
-			"guild_id":  bank.GuildID,
-			"bank_name": bank.Name,
-			"currency":  bank.Currency,
-		},
-	}
-
-	_, err := db.UpdateOneUpsert(bankCollection, filter, update)
-	if err != nil {
-		slog.Error("unable to update bank default balance",
-			slog.Any("guildID", bank.GuildID),
-			slog.Int("defaultBalance", bank.DefaultBalance),
-			slog.Any("error", err),
-		)
-		return err
+	if id, ok := result.InsertedID.(bson.ObjectID); ok {
+		bank.ID = id
 	}
 
 	return nil
 }
 
-// updateBankName updates only the name for a bank.
-func updateBankName(bank *Bank) error {
-	filter := bankFilter(bank)
+// updateBank updates an existing bank using optimistic locking via the version field.
+// Returns ErrVersionConflict if another writer updated the bank since it was read.
+func updateBank(bank *Bank) error {
+	filter := bson.M{
+		"guild_id": bank.GuildID,
+	}
+
+	if bank.Version == 0 {
+		filter["$or"] = bson.A{
+			bson.M{"version": bank.Version},
+			bson.M{"version": bson.M{"$exists": false}},
+		}
+	} else {
+		filter["version"] = bank.Version
+	}
+
 	update := bson.M{
 		"$set": bson.M{
-			"bank_name": bank.Name,
-		},
-		"$setOnInsert": bson.M{
-			"guild_id":        bank.GuildID,
+			"bank_name":       bank.Name,
 			"currency":        bank.Currency,
 			"default_balance": bank.DefaultBalance,
 		},
+		"$inc": bson.M{
+			"version": 1,
+		},
 	}
 
-	_, err := db.UpdateOneUpsert(bankCollection, filter, update)
+	result, err := db.UpdateOne(bankCollection, filter, update)
 	if err != nil {
-		slog.Error("unable to update bank name",
+		slog.Error("unable to update bank",
 			slog.Any("guildID", bank.GuildID),
-			slog.String("name", bank.Name),
+			slog.Any("version", bank.Version),
 			slog.Any("error", err),
 		)
 		return err
 	}
-
-	return nil
-}
-
-// updateBankCurrency updates only the currency for a bank.
-func updateBankCurrency(bank *Bank) error {
-	filter := bankFilter(bank)
-	update := bson.M{
-		"$set": bson.M{
-			"currency": bank.Currency,
-		},
-		"$setOnInsert": bson.M{
-			"guild_id":        bank.GuildID,
-			"bank_name":       bank.Name,
-			"default_balance": bank.DefaultBalance,
-		},
+	if result.MatchedCount == 0 {
+		return ErrVersionConflict
 	}
 
-	_, err := db.UpdateOneUpsert(bankCollection, filter, update)
-	if err != nil {
-		slog.Error("unable to update bank currency",
-			slog.Any("guildID", bank.GuildID),
-			slog.String("currency", bank.Currency),
-			slog.Any("error", err),
-		)
-		return err
-	}
+	bank.Version++
 
 	return nil
 }
@@ -230,9 +199,4 @@ func updateAccount(account *Account) error {
 	account.Version++
 
 	return nil
-}
-
-// bankFilter returns the filter used to locate a bank document.
-func bankFilter(bank *Bank) bson.M {
-	return bson.M{"guild_id": bank.GuildID}
 }

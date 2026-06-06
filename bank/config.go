@@ -7,7 +7,6 @@ import (
 )
 
 var (
-	cfg   Config
 	theme *Theme
 )
 
