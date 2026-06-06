@@ -47,9 +47,9 @@ func writeConfig(config *Config) {
 
 // readConfig loads the race member from the database. If it does not exist, then
 // a `nil` value is returned.
-func readRaceMember(guildID, memberID discordid.SnowflakeID) *RaceMember {
+func readRaceMember(guildID, memberID discordid.SnowflakeID) *Member {
 	filter := bson.D{{Key: "guild_id", Value: guildID}, {Key: "member_id", Value: memberID}}
-	var member RaceMember
+	var member Member
 	err := db.FindOne(memberCollection, filter, &member)
 	if err != nil {
 		slog.Debug("race member not found in the database",
@@ -64,7 +64,7 @@ func readRaceMember(guildID, memberID discordid.SnowflakeID) *RaceMember {
 }
 
 // writeRaceMember creates or updates the race member in the database
-func writeRaceMember(member *RaceMember) {
+func writeRaceMember(member *Member) {
 	var filter bson.M
 	if member.ID != bson.NilObjectID {
 		filter = bson.M{"_id": member.ID}

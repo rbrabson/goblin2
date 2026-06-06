@@ -54,7 +54,7 @@ var (
 
 type raceButton struct {
 	label string
-	racer *RaceParticipant
+	racer *Participant
 }
 
 // resetRace resets a hung race.
@@ -98,7 +98,7 @@ func startRace(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) e
 	race.interaction = e
 
 	guildMember := resolvedGuildMember(member)
-	racer := getRaceMember(gID, guildMember)
+	racer := getMember(gID, guildMember)
 	if _, err := race.addRaceParticipant(racer); err != nil {
 		slog.Error("failed to add the race starter as a participant",
 			slog.Any("guildID", gID),
@@ -147,7 +147,7 @@ func runRace(race *Race) {
 		return
 	}
 
-	race.setState(RaceWaitingForBets)
+	race.setState(raceWaitingForBets)
 	if err := raceMessage(race, "betting"); err != nil {
 		slog.Error("failed to open race betting", slog.Any("error", err))
 		return
@@ -160,7 +160,7 @@ func runRace(race *Race) {
 	)
 	waitForBetsToBePlaced(race)
 
-	race.setState(RaceInProgress)
+	race.setState(raceInProgress)
 	if err := raceMessage(race, "started"); err != nil {
 		slog.Error("failed to send race started message", slog.Any("error", err))
 		return
@@ -175,7 +175,7 @@ func runRace(race *Race) {
 	race.runRace(len([]rune(race.config.Track)))
 	sendRaceLegs(race)
 
-	race.setState(RaceFinished)
+	race.setState(raceFinished)
 	if err := raceMessage(race, "ended"); err != nil {
 		slog.Error("failed to send race ended message", slog.Any("error", err))
 		return
@@ -261,7 +261,7 @@ func joinRace(e *handler.ComponentEvent) error {
 	}
 
 	guildMember := resolvedGuildMember(member)
-	raceMember := getRaceMember(gID, guildMember)
+	raceMember := getMember(gID, guildMember)
 
 	if _, err := race.addRaceParticipant(raceMember); err != nil {
 		return updateComponentResponse(e, firstToUpper(err.Error()))
@@ -289,7 +289,7 @@ func raceStats(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) e
 	p := message.NewPrinter(language.AmericanEnglish)
 
 	guildMember := resolvedGuildMember(member)
-	raceMember := getRaceMember(guildMember.GuildID, guildMember)
+	raceMember := getMember(guildMember.GuildID, guildMember)
 
 	var totalRaces float64
 	if raceMember.TotalRaces == 0 {
@@ -361,12 +361,12 @@ func betOnRace(e *handler.ComponentEvent) error {
 	}
 
 	participant := race.getRaceParticipant(memberID)
-	var betMember *RaceMember
+	var betMember *Member
 	if participant != nil && participant.Member != nil {
 		betMember = participant.Member
 	} else {
 		guildMember := resolvedGuildMember(member)
-		betMember = getRaceMember(gID, guildMember)
+		betMember = getMember(gID, guildMember)
 	}
 
 	customID := e.Data.CustomID()
@@ -425,7 +425,7 @@ func createBetButtons(race *Race) []discord.LayoutComponent {
 }
 
 // createBetButton creates and returns a new race button for the racer.
-func createBetButton(rp *RaceParticipant) *raceButton {
+func createBetButton(rp *Participant) *raceButton {
 	betButtonMutex.Lock()
 	defer betButtonMutex.Unlock()
 
@@ -579,7 +579,7 @@ func sendRaceLegs(race *Race) {
 }
 
 // getCurrentTrack returns the current position of all racers on the track.
-func getCurrentTrack(raceLeg *RaceLeg, config *Config) string {
+func getCurrentTrack(raceLeg *Leg, config *Config) string {
 	var track strings.Builder
 	for _, pos := range raceLeg.ParticipantPositions {
 		name := pos.RaceParticipant.Member.guildMember.Name
@@ -668,7 +668,7 @@ func sendRaceResults(race *Race) error {
 }
 
 // getCurrentRaceParticipant takes a custom button ID and returns the corresponding racer.
-func getCurrentRaceParticipant(race *Race, customID string) *RaceParticipant {
+func getCurrentRaceParticipant(race *Race, customID string) *Participant {
 	betButtonMutex.Lock()
 	defer betButtonMutex.Unlock()
 
