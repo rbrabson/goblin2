@@ -1,16 +1,19 @@
-FROM alpine AS builder
+FROM golang:1.26.4-alpine AS builder
 
-# Install make and go
-RUN apk add make go
+# Install make
+RUN apk add --no-cache make
 
 # Set destination for COPY
 WORKDIR /workspace
 
-# Copy the source code
-COPY ./ ./
+# Copy dependency files first for better Docker layer caching
+COPY go.mod go.sum ./
 
 # Download Go modules
 RUN go mod download
+
+# Copy the source code
+COPY ./ ./
 
 # Build the goblin binary
 RUN make build-linux
@@ -31,8 +34,8 @@ LABEL org.label-schema.vendor="rbrabson" \
 RUN mkdir -p /licenses
 ADD LICENSE /licenses
 
-RUN mkdir -p /config
-ADD config /config/
+RUN mkdir -p /yaml
+ADD yaml /yaml/
 
 WORKDIR /
 

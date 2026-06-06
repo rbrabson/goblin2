@@ -28,6 +28,7 @@ yaml/
 
 # env file
 .env
+.env_mongo
 
 # IDE files
 .idea/

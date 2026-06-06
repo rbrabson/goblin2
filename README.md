@@ -10,12 +10,19 @@ The easiest way to run Goblin is using Docker:
 # Quick setup
 ./setup.sh
 
-# Edit your configuration
+# Edit your bot configuration
 nano .env
+
+# Edit your MongoDB configuration
+namo .env-mongo
 
 # Start the bot
 docker-compose up -d
 ```
+
+`setup.sh` requires the configuration files are in the same directory as the `docker-compose.yaml` file
+under a directory named `yaml`. If this isn't true for your environment, then you can manually edit 
+the `Dockerfile`.
 
 📖 **See [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) for complete Docker setup instructions**, including:
 
@@ -36,67 +43,129 @@ The Goblin bot relies on a set of environment variables to configure it.
 
 #### Goblin Bot
 
-```bash
-# Discord Bot Configuration
-DISCORD_BOT_TOKEN="<bot_token>"
-DISCORD_APP_ID="<bot_application_id>"
+1. Set the path to the configuration files directory.
 
-# You can use this variable to point at a development server, in which case any
-# changes you have made will only appear on the development server.
-# DISCORD_GUILD_ID="<server ID>"
+    ```bash
+    # Discord Bot Configuration
+    GOBLIN_CONFIG_PATH="<path_to_config>"
+    ```
 
-# Goblin DB configuration. This example shows you how to connect to MongoDB within a
-# container, where the name of the deployed MongoDB container is `DISCORD_mongo`. If 
-# running outside a container, replace `DISCORD_mongo` with the IP address or DNS name
-# of your MongoDB instance. Prior to Goblin being able to connect to the MongoDB
-# instance, create the MongoDB database and add a database user for the database
-# with Read/Write permissions, and use those values below.
-DISCORD_BANK_THEME="clash"
-DISCORD_BLACKJACK_THEME="clash"
-DISCORD_GUILD_THEME="clash"
-DISCORD_HEIST_THEME="clash"
-DISCORD_PAYDAY_THEME="clash"
-DISCORD_RACE_FILE="clash"
-DISCORD_SLOTS_THEME="clash"
+2. Create the required directories:
 
-# Heist DB configuration
-MONGODB_USERID="<userid>"
-MONGODB_PASSWORD="<password>"
-MONGODB_SERVER="<server_host_name>"
-MONGODB_DATABASE="database"
+    ```bash
+    mkdir -p "$GOBLIN_CONFIG_PATH"
+    mkdir -p "$GOBLIN_CONFIG_PATH/bank"
+    mkdir -p "$GOBLIN_CONFIG_PATH/bot"
+    mkdir -p "$GOBLIN_CONFIG_PATH/heist"
+    mkdir -p "$GOBLIN_CONFIG_PATH/log"
+    mkdir -p "$GOBLIN_CONFIG_PATH/payday"
+    ```
+3. Edit the bank configuration file `$GOBLIN_CONFIG_PATH/bank/config.yaml`:
 
-# Heist DB URI
-MONGODB_URI="mongodb+srv://$MONGODB_USERID:$MONGODB_PASSWORD@$MONGODB_SERVER/$MONGODB_DATABASE?retryWrites=true&w=majority"
+    ```yaml
+    # Default bank to be used if none is specified
+    default_theme: "clash"
+    
+    # Themes
+    themes:
+      clash:
+        bank_name: "Treasury"
+        currency: "Coins"
+        default_balance: 20000
+    ```
 
-# For production environments, don't set DISCORD_GUILD_ID, but it can be useful
-# when configuring the guild for testing or debugging. This will only register
-# the new commands with the specific server that has this ID assigned.
-# Note that there is a limit to how many times per day you can update the
-# commands, so if you find that Discord is not responding to your bot's command
-# registrations, you may have hit this limit.
-DISCORD_GUILD_ID="<server-id>"
+4. Edit the bot configuration file `$GOBLIN_CONFIG_PATH/bot/config.yaml`:
 
-# Logging level for the bot. Options are "debug", "info", "warn", "error", "fatal"
-# Default is "info"
-LOG_LEVEL="info"
-```
+    ```yaml
+    # add guild ids the commands should sync to, leave empty to sync globally
+    dev_guilds: []
+    # the bot token
+    token: <token>>
+    ```
 
-#### Configuring MongoDB for the Goblin Bot
+5. Edit the MongoDB configuration file `$GOBLIN_CONFIG_PATH/database/config.yaml`:
 
-The MongoDB database needs to have a user configured who can read and write from the configured database. Using the
-`mongosh` command to connect to your MongoDB instance, including any username/password credentials that may be
-required, you can add a user by using the following command. For example, you may need to specify a command
-such as this if the MongoDB instance is running locally:
+    ```yaml
+    database: <db_name>
+    uri: <mongodb_uri>
+    ```
 
-```bash
-mongosh 'localhost:27017' -u <root_username> -p <root_password>
-```
+6. Edit the heist configuration files:
 
-Or, if you are running MongoDB remotely:
+    `$GOBLIN_CONFIG_PATH/heist/config.yaml`
+    ```yaml
+    bail_base: 250
+    boost_enabled: false
+    boost_multiplier: 0
+    crew_output: None
+    death_timer: 45000000000
+    heist_cost: 1000
+    police_alert: 60000000000
+    sentence_base: 45000000000
+    vault_recover_percentage: 0.04
+    wait_time: 60000000000
+    ```
 
-```bash
-mongosh --host <ip_address>:<port> -u <root_username> -p <root_password>
-```
+    `$GOBLIN_CONFIG_PATH/heist/targets.yaml`
+    ```yaml
+    - target_id: Goblin Forest
+      crew: 2
+      success: 29.3
+      vault_max: 16000
+    - target_id: Goblin Outpost
+      crew: 3
+      success: 20.65
+      vault_max: 24000
+      ...
+    ```
+
+    `$GOBLIN_CONFIG_PATH/heist/theme.yaml`
+    ```yaml
+    escaped_messages:
+      - message: >-
+          %s brought a few healers to keep themself alive
+          <:Healer:1346563687137280081>, +25 <:Gold:1346583263598219297>
+        bonus_amount: 25
+        result: Escaped
+        ...
+    
+    apprehended_messages:
+      - message: '%s stepped onto a spring trap.'
+        result: Apprehended
+      - message: >-
+          %s forgot to bring heals to their GoHo attack <:Golem:1346563552684671017>
+          <:Hog_Rider:1346563786408071239>.
+        result: Apprehended
+        ...
+    
+    died_messages:
+      - message: >-
+          %s forgot funnel and was singled out by an archer tower. (death)
+          <:Toombstone:1346597374054633554>
+        result: Dead
+        ...
+    ```
+
+7. Edit the log configuration file `$GOBLIN_CONFIG_PATH/log/config.yaml`:
+
+    ```yaml
+    # valid levels are "debug", "info", "warn", "error"
+    level: info
+    # valid formats are "text" and "json"
+    format: text
+    # whether to add the log source to the log message
+    add_source: true
+    ```
+
+8. Edit the payday configuration file `$GOBLIN_CONFIG_PATH/payday/config.yaml`
+
+    ```yaml
+    # Default payday configuration
+    payday_amount: 5000
+    payday_frequency: 82800000000000 # 23 hours in nanoseconds
+    max_streak: 7
+    streak_per_day_bonus: 500
+    ```
 
 Once mongosh has started, enter the following command to create a user who can read and write to the specified
 database.
@@ -112,8 +181,6 @@ db.createUser(
 )
 ```
 
-Note that the actual MongoDB database will be created when the first collection or document is written to the database.
-
 ### Run as a Standalone Application
 
 When developing, you can use:
@@ -123,21 +190,12 @@ go run cmd/goblin/main.go
 ```
 
 to run the Goblin bot. Once it is stable, you can use the `make` command to generate a binary that you can
-execute.
-
-### Run as a Docker Image
-
-#### Build Container
-
-```bash
-docker buildx build -t Goblin:1.0.0 .
-docker push Goblin:1.0.0
-```
+execute. The binary files are located in the `bin` directory.
 
 #### Start Container
 
 ```bash
-docker run --env-file ./.env --name <container-name> Goblin:1.0.0
+docker run --env-file ./.env --name <container-name> goblin:1.0.0
 ```
 
 ### Run using `docker compose`
@@ -145,83 +203,6 @@ docker run --env-file ./.env --name <container-name> Goblin:1.0.0
 ```bash
 docker compose up --build
 ```
-
-### Run in Pterodactyl
-
-Pterodactyl is a game server management panel that runs all game servers in isolated Docker containers.
-
-#### Define the Egg
-
-##### Specify the configuration variables
-
-With Pterodactyl, you need to create an `egg` that defines the Goblin bot. This `egg` is then placed in
-a `nest`. For example, you might have a `Discord` nest, and then create the Goblin `egg` within that nest.
-
-For Goblin, the first step is to create an egg for the `generic golang application`. This egg requires
-configuration in order to be able to run.
-
-In the Pterodactyl interface, navigate to the `Nest` section and select the `egg` you created. You should
-include the options defined above for the bot.
-
-- BOT_TOKEN. This is a required string value.
-
-- APP_ID. This is a required string value.
-
-- MONGODB_SERVER. The server to which to connect.
-
-- MONGODB_USERID. The user ID for the bot to access the server.
-
-- MONGODB_PASSWORD. The password for the bot to access the server.
-
-- MONGODB_DATABASE. The database in which the bot's data is stored.
-
-- MONGODB_URI. A URI built using the other MONGODB_xxxx values set above. It is set to `"mongodb+srv://$MONGODB_USERID:$MONGODB_PASSWORD@$MONGODB_SERVER/$MONGODB_DATABASE?retryWrites=true&w=majority"`
-
-##### Configure the startup script
-
-Under the egg, configure the startup script to look like the following.
-
-```bash
-#!/bin/bash
-# golang generic package
-
-if [ ! -d /mnt/server/ ]; then
-    mkdir -p /mnt/server/
-fi
-
-# Download and install a more recent version of go. The one that is part
-# of the golang generic package is too old.
-wget https://go.dev/dl/go1.20.6.linux-amd64.tar.gz
-rm -rf /usr/local/go && tar -C /usr/local -xzf go1.20.6.linux-amd64.tar.gz
-rm -f go1.20.6.linux-amd64.tar.gz
-export PATH=$PATH:/usr/local/go/bin
-
-# Clone the code from GitHub so that it can be built
-git clone https://github.com/rbrabson/goblin.git
-
-# Move into the bot directory
-cd goblin
-
-# Download the dependencies, both direct and indirect, required to build
-# the package
-go mod download
-
-# Use a local tmp directory. The global one for this server was too small.
-mkdir ~/tmp
-export TMPDIR=~/tmp
-
-# Build the linux binary image
-make build-linux
-
-# Copy the image to the correct location
-cp -f bin/linux/amd64/Goblin /mnt/server/
-```
-
-#### Install the server
-
-Under the server, configure the specific values for the bot. Once done, you can reinstall the bot. After the bot is reinstalled, you can start it.
-
-If the bot is already running, stop it before reinstalling.
 
 ## Configuring Discord
 
