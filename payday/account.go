@@ -1,13 +1,32 @@
 package payday
 
 import (
+	"errors"
 	"fmt"
+	"goblin2/bank"
 	"goblin2/discordid"
+	"goblin2/internal/cache"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
+)
+
+const (
+	paydayAccountCacheTTL             = 30 * time.Minute
+	paydayAccountCacheCleanupInterval = 5 * time.Minute
+)
+
+type paydayAccountCacheKey struct {
+	guildID  discordid.SnowflakeID
+	memberID discordid.SnowflakeID
+}
+
+var (
+	paydayAccountCache = cache.New[paydayAccountCacheKey, Account](paydayAccountCacheTTL, paydayAccountCacheCleanupInterval)
+	paydayAccountMu    sync.RWMutex
 )
 
 // Account is a user on the server that can a payday every 23 hours
@@ -20,19 +39,97 @@ type Account struct {
 	MaxStreak       int                   `json:"max_streak" bson:"max_streak"`
 	TotalPaydays    int                   `json:"total_paydays" bson:"total_paydays"`
 	TotalAmountPaid int                   `json:"total_amount_paid" bson:"total_amount_paid"`
+	Version         int                   `json:"version" bson:"version"`
 }
 
-// newAccount creates new payday information for a server/guild
-func newAccount(payday *Payday, memberID snowflake.ID) *Account {
-	account := &Account{
-		MemberID: discordid.NewSnowflakeID(memberID),
-		GuildID:  payday.GuildID,
-	}
-	if err := writeAccount(account); err != nil {
-		slog.Error("error writing account", "error", err)
+// GetPaydayAccount returns the payday account for the given guild and member.
+func GetPaydayAccount(guildID snowflake.ID, memberID snowflake.ID) *Account {
+	key := paydayAccountCacheKey{
+		guildID:  discordid.NewSnowflakeID(guildID),
+		memberID: discordid.NewSnowflakeID(memberID),
 	}
 
-	return account
+	if account, ok := paydayAccountCache.Get(key); ok {
+		return copyPaydayAccount(&account)
+	}
+
+	account := readAccount(key.guildID, key.memberID)
+	if account != nil {
+		paydayAccountCache.Set(key, *account)
+		return copyPaydayAccount(account)
+	}
+
+	account = newAccount(guildID, memberID)
+	paydayAccountCache.Set(key, *account)
+	return copyPaydayAccount(account)
+}
+
+// newAccount creates new payday information for a server/guild.
+func newAccount(guildID snowflake.ID, memberID snowflake.ID) *Account {
+	return &Account{
+		MemberID: discordid.NewSnowflakeID(memberID),
+		GuildID:  discordid.NewSnowflakeID(guildID),
+	}
+}
+
+// copyPaydayAccount returns a copy of the given account. This prevents callers from mutating the cached account directly.
+func copyPaydayAccount(account *Account) *Account {
+	if account == nil {
+		return nil
+	}
+
+	return new(*account)
+}
+
+// ClosePaydayAccountCache stops the payday account cache cleanup goroutine and clears all cached payday account entries.
+func ClosePaydayAccountCache() {
+	paydayAccountCache.Destroy()
+}
+
+// UpdatePaydayAccount updates the payday account with the given mutation, retrying on version conflicts.
+func UpdatePaydayAccount(guildID, memberID snowflake.ID, mutate func(*Account) error) error {
+	const maxRetries = 3
+
+	paydayAccountMu.RLock()
+	defer paydayAccountMu.RUnlock()
+
+	key := paydayAccountCacheKey{
+		guildID:  discordid.NewSnowflakeID(guildID),
+		memberID: discordid.NewSnowflakeID(memberID),
+	}
+
+	for range maxRetries {
+		account := GetPaydayAccount(guildID, memberID)
+
+		if err := mutate(account); err != nil {
+			return err
+		}
+
+		var err error
+		if account.ID.IsZero() {
+			err = writeAccount(account)
+		} else {
+			err = updateAccount(account)
+		}
+
+		if err == nil {
+			paydayAccountCache.Set(key, *account)
+			return nil
+		}
+		if !errors.Is(err, bank.ErrVersionConflict) {
+			paydayAccountCache.Delete(key)
+			return err
+		}
+
+		paydayAccountCache.Delete(key)
+
+		slog.Warn("version conflict on payday account, retrying",
+			slog.Any("guildID", guildID),
+			slog.Any("memberID", memberID),
+		)
+	}
+
+	return fmt.Errorf("failed to update payday account after %d retries: %w", maxRetries, bank.ErrVersionConflict)
 }
 
 // getNextPayday returns the next payday for the user.
@@ -42,15 +139,29 @@ func (a *Account) getNextPayday() time.Time {
 
 // setNextPayday sets the next payday for the user.
 func (a *Account) setNextPayday(minWait time.Duration) {
-	a.NextPayday = time.Now().Add(minWait)
-
-	// Save the account to the database.
-	err := writeAccount(a)
-	if err != nil {
-		slog.Error("unable to save account to the database", "guildID", a.GuildID, "memberID", a.MemberID, "error", err)
+	if err := UpdatePaydayAccount(a.GuildID.ID(), a.MemberID.ID(), func(latest *Account) error {
+		latest.NextPayday = time.Now().Add(minWait)
+		latest.CurrentStreak = a.CurrentStreak
+		latest.MaxStreak = a.MaxStreak
+		latest.TotalPaydays = a.TotalPaydays
+		latest.TotalAmountPaid = a.TotalAmountPaid
+		return nil
+	}); err != nil {
+		slog.Error("unable to save account to the database",
+			slog.Any("guildID", a.GuildID),
+			slog.Any("memberID", a.MemberID),
+			slog.Any("error", err),
+		)
 		return
 	}
-	slog.Debug("set next payday", "guildID", a.GuildID, "memberID", a.MemberID, "paydayStreak", a.CurrentStreak, "maxStreak", a.MaxStreak, "nextPayday", a.NextPayday)
+
+	slog.Debug("set next payday",
+		slog.Any("guildID", a.GuildID),
+		slog.Any("memberID", a.MemberID),
+		slog.Int("paydayStreak", a.CurrentStreak),
+		slog.Int("maxStreak", a.MaxStreak),
+		slog.Time("nextPayday", a.NextPayday),
+	)
 }
 
 // getPayAmount returns the number of credits the user will receive on their next payday.

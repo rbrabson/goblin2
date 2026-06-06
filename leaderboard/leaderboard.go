@@ -1,13 +1,16 @@
 package leaderboard
 
 import (
+	"errors"
 	"fmt"
 	"goblin2/bank"
 	"goblin2/discordid"
+	"goblin2/internal/cache"
 	"goblin2/internal/disctime"
 	"log/slog"
 	"slices"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/disgoorg/disgo/bot"
@@ -18,28 +21,51 @@ import (
 	"golang.org/x/text/message"
 )
 
+const (
+	leaderboardCacheTTL             = 30 * time.Minute
+	leaderboardCacheCleanupInterval = 5 * time.Minute
+)
+
+type leaderboardCacheKey struct {
+	guildID discordid.SnowflakeID
+}
+
+var (
+	leaderboardCache = cache.New[leaderboardCacheKey, Leaderboard](leaderboardCacheTTL, leaderboardCacheCleanupInterval)
+	leaderboardMu    sync.RWMutex
+)
+
 // A Leaderboard is used to send a monthly leaderboard to the Discord server for each guild.
 type Leaderboard struct {
 	ID         bson.ObjectID         `bson:"_id,omitempty"`
 	GuildID    discordid.SnowflakeID `bson:"guild_id"`
 	ChannelID  string                `bson:"channel_id"`
 	LastSeason time.Time             `bson:"last_season"`
+	Version    int                   `bson:"version"`
 }
 
 // newLeaderboard creates a new leaderboard for the given guildID and sets the last season to the current month.
 func newLeaderboard(guildID snowflake.ID) *Leaderboard {
-	lb := &Leaderboard{
+	return &Leaderboard{
 		GuildID:    discordid.NewSnowflakeID(guildID),
 		LastSeason: disctime.CurrentMonth(time.Now()),
 	}
-	if err := writeLeaderboard(lb); err != nil {
-		slog.Error("Error writing leaderboard", "guild", guildID, "error", err)
-	}
-
-	return lb
 }
 
-// getLeaderboards returns all the leaderboards for all guilds known to the bot.
+// copyLeaderboard returns a copy of the given leaderboard. This prevents callers from mutating the cached leaderboard directly.
+func copyLeaderboard(lb *Leaderboard) *Leaderboard {
+	if lb == nil {
+		return nil
+	}
+
+	return new(*lb)
+}
+
+// CloseLeaderboardCache stops the leaderboard cache cleanup goroutine and clears all cached leaderboard entries.
+func CloseLeaderboardCache() {
+	leaderboardCache.Destroy()
+}
+
 // getLeaderboards returns all the leaderboards for all guilds known to the bot.
 func getLeaderboards() []*Leaderboard {
 	var leaderboards []*Leaderboard
@@ -54,24 +80,89 @@ func getLeaderboards() []*Leaderboard {
 		slog.Error("unable to get leaderboards", "error", err)
 		return nil
 	}
+
+	for _, lb := range leaderboards {
+		key := leaderboardCacheKey{
+			guildID: lb.GuildID,
+		}
+		leaderboardCache.Set(key, *lb)
+	}
+
 	slog.Debug("leaderboards", "count", len(leaderboards))
 	return leaderboards
 }
 
-// getLeaderboard returns the leaderboard for the given guild
+// getLeaderboard returns the leaderboard for the given guild.
 func getLeaderboard(guildID snowflake.ID) *Leaderboard {
-	lb := readLeaderboard(guildID)
-	if lb == nil {
-		lb = newLeaderboard(guildID)
+	key := leaderboardCacheKey{
+		guildID: discordid.NewSnowflakeID(guildID),
 	}
 
-	return lb
+	if lb, ok := leaderboardCache.Get(key); ok {
+		return copyLeaderboard(&lb)
+	}
+
+	lb := readLeaderboard(key.guildID)
+	if lb != nil {
+		leaderboardCache.Set(key, *lb)
+		return copyLeaderboard(lb)
+	}
+
+	lb = newLeaderboard(guildID)
+	leaderboardCache.Set(key, *lb)
+	return copyLeaderboard(lb)
+}
+
+// UpdateLeaderboard updates the leaderboard with the given mutation, retrying on version conflicts.
+func UpdateLeaderboard(guildID snowflake.ID, mutate func(*Leaderboard) error) error {
+	const maxRetries = 3
+
+	leaderboardMu.RLock()
+	defer leaderboardMu.RUnlock()
+
+	key := leaderboardCacheKey{
+		guildID: discordid.NewSnowflakeID(guildID),
+	}
+
+	for range maxRetries {
+		lb := getLeaderboard(guildID)
+
+		if err := mutate(lb); err != nil {
+			return err
+		}
+
+		var err error
+		if lb.ID.IsZero() {
+			err = writeLeaderboard(lb)
+		} else {
+			err = updateLeaderboard(lb)
+		}
+
+		if err == nil {
+			leaderboardCache.Set(key, *lb)
+			return nil
+		}
+		if !errors.Is(err, bank.ErrVersionConflict) {
+			leaderboardCache.Delete(key)
+			return err
+		}
+
+		leaderboardCache.Delete(key)
+
+		slog.Warn("version conflict on leaderboard, retrying",
+			slog.Any("guildID", guildID),
+		)
+	}
+
+	return fmt.Errorf("failed to update leaderboard after %d retries: %w", maxRetries, bank.ErrVersionConflict)
 }
 
 // setChannel sets the channel ID for the leaderboard to publish the monthly leaderboard.
 func (lb *Leaderboard) setChannel(channelID string) {
-	lb.ChannelID = channelID
-	if err := writeLeaderboard(lb); err != nil {
+	if err := UpdateLeaderboard(lb.GuildID.ID(), func(latest *Leaderboard) error {
+		latest.ChannelID = channelID
+		return nil
+	}); err != nil {
 		slog.Error("error writing leaderboard", "guild", lb.GuildID, "error", err)
 	}
 }
@@ -202,8 +293,11 @@ func sendAllMonthlyLeaderboards(client *bot.Client) {
 			if err != nil {
 				slog.Error("unable to send monthly leaderboard", "guildID", lb.GuildID, "channelID", lb.ChannelID, "error", err)
 			}
-			lb.LastSeason = disctime.NextMonth(lastSeason)
-			if err := writeLeaderboard(lb); err != nil {
+			nextSeason := disctime.NextMonth(lastSeason)
+			if err := UpdateLeaderboard(lb.GuildID.ID(), func(latest *Leaderboard) error {
+				latest.LastSeason = nextSeason
+				return nil
+			}); err != nil {
 				slog.Error("unable to write leaderboard to database", "guildID", lb.GuildID, "channelID", lb.ChannelID, "error", err)
 			}
 		}

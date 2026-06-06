@@ -35,12 +35,12 @@ func NewPlugin(cfgPath string) (*Plugin, error) {
 }
 
 // Initialize initializes the payday plugin.
-func (p Plugin) Initialize(mongoDB *database.MongoDB, _ *bot.Client) {
+func (p *Plugin) Initialize(mongoDB *database.MongoDB, _ *bot.Client) {
 	db = mongoDB
 }
 
 // GetHelp returns the help text for the payday plugin.
-func (p Plugin) GetHelp() map[string]string {
+func (p *Plugin) GetHelp() map[string]string {
 	return map[string]string{
 		"/payday-stats": "View your payday statistics.",
 		"/payday":       "Deposits your daily check into your bank account.",
@@ -48,27 +48,27 @@ func (p Plugin) GetHelp() map[string]string {
 }
 
 // GetName returns the name of the payday plugin.
-func (p Plugin) GetName() string {
+func (p *Plugin) GetName() string {
 	return p.name
 }
 
 // GetAdminHelp returns the admin help message for the payday plugin.
-func (p Plugin) GetAdminHelp() map[string]string {
+func (p *Plugin) GetAdminHelp() map[string]string {
 	return nil
 }
 
 // Stop stops the payday plugin.
-func (p Plugin) Stop() {
+func (p *Plugin) Stop() {
 	p.status = plugin.Stopped
 }
 
 // Status returns the status of the payday plugin.
-func (p Plugin) Status() plugin.Status {
+func (p *Plugin) Status() plugin.Status {
 	return p.status
 }
 
 // GetSlashHandlers returns the slash command handlers for the payday plugin.
-func (p Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
+func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	return map[string]handler.SlashCommandHandler{
 		"/payday":       payday,
 		"/payday-stats": showStats,
@@ -76,7 +76,7 @@ func (p Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 }
 
 // GetSlashCommands returns the slash commands for the payday plugin.
-func (p Plugin) GetSlashCommands() []discord.ApplicationCommandCreate {
+func (p *Plugin) GetSlashCommands() []discord.ApplicationCommandCreate {
 	return memberCommands
 }
 

@@ -1,13 +1,31 @@
 package payday
 
 import (
+	"errors"
 	"fmt"
+	"goblin2/bank"
 	"goblin2/discordid"
+	"goblin2/internal/cache"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
+)
+
+const (
+	paydayCacheTTL             = 30 * time.Minute
+	paydayCacheCleanupInterval = 5 * time.Minute
+)
+
+type paydayCacheKey struct {
+	guildID discordid.SnowflakeID
+}
+
+var (
+	paydayCache = cache.New[paydayCacheKey, Payday](paydayCacheTTL, paydayCacheCleanupInterval)
+	paydayMu    sync.RWMutex
 )
 
 // Payday is the daily payment for members of a guild (server).
@@ -18,43 +36,109 @@ type Payday struct {
 	PaydayFrequency   time.Duration         `bson:"payday_frequency"`
 	MaxStreak         int                   `bson:"max_streak"`
 	StreakPerDayBonus int                   `bson:"streak_per_day_bonus"`
+	Version           int                   `bson:"version"`
 }
 
 // GetPayday returns the payday information for a server, creating a new one if necessary.
 func GetPayday(guildID snowflake.ID) *Payday {
-	payday := readPayday(discordid.NewSnowflakeID(guildID))
-	if payday == nil {
-		payday = createNewPayday(guildID)
+	key := paydayCacheKey{
+		guildID: discordid.NewSnowflakeID(guildID),
 	}
 
-	return payday
+	if payday, ok := paydayCache.Get(key); ok {
+		return copyPayday(&payday)
+	}
+
+	payday := readPayday(key.guildID)
+	if payday != nil {
+		paydayCache.Set(key, *payday)
+		return copyPayday(payday)
+	}
+
+	payday = createNewPayday(guildID)
+	paydayCache.Set(key, *payday)
+	return copyPayday(payday)
+}
+
+// copyPayday returns a copy of the given payday. This prevents callers from mutating the cached payday directly.
+func copyPayday(payday *Payday) *Payday {
+	if payday == nil {
+		return nil
+	}
+
+	return new(*payday)
+}
+
+// ClosePaydayCache stops the payday cache cleanup goroutine and clears all cached payday entries.
+func ClosePaydayCache() {
+	paydayCache.Destroy()
+}
+
+// UpdatePayday updates the payday configuration with the given mutation, retrying on version conflicts.
+func UpdatePayday(guildID snowflake.ID, mutate func(*Payday) error) error {
+	const maxRetries = 3
+
+	paydayMu.RLock()
+	defer paydayMu.RUnlock()
+
+	key := paydayCacheKey{
+		guildID: discordid.NewSnowflakeID(guildID),
+	}
+
+	for range maxRetries {
+		payday := GetPayday(guildID)
+
+		if err := mutate(payday); err != nil {
+			return err
+		}
+
+		var err error
+		if payday.ID.IsZero() {
+			err = writePayday(payday)
+		} else {
+			err = updatePayday(payday)
+		}
+
+		if err == nil {
+			paydayCache.Set(key, *payday)
+			return nil
+		}
+		if !errors.Is(err, bank.ErrVersionConflict) {
+			paydayCache.Delete(key)
+			return err
+		}
+
+		paydayCache.Delete(key)
+
+		slog.Warn("version conflict on payday, retrying",
+			slog.Any("guildID", guildID),
+		)
+	}
+
+	return fmt.Errorf("failed to update payday after %d retries: %w", maxRetries, bank.ErrVersionConflict)
 }
 
 // GetAccount returns an account in the guild (server). If one doesn't exist, then nil is returned.
 func (payday *Payday) GetAccount(memberID snowflake.ID) *Account {
-	account := readAccount(payday, discordid.NewSnowflakeID(memberID))
-
-	if account == nil {
-		account = newAccount(payday, memberID)
-	}
-
-	return account
+	return GetPaydayAccount(payday.GuildID.ID(), memberID)
 }
 
 // SetPaydayAmount sets the number of credits a player deposits into their account on a given payday.
 func (payday *Payday) SetPaydayAmount(amount int) {
-	payday.Amount = amount
-
-	if err := writePayday(payday); err != nil {
+	if err := UpdatePayday(payday.GuildID.ID(), func(latest *Payday) error {
+		latest.Amount = amount
+		return nil
+	}); err != nil {
 		slog.Error("error writing payday", "guildID", payday.GuildID, "error", err)
 	}
 }
 
 // SetPaydayFrequency sets the frequency of paydays at which a player can deposit credits into their account.
 func (payday *Payday) SetPaydayFrequency(frequency time.Duration) {
-	payday.PaydayFrequency = frequency
-
-	if err := writePayday(payday); err != nil {
+	if err := UpdatePayday(payday.GuildID.ID(), func(latest *Payday) error {
+		latest.PaydayFrequency = frequency
+		return nil
+	}); err != nil {
 		slog.Error("error writing payday", "guildID", payday.GuildID, "error", err)
 	}
 }
@@ -71,12 +155,6 @@ func createNewPayday(guildID snowflake.ID) *Payday {
 		StreakPerDayBonus: defaultConfig.StreakPerDayBonus,
 	}
 
-	if err := writePayday(payday); err != nil {
-		slog.Error("error writing payday",
-			slog.Any("guildID", payday.GuildID),
-			slog.Any("error", err),
-		)
-	}
 	slog.Debug("create new payday config",
 		slog.Any("guildID", payday.GuildID),
 		slog.Any("payday", payday),
