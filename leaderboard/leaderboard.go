@@ -45,9 +45,9 @@ type Leaderboard struct {
 }
 
 // newLeaderboard creates a new leaderboard for the given guildID and sets the last season to the current month.
-func newLeaderboard(guildID snowflake.ID) *Leaderboard {
+func newLeaderboard(guildID discordid.SnowflakeID) *Leaderboard {
 	return &Leaderboard{
-		GuildID:    discordid.NewSnowflakeID(guildID),
+		GuildID:    guildID,
 		LastSeason: disctime.CurrentMonth(time.Now()),
 	}
 }
@@ -93,9 +93,9 @@ func getLeaderboards() []*Leaderboard {
 }
 
 // getLeaderboard returns the leaderboard for the given guild.
-func getLeaderboard(guildID snowflake.ID) *Leaderboard {
+func getLeaderboard(guildID discordid.SnowflakeID) *Leaderboard {
 	key := leaderboardCacheKey{
-		guildID: discordid.NewSnowflakeID(guildID),
+		guildID: guildID,
 	}
 
 	if lb, ok := leaderboardCache.Get(key); ok {
@@ -114,14 +114,14 @@ func getLeaderboard(guildID snowflake.ID) *Leaderboard {
 }
 
 // UpdateLeaderboard updates the leaderboard with the given mutation, retrying on version conflicts.
-func UpdateLeaderboard(guildID snowflake.ID, mutate func(*Leaderboard) error) error {
+func UpdateLeaderboard(guildID discordid.SnowflakeID, mutate func(*Leaderboard) error) error {
 	const maxRetries = 3
 
 	leaderboardMu.RLock()
 	defer leaderboardMu.RUnlock()
 
 	key := leaderboardCacheKey{
-		guildID: discordid.NewSnowflakeID(guildID),
+		guildID: guildID,
 	}
 
 	for range maxRetries {
@@ -159,7 +159,7 @@ func UpdateLeaderboard(guildID snowflake.ID, mutate func(*Leaderboard) error) er
 
 // setChannel sets the channel ID for the leaderboard to publish the monthly leaderboard.
 func (lb *Leaderboard) setChannel(channelID string) {
-	if err := UpdateLeaderboard(lb.GuildID.ID(), func(latest *Leaderboard) error {
+	if err := UpdateLeaderboard(lb.GuildID, func(latest *Leaderboard) error {
 		latest.ChannelID = channelID
 		return nil
 	}); err != nil {
@@ -252,7 +252,7 @@ func sendMonthlyLeaderboard(client *bot.Client, lb *Leaderboard) error {
 		}
 
 		p := message.NewPrinter(language.AmericanEnglish)
-		embeds := formatAccounts(client, lb.GuildID.ID(), p, fmt.Sprintf("%s %d Top 10", month, year), accounts)
+		embeds := formatAccounts(client, lb.GuildID, p, fmt.Sprintf("%s %d Top 10", month, year), accounts)
 		_, err = client.Rest.CreateMessage(snowflake.ID(channelID), discord.MessageCreate{
 			Embeds: embeds,
 		})
@@ -294,7 +294,7 @@ func sendAllMonthlyLeaderboards(client *bot.Client) {
 				slog.Error("unable to send monthly leaderboard", "guildID", lb.GuildID, "channelID", lb.ChannelID, "error", err)
 			}
 			nextSeason := disctime.NextMonth(lastSeason)
-			if err := UpdateLeaderboard(lb.GuildID.ID(), func(latest *Leaderboard) error {
+			if err := UpdateLeaderboard(lb.GuildID, func(latest *Leaderboard) error {
 				latest.LastSeason = nextSeason
 				return nil
 			}); err != nil {

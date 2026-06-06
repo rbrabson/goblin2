@@ -161,7 +161,7 @@ func UpdatePurchase(purchase *Purchase, mutate func(*Purchase) error) error {
 
 // PurchaseItem creates a new Purchase with the given guild ID, member ID, and a purchasable
 // shop item.
-func PurchaseItem(guildID, memberID snowflake.ID, item *Item, status string, renew bool) (*Purchase, error) {
+func PurchaseItem(guildID, memberID discordid.SnowflakeID, item *Item, status string, renew bool) (*Purchase, error) {
 	p := message.NewPrinter(language.AmericanEnglish)
 
 	member, _ := readMember(discordid.SnowflakeID(guildID), discordid.SnowflakeID(memberID))
@@ -177,8 +177,8 @@ func PurchaseItem(guildID, memberID snowflake.ID, item *Item, status string, ren
 	}
 
 	purchase := &Purchase{
-		GuildID:     discordid.NewSnowflakeID(guildID),
-		MemberID:    discordid.NewSnowflakeID(memberID),
+		GuildID:     guildID,
+		MemberID:    memberID,
 		Item:        item,
 		Status:      status,
 		PurchasedOn: time.Now(),
@@ -232,7 +232,7 @@ func (p *Purchase) HasExpired() bool {
 		case roleItemType:
 			// Unassign the role to the user. If it can't be unassigned, log the error but don't mark it as expired
 			// so that it can be retried later.
-			guildMember, err := guild.GetMemberByID(p.GuildID.ID(), p.MemberID.ID())
+			guildMember, err := guild.GetMemberByID(p.GuildID, p.MemberID)
 			if err != nil {
 				slog.Error("failed to unassign role", "guildID", p.GuildID, "memberID", p.MemberID, "roleName", p.Item.Name, "error", err)
 				return false
@@ -277,9 +277,9 @@ func (p *Purchase) HasExpired() bool {
 			)
 		}
 
-		config := GetConfig(p.GuildID.ID())
+		config := GetConfig(p.GuildID)
 		if config.ModChannelID != "" {
-			guildMember, err := guild.GetMemberByID(p.GuildID.ID(), p.MemberID.ID())
+			guildMember, err := guild.GetMemberByID(p.GuildID, p.MemberID)
 			memberName := p.MemberID.String()
 			if err == nil && guildMember != nil {
 				memberName = guildMember.Name
@@ -300,7 +300,7 @@ func (p *Purchase) HasExpired() bool {
 
 // Return the purchase to the shop.
 func (p *Purchase) Return() error {
-	bankAccount := bank.GetAccount(p.GuildID.ID(), p.MemberID.ID())
+	bankAccount := bank.GetAccount(p.GuildID, p.MemberID)
 	err := bankAccount.DepositIntoCurrent(p.Item.Price)
 	if err != nil {
 		slog.Error("unable to deposit cash to the bank account", "guildID", p.GuildID, "memberID", p.MemberID, "itemName", p.Item.Name, "itemType", p.Item.Type, "error", err)
@@ -313,9 +313,9 @@ func (p *Purchase) Return() error {
 		return fmt.Errorf("unable to delete purchase from the database: %w", err)
 	}
 
-	config := GetConfig(p.GuildID.ID())
+	config := GetConfig(p.GuildID)
 	if config.ModChannelID != "" {
-		guildMember, err := guild.GetMemberByID(p.GuildID.ID(), p.MemberID.ID())
+		guildMember, err := guild.GetMemberByID(p.GuildID, p.MemberID)
 		if err != nil {
 			slog.Error("unable to get guild member", "guildID", p.GuildID, "memberID", p.MemberID, "error", err)
 			return fmt.Errorf("unable to get guild member: %w", err)

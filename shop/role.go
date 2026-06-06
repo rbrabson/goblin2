@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	"github.com/disgoorg/disgo/discord"
-	"github.com/disgoorg/snowflake/v2"
 )
 
 const (
@@ -17,8 +16,8 @@ const (
 type Role Item
 
 // GetRole retrieves a role from the shop by its name for a specific guild.
-func GetRole(guildID snowflake.ID, name string) *Role {
-	item := getShopItem(discordid.NewSnowflakeID(guildID), name, roleItemType)
+func GetRole(guildID discordid.SnowflakeID, name string) *Role {
+	item := getShopItem(guildID, name, roleItemType)
 	if item == nil {
 		return nil
 	}
@@ -26,7 +25,7 @@ func GetRole(guildID snowflake.ID, name string) *Role {
 }
 
 // NewRole creates a new role for the shop.
-func NewRole(guildID snowflake.ID, name string, description string, price int, duration string, autoRenewable bool) *Role {
+func NewRole(guildID discordid.SnowflakeID, name string, description string, price int, duration string, autoRenewable bool) *Role {
 	item := newShopItem(guildID, name, description, roleItemType, price, duration, autoRenewable, 0)
 	role := (*Role)(item)
 	return role
@@ -39,7 +38,7 @@ func (r *Role) Update(name string, description string, price int, duration strin
 }
 
 // Purchase allows a member to purchase the role from the shop.
-func (r *Role) Purchase(memberID snowflake.ID, renew bool) (*Purchase, error) {
+func (r *Role) Purchase(memberID discordid.SnowflakeID, renew bool) (*Purchase, error) {
 	item := Item(*r)
 	return item.purchase(memberID, PURCHASED, renew)
 }
@@ -57,7 +56,7 @@ func (r *Role) RemoveFromShop(s *Shop) error {
 }
 
 // roleExistsChecks performs checks to see if a role can be added to the shop.
-func roleExistsChecks(guildID snowflake.ID, roleName string) error {
+func roleExistsChecks(guildID discordid.SnowflakeID, roleName string) error {
 	if _, err := getExistingGuildRole(guildID, roleName); err != nil {
 		return err
 	}
@@ -66,13 +65,13 @@ func roleExistsChecks(guildID snowflake.ID, roleName string) error {
 }
 
 // rolePurchaseChecks performs checks to see if a role can be purchased.
-func rolePurchaseChecks(guildID snowflake.ID, memberID snowflake.ID, roleName string) error {
+func rolePurchaseChecks(guildID, memberID discordid.SnowflakeID, roleName string) error {
 	guildRole, err := getExistingGuildRole(guildID, roleName)
 	if err != nil {
 		return err
 	}
 
-	member, err := client.Rest.GetMember(guildID, memberID)
+	member, err := client.Rest.GetMember(guildID.ID(), memberID.ID())
 	if err != nil {
 		slog.Error("member not found on server",
 			slog.Any("guildID", guildID),
@@ -88,7 +87,7 @@ func rolePurchaseChecks(guildID snowflake.ID, memberID snowflake.ID, roleName st
 		}
 	}
 
-	shopItem := getShopItem(discordid.NewSnowflakeID(guildID), roleName, roleItemType)
+	shopItem := getShopItem(guildID, roleName, roleItemType)
 	if shopItem == nil {
 		slog.Error("failed to read role from shop",
 			slog.Any("guildID", guildID),
@@ -105,12 +104,12 @@ func rolePurchaseChecks(guildID snowflake.ID, memberID snowflake.ID, roleName st
 }
 
 // getExistingGuildRole retrieves an existing role from the guild. If the role does not exist, an error is returned.
-func getExistingGuildRole(guildID snowflake.ID, roleName string) (discord.Role, error) {
+func getExistingGuildRole(guildID discordid.SnowflakeID, roleName string) (discord.Role, error) {
 	if client == nil {
 		return discord.Role{}, fmt.Errorf("discord client is nil")
 	}
 
-	roles, err := client.Rest.GetRoles(guildID)
+	roles, err := client.Rest.GetRoles(guildID.ID())
 	if err != nil {
 		slog.Error("unable to get guild roles",
 			slog.Any("guildID", guildID),

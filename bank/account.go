@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -42,10 +41,10 @@ type Account struct {
 }
 
 // GetAccount returns the account for the given guild and member.
-func GetAccount(guildID snowflake.ID, memberID snowflake.ID) *Account {
+func GetAccount(guildID, memberID discordid.SnowflakeID) *Account {
 	key := accountCacheKey{
-		guildID:  discordid.NewSnowflakeID(guildID),
-		memberID: discordid.NewSnowflakeID(memberID),
+		guildID:  guildID,
+		memberID: memberID,
 	}
 
 	if account, ok := accountCache.Get(key); ok {
@@ -64,10 +63,10 @@ func GetAccount(guildID snowflake.ID, memberID snowflake.ID) *Account {
 }
 
 // createNewAccount creates a new account for the given guild and member.
-func createNewAccount(guildID snowflake.ID, memberID snowflake.ID) *Account {
+func createNewAccount(guildID, memberID discordid.SnowflakeID) *Account {
 	return &Account{
-		GuildID:         discordid.NewSnowflakeID(guildID),
-		MemberID:        discordid.NewSnowflakeID(memberID),
+		GuildID:         guildID,
+		MemberID:        memberID,
 		CreatedAt:       time.Now(),
 		CurrentBalance:  theme.DefaultBalance,
 		MonthlyBalance:  theme.DefaultBalance,
@@ -98,7 +97,7 @@ func GetAccounts(filter interface{}, sortBy interface{}, limit int64) []*Account
 
 // Deposit adds the given amount to the account.
 func (a *Account) Deposit(amount int) error {
-	return UpdateAccount(a.GuildID.ID(), a.MemberID.ID(), func(acc *Account) error {
+	return UpdateAccount(a.GuildID, a.MemberID, func(acc *Account) error {
 		acc.CurrentBalance += amount
 		acc.MonthlyBalance += amount
 		acc.LifetimeBalance += amount
@@ -115,7 +114,7 @@ func (a *Account) Deposit(amount int) error {
 // DepositIntoCurrent adds the given amount to the current balance of the account. This does not affect the
 // monthly or lifetime balances.
 func (a *Account) DepositIntoCurrent(amount int) error {
-	return UpdateAccount(a.GuildID.ID(), a.MemberID.ID(), func(acc *Account) error {
+	return UpdateAccount(a.GuildID, a.MemberID, func(acc *Account) error {
 		acc.CurrentBalance += amount
 		slog.Debug("deposit to the current balance for the account",
 			slog.Any("guildID", acc.GuildID),
@@ -129,7 +128,7 @@ func (a *Account) DepositIntoCurrent(amount int) error {
 
 // Withdraw withdraws the given amount from the account.
 func (a *Account) Withdraw(amount int) error {
-	return UpdateAccount(a.GuildID.ID(), a.MemberID.ID(), func(a *Account) error {
+	return UpdateAccount(a.GuildID, a.MemberID, func(a *Account) error {
 		if a.CurrentBalance < amount {
 			slog.Debug("insufficient funds to withdraw from account",
 				slog.Any("guildID", a.GuildID),
@@ -157,7 +156,7 @@ func (a *Account) Withdraw(amount int) error {
 // WithdrawFromCurrent withdraws the given amount from the account. This only updates the current balance
 // and does not affect the monthly or lifetime balances.
 func (a *Account) WithdrawFromCurrent(amount int) error {
-	return UpdateAccount(a.GuildID.ID(), a.MemberID.ID(), func(a *Account) error {
+	return UpdateAccount(a.GuildID, a.MemberID, func(a *Account) error {
 		if a.CurrentBalance < amount {
 			slog.Debug("insufficient funds to withdraw from the account",
 				slog.Any("guildID", a.GuildID),
@@ -185,7 +184,7 @@ func (a *Account) SetBalance(amount int) error {
 	if amount < 0 {
 		return ErrInvalidAmount
 	}
-	return UpdateAccount(a.GuildID.ID(), a.MemberID.ID(), func(a *Account) error {
+	return UpdateAccount(a.GuildID, a.MemberID, func(a *Account) error {
 		a.CurrentBalance = amount
 		if a.LifetimeBalance < amount {
 			a.LifetimeBalance = amount
@@ -257,15 +256,15 @@ func (a *Account) String() string {
 }
 
 // UpdateAccount updates the account with the given mutation, retrying on version conflicts.
-func UpdateAccount(guildID, memberID snowflake.ID, mutate func(*Account) error) error {
+func UpdateAccount(guildID, memberID discordid.SnowflakeID, mutate func(*Account) error) error {
 	const maxRetries = 3
 
 	accountMu.RLock()
 	defer accountMu.RUnlock()
 
 	key := accountCacheKey{
-		guildID:  discordid.NewSnowflakeID(guildID),
-		memberID: discordid.NewSnowflakeID(memberID),
+		guildID:  guildID,
+		memberID: memberID,
 	}
 
 	for range maxRetries {

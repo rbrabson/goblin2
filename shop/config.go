@@ -7,7 +7,6 @@ import (
 	"goblin2/discordid"
 	"log/slog"
 
-	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -24,9 +23,9 @@ type Config struct {
 
 // GetConfig reads the configuration from the database. If the config does not exist,
 // then one is created.
-func GetConfig(guildID snowflake.ID) *Config {
+func GetConfig(guildID discordid.SnowflakeID) *Config {
 	key := configCacheKey{
-		guildID: discordid.NewSnowflakeID(guildID),
+		guildID: guildID,
 	}
 
 	if config, ok := configCache.Get(key); ok {
@@ -45,9 +44,9 @@ func GetConfig(guildID snowflake.ID) *Config {
 }
 
 // newConfig creates a new configuration for the given guild ID.
-func newConfig(guildID snowflake.ID) *Config {
+func newConfig(guildID discordid.SnowflakeID) *Config {
 	config := &Config{
-		GuildID: discordid.NewSnowflakeID(guildID),
+		GuildID: guildID,
 	}
 
 	slog.Info("created new shop config", "guildID", guildID)
@@ -56,14 +55,14 @@ func newConfig(guildID snowflake.ID) *Config {
 }
 
 // UpdateConfig updates the shop config with the given mutation, retrying on version conflicts.
-func UpdateConfig(guildID snowflake.ID, mutate func(*Config) error) error {
+func UpdateConfig(guildID discordid.SnowflakeID, mutate func(*Config) error) error {
 	const maxRetries = 3
 
 	configMu.RLock()
 	defer configMu.RUnlock()
 
 	key := configCacheKey{
-		guildID: discordid.NewSnowflakeID(guildID),
+		guildID: guildID,
 	}
 
 	for range maxRetries {
@@ -101,7 +100,7 @@ func UpdateConfig(guildID snowflake.ID, mutate func(*Config) error) error {
 
 // SetChannel sets the channel to which to publish the shop items
 func (c *Config) SetChannel(channelID string) {
-	if err := UpdateConfig(c.GuildID.ID(), func(latest *Config) error {
+	if err := UpdateConfig(c.GuildID, func(latest *Config) error {
 		if latest.ChannelID == channelID {
 			return nil
 		}
@@ -117,7 +116,7 @@ func (c *Config) SetChannel(channelID string) {
 
 // SetModChannel sets the channel to which to publish the shop purchases and expirations.
 func (c *Config) SetModChannel(channelID string) {
-	if err := UpdateConfig(c.GuildID.ID(), func(latest *Config) error {
+	if err := UpdateConfig(c.GuildID, func(latest *Config) error {
 		if latest.ModChannelID == channelID {
 			return nil
 		}
@@ -132,7 +131,7 @@ func (c *Config) SetModChannel(channelID string) {
 
 // SetNotificationID sets the channel to which to notify a user (e.g., ModMail) about an action to take to complete a member's purchase.
 func (c *Config) SetNotificationID(id string) {
-	if err := UpdateConfig(c.GuildID.ID(), func(latest *Config) error {
+	if err := UpdateConfig(c.GuildID, func(latest *Config) error {
 		if latest.NotificationID == id {
 			return nil
 		}
@@ -147,7 +146,7 @@ func (c *Config) SetNotificationID(id string) {
 
 // SetMessageID saves the interaction used to publish the shop items.
 func (c *Config) SetMessageID(messageID string) {
-	if err := UpdateConfig(c.GuildID.ID(), func(latest *Config) error {
+	if err := UpdateConfig(c.GuildID, func(latest *Config) error {
 		if latest.MessageID == messageID {
 			return nil
 		}

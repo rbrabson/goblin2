@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -73,10 +72,10 @@ type Member struct {
 // creating a new in-memory member if one does not already exist.
 //
 // New members are not persisted until their state changes.
-func GetMember(guildID, memberID snowflake.ID) *Member {
+func GetMember(guildID, memberID discordid.SnowflakeID) *Member {
 	key := memberCacheKey{
-		guildID:  discordid.NewSnowflakeID(guildID),
-		memberID: discordid.NewSnowflakeID(memberID),
+		guildID:  guildID,
+		memberID: memberID,
 	}
 
 	if cached, ok := memberCache.Get(key); ok {
@@ -97,10 +96,10 @@ func GetMember(guildID, memberID snowflake.ID) *Member {
 }
 
 // newMember creates a new heist member with a default state.
-func newMember(guildID snowflake.ID, memberID snowflake.ID) *Member {
+func newMember(guildID, memberID discordid.SnowflakeID) *Member {
 	return &Member{
-		GuildID:       discordid.NewSnowflakeID(guildID),
-		MemberID:      discordid.NewSnowflakeID(memberID),
+		GuildID:       guildID,
+		MemberID:      memberID,
 		CriminalLevel: Greenhorn,
 		Status:        Free,
 	}

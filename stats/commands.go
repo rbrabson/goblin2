@@ -174,8 +174,8 @@ func statsAdmin(data discord.SlashCommandInteractionData, e *handler.CommandEven
 		})
 	}
 
-	g := guild.GetGuild(member.GuildID)
-	guildMember := guild.GetMember(member.GuildID, &member.Member)
+	g := guild.GetGuild(discordid.NewSnowflakeID(member.GuildID))
+	guildMember := guild.GetMember(discordid.NewSnowflakeID(member.GuildID), &member.Member)
 	if guildMember == nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "Unable to resolve your server membership.",
@@ -412,9 +412,9 @@ func playerGames(data discord.SlashCommandInteractionData, e *handler.CommandEve
 	}
 
 	guildID := getGuildID(e)
-	guildMember, _ := guild.GetMemberByID(member.GuildID, memberID)
+	guildMember, _ := guild.GetMemberByID(discordid.NewSnowflakeID(member.GuildID), discordid.NewSnowflakeID(memberID))
 	if guildMember == nil {
-		guildMember = guild.GetMember(member.GuildID, &member.Member)
+		guildMember = guild.GetMember(discordid.NewSnowflakeID(member.GuildID), &member.Member)
 	}
 
 	ps, _ := getAggregatePlayerStats(guildID, memberID.String(), game)
@@ -502,7 +502,7 @@ func activePlayers(data discord.SlashCommandInteractionData, e *handler.CommandE
 
 	playerStats := getPlayerStatsForMostActiveMembers(guildID, game)
 
-	guildMember := guild.GetMember(member.GuildID, &member.Member)
+	guildMember := guild.GetMember(discordid.NewSnowflakeID(member.GuildID), &member.Member)
 	if guildMember != nil {
 		_ = guildMember.Update(&member.Member)
 	}
@@ -557,7 +557,7 @@ func formatPlayerStats(title string, playerStats []*PlayerStats) []discord.Embed
 	p := message.NewPrinter(language.AmericanEnglish)
 	for i, ps := range playerStats {
 		memberName := ps.MemberID.String()
-		member, _ := guild.GetMemberByID(ps.GuildID.ID(), ps.MemberID.ID())
+		member, _ := guild.GetMemberByID(ps.GuildID, ps.MemberID)
 		if member != nil {
 			memberName = member.Name
 		}

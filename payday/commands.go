@@ -2,6 +2,7 @@ package payday
 
 import (
 	"goblin2/bank"
+	"goblin2/discordid"
 	"goblin2/internal/format"
 	"log/slog"
 	"time"
@@ -37,8 +38,8 @@ func payday(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) erro
 
 	p := message.NewPrinter(language.AmericanEnglish)
 
-	payday := GetPayday(member.GuildID)
-	paydayAccount := payday.GetAccount(member.User.ID)
+	payday := GetPayday(discordid.NewSnowflakeID(member.GuildID))
+	paydayAccount := payday.GetAccount(discordid.NewSnowflakeID(member.User.ID))
 
 	if paydayAccount.getNextPayday().After(time.Now()) {
 		remainingTime := time.Until(paydayAccount.NextPayday)
@@ -50,7 +51,7 @@ func payday(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) erro
 
 	paydayAmount := paydayAccount.getPayAmount()
 
-	account := bank.GetAccount(member.GuildID, member.User.ID)
+	account := bank.GetAccount(discordid.NewSnowflakeID(member.GuildID), discordid.NewSnowflakeID(member.User.ID))
 	if err := account.Deposit(paydayAmount); err != nil {
 		slog.Error("error depositing data in the account",
 			slog.Any("guildID", member.GuildID),
@@ -84,8 +85,8 @@ func showStats(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) e
 
 	p := message.NewPrinter(language.AmericanEnglish)
 
-	payday := GetPayday(member.GuildID)
-	paydayAccount := payday.GetAccount(member.User.ID)
+	payday := GetPayday(discordid.NewSnowflakeID(member.GuildID))
+	paydayAccount := payday.GetAccount(discordid.NewSnowflakeID(member.User.ID))
 	currentStreak := paydayAccount.CurrentStreak
 	maxStreak := paydayAccount.MaxStreak
 	pay := paydayAccount.getPayAmount()

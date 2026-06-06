@@ -8,7 +8,6 @@ import (
 
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
-	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -25,8 +24,8 @@ type Guild struct {
 }
 
 // GetGuild returns the guild with the given guild ID, creating a default one if not found.
-func GetGuild(guildID snowflake.ID) *Guild {
-	g := readGuild(discordid.SnowflakeID(guildID))
+func GetGuild(guildID discordid.SnowflakeID) *Guild {
+	g := readGuild(guildID)
 	if g != nil {
 		return g
 	}
@@ -34,15 +33,15 @@ func GetGuild(guildID snowflake.ID) *Guild {
 }
 
 // createDefaultGuild creates a new guild with the given guild ID and default admin roles.
-func createDefaultGuild(guildID snowflake.ID) *Guild {
+func createDefaultGuild(guildID discordid.SnowflakeID) *Guild {
 	return &Guild{
-		GuildID:    discordid.SnowflakeID(guildID),
+		GuildID:    guildID,
 		AdminRoles: append([]string(nil), defaultAdminRoles...),
 	}
 }
 
 // UpdateGuild applies the given mutation to the guild atomically, retrying on version conflicts.
-func UpdateGuild(guildID snowflake.ID, mutate func(*Guild) error) error {
+func UpdateGuild(guildID discordid.SnowflakeID, mutate func(*Guild) error) error {
 	const maxRetries = 3
 
 	for range maxRetries {
@@ -76,7 +75,7 @@ func UpdateGuild(guildID snowflake.ID, mutate func(*Guild) error) error {
 
 // AddAdminRole adds the given role name to the guild's admin roles.
 func (g *Guild) AddAdminRole(roleName string) error {
-	return UpdateGuild(g.GuildID.ID(), func(latest *Guild) error {
+	return UpdateGuild(g.GuildID, func(latest *Guild) error {
 		for _, r := range latest.AdminRoles {
 			if r == roleName {
 				return ErrRoleAlreadyExists
@@ -93,7 +92,7 @@ func (g *Guild) AddAdminRole(roleName string) error {
 
 // RemoveAdminRole removes the given role name from the guild's admin roles.
 func (g *Guild) RemoveAdminRole(roleName string) error {
-	return UpdateGuild(g.GuildID.ID(), func(latest *Guild) error {
+	return UpdateGuild(g.GuildID, func(latest *Guild) error {
 		roles := make([]string, 0, len(latest.AdminRoles))
 		for _, r := range latest.AdminRoles {
 			if r != roleName {
@@ -141,7 +140,7 @@ func (g *Guild) GetRole(client *bot.Client, roleName string) (discord.Role, erro
 
 // GetMember returns a member within this guild.
 func (g *Guild) GetMember(member *discord.Member) *Member {
-	return GetMember(g.GuildID.ID(), member)
+	return GetMember(g.GuildID, member)
 }
 
 // String returns a string representation of the guild.

@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -26,10 +25,10 @@ type Member struct {
 }
 
 // GetMember retrieves a member from the database, creating one if it doesn't exist.
-func GetMember(guildID, memberID snowflake.ID) *Member {
+func GetMember(guildID, memberID discordid.SnowflakeID) *Member {
 	key := memberCacheKey{
-		guildID:  discordid.NewSnowflakeID(guildID),
-		memberID: discordid.NewSnowflakeID(memberID),
+		guildID:  guildID,
+		memberID: memberID,
 	}
 
 	if member, ok := memberCache.Get(key); ok {
@@ -48,24 +47,24 @@ func GetMember(guildID, memberID snowflake.ID) *Member {
 }
 
 // newMember creates a new member with the given guild ID and member ID.
-func newMember(guildID, memberID snowflake.ID) *Member {
+func newMember(guildID, memberID discordid.SnowflakeID) *Member {
 	return &Member{
-		GuildID:      discordid.NewSnowflakeID(guildID),
-		MemberID:     discordid.NewSnowflakeID(memberID),
+		GuildID:      guildID,
+		MemberID:     memberID,
 		Restrictions: []string{},
 	}
 }
 
 // UpdateMember updates the shop member with the given mutation, retrying on version conflicts.
-func UpdateMember(guildID, memberID snowflake.ID, mutate func(*Member) error) error {
+func UpdateMember(guildID, memberID discordid.SnowflakeID, mutate func(*Member) error) error {
 	const maxRetries = 3
 
 	memberMu.RLock()
 	defer memberMu.RUnlock()
 
 	key := memberCacheKey{
-		guildID:  discordid.NewSnowflakeID(guildID),
-		memberID: discordid.NewSnowflakeID(memberID),
+		guildID:  guildID,
+		memberID: memberID,
 	}
 
 	for range maxRetries {
@@ -110,7 +109,7 @@ func UpdateMember(guildID, memberID snowflake.ID, mutate func(*Member) error) er
 
 // AddRestriction adds a restriction to the member.
 func (m *Member) AddRestriction(restriction string) error {
-	return UpdateMember(m.GuildID.ID(), m.MemberID.ID(), func(latest *Member) error {
+	return UpdateMember(m.GuildID, m.MemberID, func(latest *Member) error {
 		if latest.HasRestriction(restriction) {
 			return fmt.Errorf("the user already has the `%s` restriction", restriction)
 		}
@@ -121,7 +120,7 @@ func (m *Member) AddRestriction(restriction string) error {
 
 // RemoveRestriction removes a restriction from the member.
 func (m *Member) RemoveRestriction(restriction string) error {
-	return UpdateMember(m.GuildID.ID(), m.MemberID.ID(), func(latest *Member) error {
+	return UpdateMember(m.GuildID, m.MemberID, func(latest *Member) error {
 		for i, r := range latest.Restrictions {
 			if r == restriction {
 				latest.Restrictions = append(latest.Restrictions[:i], latest.Restrictions[i+1:]...)

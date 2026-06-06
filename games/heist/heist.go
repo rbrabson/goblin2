@@ -3,6 +3,7 @@ package heist
 import (
 	"fmt"
 	"goblin2/bank"
+	"goblin2/discordid"
 	"goblin2/stats"
 	"log/slog"
 	"math"
@@ -13,14 +14,13 @@ import (
 	"time"
 
 	"github.com/disgoorg/disgo/handler"
-	"github.com/disgoorg/snowflake/v2"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )
 
 var (
-	alertTimes     = make(map[snowflake.ID]time.Time)
-	currentHeists  = make(map[snowflake.ID]*Heist)
+	alertTimes     = make(map[discordid.SnowflakeID]time.Time)
+	currentHeists  = make(map[discordid.SnowflakeID]*Heist)
 	heistLock      = sync.Mutex{}
 	alertTimesLock = sync.Mutex{}
 )
@@ -36,7 +36,7 @@ const (
 
 // Heist is a heist that is being planned, is in progress, or has completed.
 type Heist struct {
-	GuildID      snowflake.ID
+	GuildID      discordid.SnowflakeID
 	Organizer    *Member
 	Crew         []*Member
 	StartTime    time.Time
@@ -72,7 +72,7 @@ type MemberResult struct {
 
 // GetHeist returns the current heist for the given guild ID. If there is no
 // heist, it returns nil.
-func GetHeist(guildID snowflake.ID) *Heist {
+func GetHeist(guildID discordid.SnowflakeID) *Heist {
 	heistLock.Lock()
 	defer heistLock.Unlock()
 
@@ -80,7 +80,7 @@ func GetHeist(guildID snowflake.ID) *Heist {
 }
 
 // NewHeist creates a new heist if one is not already underway.
-func NewHeist(guildID snowflake.ID, memberID snowflake.ID) (*Heist, error) {
+func NewHeist(guildID, memberID discordid.SnowflakeID) (*Heist, error) {
 	heistLock.Lock()
 	defer heistLock.Unlock()
 
@@ -168,7 +168,7 @@ func (h *Heist) Start() (*Result, error) {
 
 	successRate := calculateSuccessRate(h, target)
 	for _, crewMember := range h.Crew {
-		heistMember := GetMember(crewMember.GuildID.ID(), crewMember.MemberID.ID())
+		heistMember := GetMember(crewMember.GuildID, crewMember.MemberID)
 		heistMember.guildMember = crewMember.guildMember
 
 		chance := rand.Float64()
@@ -313,9 +313,9 @@ func (h *Heist) End() {
 
 	h.removeCurrentHeist()
 
-	memberIDs := make([]snowflake.ID, 0, len(h.Crew))
+	memberIDs := make([]discordid.SnowflakeID, 0, len(h.Crew))
 	for _, member := range h.Crew {
-		memberIDs = append(memberIDs, member.MemberID.ID())
+		memberIDs = append(memberIDs, member.MemberID)
 		member.heist = nil
 	}
 
@@ -364,7 +364,7 @@ func heistChecks(h *Heist, member *Member) error {
 		return ErrAlreadyJoinedHeist
 	}
 
-	account := bank.GetAccount(h.GuildID, member.MemberID.ID())
+	account := bank.GetAccount(h.GuildID, member.MemberID)
 
 	if account.CurrentBalance < h.config.HeistCost {
 		return ErrNotEnoughCredits{h.config.HeistCost}

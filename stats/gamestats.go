@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -38,8 +37,8 @@ type GamesPlayed struct {
 }
 
 // getGameStats retrieves the game statistics for a specific game in a guild on a specific day.
-func getGameStats(guildID snowflake.ID, game string, day time.Time) *GameStats {
-	gs, err := readGameStats(discordid.NewSnowflakeID(guildID), game, day)
+func getGameStats(guildID discordid.SnowflakeID, game string, day time.Time) *GameStats {
+	gs, err := readGameStats(guildID, game, day)
 	if err != nil || gs == nil {
 		gs = newGameStats(guildID, game, day)
 	}
@@ -47,9 +46,9 @@ func getGameStats(guildID snowflake.ID, game string, day time.Time) *GameStats {
 }
 
 // newGameStats creates a new GameStats instance for a specific game in a guild on a specific day.
-func newGameStats(guildID snowflake.ID, game string, day time.Time) *GameStats {
+func newGameStats(guildID discordid.SnowflakeID, game string, day time.Time) *GameStats {
 	gs := &GameStats{
-		GuildID: discordid.NewSnowflakeID(guildID),
+		GuildID: guildID,
 		Game:    game,
 		Day:     day,
 	}
@@ -66,7 +65,7 @@ func newGameStats(guildID snowflake.ID, game string, day time.Time) *GameStats {
 }
 
 // updateGameStatsWithRetry updates game stats using optimistic locking.
-func updateGameStatsWithRetry(guildID snowflake.ID, game string, day time.Time, update func(*GameStats)) (*GameStats, error) {
+func updateGameStatsWithRetry(guildID discordid.SnowflakeID, game string, day time.Time, update func(*GameStats)) (*GameStats, error) {
 	const maxRetries = 3
 
 	for range maxRetries {
@@ -97,7 +96,7 @@ func updateGameStatsWithRetry(guildID snowflake.ID, game string, day time.Time, 
 }
 
 // UpdateGameStats updates the game statistics for a specific game in a guild.
-func UpdateGameStats(guildID snowflake.ID, game string, memberIDs []snowflake.ID) {
+func UpdateGameStats(guildID discordid.SnowflakeID, game string, memberIDs []discordid.SnowflakeID) {
 	statsLock.Lock()
 	defer statsLock.Unlock()
 

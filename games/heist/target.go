@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -51,7 +50,7 @@ func LoadTargets(path string) error {
 }
 
 // GetTargets returns the list of targets for the server.
-func GetTargets(guildID snowflake.ID) []*Target {
+func GetTargets(guildID discordid.SnowflakeID) []*Target {
 	theme := GetTheme(guildID)
 	themeName := ""
 	if theme != nil {
@@ -59,7 +58,7 @@ func GetTargets(guildID snowflake.ID) []*Target {
 	}
 
 	key := targetsCacheKey{
-		guildID: discordid.NewSnowflakeID(guildID),
+		guildID: guildID,
 		theme:   themeName,
 	}
 
@@ -84,11 +83,11 @@ func GetTargets(guildID snowflake.ID) []*Target {
 }
 
 // createNewTargets creates a list of targets for a guild with the default target values.
-func createNewTargets(guildID snowflake.ID) []*Target {
+func createNewTargets(guildID discordid.SnowflakeID) []*Target {
 	targets := make([]*Target, 0, len(defaultTargets))
 	for _, target := range defaultTargets {
 		targets = append(targets, &Target{
-			GuildID:  discordid.NewSnowflakeID(guildID),
+			GuildID:  guildID,
 			Theme:    target.Theme,
 			Name:     target.Name,
 			CrewSize: target.CrewSize,

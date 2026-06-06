@@ -11,7 +11,6 @@ import (
 
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
-	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -43,14 +42,14 @@ type Member struct {
 }
 
 // GetMember returns the member within a guild.
-func GetMember(guildID snowflake.ID, member *discord.Member) *Member {
+func GetMember(guildID discordid.SnowflakeID, member *discord.Member) *Member {
 	if member == nil {
 		slog.Error("discord member is nil", slog.Any("guild_id", guildID))
 		return nil
 	}
 
 	key := memberCacheKey{
-		guildID:  discordid.NewSnowflakeID(guildID),
+		guildID:  guildID,
 		memberID: discordid.NewSnowflakeID(member.User.ID),
 	}
 
@@ -72,10 +71,10 @@ func GetMember(guildID snowflake.ID, member *discord.Member) *Member {
 }
 
 // GetMemberByID returns the member within a guild by ID.
-func GetMemberByID(guildID snowflake.ID, memberID snowflake.ID) (*Member, error) {
+func GetMemberByID(guildID, memberID discordid.SnowflakeID) (*Member, error) {
 	key := memberCacheKey{
-		guildID:  discordid.NewSnowflakeID(guildID),
-		memberID: discordid.NewSnowflakeID(memberID),
+		guildID:  guildID,
+		memberID: memberID,
 	}
 
 	if cached, ok := memberCache.Get(key); ok {
@@ -92,9 +91,9 @@ func GetMemberByID(guildID snowflake.ID, memberID snowflake.ID) (*Member, error)
 }
 
 // createNewMember creates a new member within a guild.
-func createNewMember(guildID snowflake.ID, member *discord.Member) *Member {
+func createNewMember(guildID discordid.SnowflakeID, member *discord.Member) *Member {
 	m := &Member{
-		GuildID:  discordid.NewSnowflakeID(guildID),
+		GuildID:  guildID,
 		MemberID: discordid.NewSnowflakeID(member.User.ID),
 	}
 	return m
@@ -124,7 +123,7 @@ func (m *Member) Update(member *discord.Member) bool {
 	}
 
 	changed := false
-	if err := UpdateMember(member.GuildID, member.User.ID, member, func(latest *Member) error {
+	if err := UpdateMember(discordid.NewSnowflakeID(member.GuildID), discordid.NewSnowflakeID(member.User.ID), member, func(latest *Member) error {
 		changed = updateMemberFields(latest, member)
 		return nil
 	}); err != nil {
@@ -185,15 +184,15 @@ func updateMemberFields(m *Member, member *discord.Member) bool {
 }
 
 // UpdateMember applies the given mutation to the member, retrying on version conflicts.
-func UpdateMember(guildID, memberID snowflake.ID, discordMember *discord.Member, mutate func(*Member) error) error {
+func UpdateMember(guildID, memberID discordid.SnowflakeID, discordMember *discord.Member, mutate func(*Member) error) error {
 	const maxRetries = 3
 
 	memberMu.RLock()
 	defer memberMu.RUnlock()
 
 	key := memberCacheKey{
-		guildID:  discordid.NewSnowflakeID(guildID),
-		memberID: discordid.NewSnowflakeID(memberID),
+		guildID:  guildID,
+		memberID: memberID,
 	}
 
 	for range maxRetries {
@@ -243,14 +242,14 @@ func (m *Member) GetRoles(client *bot.Client) ([]discord.Role, error) {
 		return nil, fmt.Errorf("member %s not found in guild %s", m.MemberID, m.GuildID)
 	}
 
-	roleIDs := make(map[snowflake.ID]struct{}, len(member.RoleIDs))
+	roleIDs := make(map[discordid.SnowflakeID]struct{}, len(member.RoleIDs))
 	for _, roleID := range member.RoleIDs {
-		roleIDs[roleID] = struct{}{}
+		roleIDs[discordid.NewSnowflakeID(roleID)] = struct{}{}
 	}
 
 	roles := make([]discord.Role, 0, len(roleIDs))
 	for role := range client.Caches.Roles(m.GuildID.ID()) {
-		if _, ok := roleIDs[role.ID]; ok {
+		if _, ok := roleIDs[discordid.NewSnowflakeID(role.ID)]; ok {
 			roles = append(roles, role)
 		}
 	}

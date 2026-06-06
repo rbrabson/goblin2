@@ -299,7 +299,7 @@ func (m *MongoDB) UpdateOne(collectionName string, filter any, update any) (*mon
 	return res, nil
 }
 
-// UpdateOneUpsert updates a single document in the collection that matches the filter,
+// UpdateOneUpsert updates a single document in the collection that matches the filter
 // or inserts one if no document matches.
 func (m *MongoDB) UpdateOneUpsert(collectionName string, filter any, update any) (*mongo.UpdateResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
@@ -352,7 +352,7 @@ func (m *MongoDB) ReplaceOne(collectionName string, filter any, replacement any)
 	return res, nil
 }
 
-// ReplaceOneUpsert replaces a single document in the collection that matches the filter,
+// ReplaceOneUpsert replaces a single document in the collection that matches the filter
 // or inserts one if no document matches.
 func (m *MongoDB) ReplaceOneUpsert(collectionName string, filter any, replacement any) (*mongo.UpdateResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)

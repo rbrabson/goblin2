@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
@@ -163,7 +162,7 @@ func updateGameStats(gs *GameStats) error {
 }
 
 // getLastDatePlayed retrieves the last date a member played a game in a guild.
-func getLastDatePlayed(guildID snowflake.ID, memberID snowflake.ID) time.Time {
+func getLastDatePlayed(guildID, memberID discordid.SnowflakeID) time.Time {
 	// Use aggregation pipeline to find the maximum last_played date for the member
 	pipeline := mongo.Pipeline{
 		// Stage 1: Match documents for the specific guild and member

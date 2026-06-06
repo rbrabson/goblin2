@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -43,10 +42,10 @@ type Account struct {
 }
 
 // GetPaydayAccount returns the payday account for the given guild and member.
-func GetPaydayAccount(guildID snowflake.ID, memberID snowflake.ID) *Account {
+func GetPaydayAccount(guildID, memberID discordid.SnowflakeID) *Account {
 	key := paydayAccountCacheKey{
-		guildID:  discordid.NewSnowflakeID(guildID),
-		memberID: discordid.NewSnowflakeID(memberID),
+		guildID:  guildID,
+		memberID: memberID,
 	}
 
 	if account, ok := paydayAccountCache.Get(key); ok {
@@ -65,10 +64,10 @@ func GetPaydayAccount(guildID snowflake.ID, memberID snowflake.ID) *Account {
 }
 
 // newAccount creates new payday information for a server/guild.
-func newAccount(guildID snowflake.ID, memberID snowflake.ID) *Account {
+func newAccount(guildID, memberID discordid.SnowflakeID) *Account {
 	return &Account{
-		MemberID: discordid.NewSnowflakeID(memberID),
-		GuildID:  discordid.NewSnowflakeID(guildID),
+		MemberID: memberID,
+		GuildID:  guildID,
 	}
 }
 
@@ -87,15 +86,15 @@ func ClosePaydayAccountCache() {
 }
 
 // UpdatePaydayAccount updates the payday account with the given mutation, retrying on version conflicts.
-func UpdatePaydayAccount(guildID, memberID snowflake.ID, mutate func(*Account) error) error {
+func UpdatePaydayAccount(guildID, memberID discordid.SnowflakeID, mutate func(*Account) error) error {
 	const maxRetries = 3
 
 	paydayAccountMu.RLock()
 	defer paydayAccountMu.RUnlock()
 
 	key := paydayAccountCacheKey{
-		guildID:  discordid.NewSnowflakeID(guildID),
-		memberID: discordid.NewSnowflakeID(memberID),
+		guildID:  guildID,
+		memberID: memberID,
 	}
 
 	for range maxRetries {
@@ -139,7 +138,7 @@ func (a *Account) getNextPayday() time.Time {
 
 // setNextPayday sets the next payday for the user.
 func (a *Account) setNextPayday(minWait time.Duration) {
-	if err := UpdatePaydayAccount(a.GuildID.ID(), a.MemberID.ID(), func(latest *Account) error {
+	if err := UpdatePaydayAccount(a.GuildID, a.MemberID, func(latest *Account) error {
 		latest.NextPayday = time.Now().Add(minWait)
 		latest.CurrentStreak = a.CurrentStreak
 		latest.MaxStreak = a.MaxStreak
@@ -166,7 +165,7 @@ func (a *Account) setNextPayday(minWait time.Duration) {
 
 // getPayAmount returns the number of credits the user will receive on their next payday.
 func (a *Account) getPayAmount() int {
-	payday := GetPayday(a.GuildID.ID())
+	payday := GetPayday(a.GuildID)
 	a.updateStreak(payday.PaydayFrequency)
 	basePay := payday.Amount
 	bonus := payday.StreakPerDayBonus

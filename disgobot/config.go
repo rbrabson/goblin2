@@ -1,6 +1,8 @@
 package disgobot
 
-import "github.com/disgoorg/snowflake/v2"
+import (
+	"github.com/disgoorg/snowflake/v2"
+)
 
 // Config contains the bot configuration.
 type Config struct {

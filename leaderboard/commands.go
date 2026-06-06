@@ -12,7 +12,6 @@ import (
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
-	"github.com/disgoorg/snowflake/v2"
 	"github.com/olekukonko/tablewriter"
 	"github.com/olekukonko/tablewriter/renderer"
 	"github.com/olekukonko/tablewriter/tw"
@@ -96,8 +95,8 @@ func leaderboardAdmin(data discord.SlashCommandInteractionData, e *handler.Comma
 		})
 	}
 
-	g := guild.GetGuild(member.GuildID)
-	guildMember := guild.GetMember(member.GuildID, &member.Member)
+	g := guild.GetGuild(discordid.NewSnowflakeID(member.GuildID))
+	guildMember := guild.GetMember(discordid.NewSnowflakeID(member.GuildID), &member.Member)
 	if guildMember == nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "Unable to resolve your server membership.",
@@ -148,7 +147,7 @@ func currentLeaderboard(_ discord.SlashCommandInteractionData, e *handler.Comman
 		})
 	}
 
-	lb := getLeaderboard(member.GuildID)
+	lb := getLeaderboard(discordid.NewSnowflakeID(member.GuildID))
 	leaderboard := lb.getCurrentLeaderboard()
 	return sendLeaderboard(e, CurrentLeaderboard, leaderboard)
 }
@@ -163,7 +162,7 @@ func monthlyLeaderboard(_ discord.SlashCommandInteractionData, e *handler.Comman
 		})
 	}
 
-	lb := getLeaderboard(member.GuildID)
+	lb := getLeaderboard(discordid.NewSnowflakeID(member.GuildID))
 	leaderboard := lb.getMonthlyLeaderboard()
 	return sendLeaderboard(e, MonthlyLeaderboard, leaderboard)
 }
@@ -178,7 +177,7 @@ func lifetimeLeaderboard(_ discord.SlashCommandInteractionData, e *handler.Comma
 		})
 	}
 
-	lb := getLeaderboard(member.GuildID)
+	lb := getLeaderboard(discordid.NewSnowflakeID(member.GuildID))
 	leaderboard := lb.getLifetimeLeaderboard()
 	return sendLeaderboard(e, LifetimeLeaderboard, leaderboard)
 }
@@ -193,7 +192,7 @@ func setLeaderboardChannel(data discord.SlashCommandInteractionData, e *handler.
 		})
 	}
 
-	lb := getLeaderboard(member.GuildID)
+	lb := getLeaderboard(discordid.NewSnowflakeID(member.GuildID))
 	channelID := stringValue(data, "id")
 	lb.setChannel(channelID)
 
@@ -213,7 +212,7 @@ func getLeaderboardInfo(_ discord.SlashCommandInteractionData, e *handler.Comman
 		})
 	}
 
-	lb := getLeaderboard(member.GuildID)
+	lb := getLeaderboard(discordid.NewSnowflakeID(member.GuildID))
 
 	return e.CreateMessage(discord.MessageCreate{
 		Content: fmt.Sprintf("Channel ID for the monthly leaderboard is %s.", lb.ChannelID),
@@ -231,13 +230,13 @@ func sendLeaderboard(e *handler.CommandEvent, title Type, accounts []*bank.Accou
 		})
 	}
 
-	guildMember := guild.GetMember(member.GuildID, &member.Member)
+	guildMember := guild.GetMember(discordid.NewSnowflakeID(member.GuildID), &member.Member)
 	if guildMember != nil {
 		_ = guildMember.Update(&member.Member)
 	}
 
 	p := message.NewPrinter(language.AmericanEnglish)
-	embeds := formatAccounts(e.Client(), member.GuildID, p, string(title), accounts)
+	embeds := formatAccounts(e.Client(), discordid.NewSnowflakeID(member.GuildID), p, string(title), accounts)
 
 	return e.CreateMessage(discord.MessageCreate{
 		Embeds: embeds,
@@ -262,7 +261,7 @@ func rank(data discord.SlashCommandInteractionData, e *handler.CommandEvent) err
 		memberID = optionMemberID
 	}
 
-	account := bank.GetAccount(member.GuildID, memberID.ID())
+	account := bank.GetAccount(discordid.NewSnowflakeID(member.GuildID), memberID)
 	if account == nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: p.Sprintf("An account with the ID of %s does not exist.", memberID),
@@ -317,7 +316,7 @@ func rank(data discord.SlashCommandInteractionData, e *handler.CommandEvent) err
 }
 
 // formatAccounts formats the leaderboard to be sent to a Discord server.
-func formatAccounts(client *bot.Client, guildID snowflake.ID, p *message.Printer, title string, accounts []*bank.Account) []discord.Embed {
+func formatAccounts(client *bot.Client, guildID discordid.SnowflakeID, p *message.Printer, title string, accounts []*bank.Account) []discord.Embed {
 	var tableBuffer strings.Builder
 
 	table := tablewriter.NewTable(&tableBuffer,
@@ -352,7 +351,7 @@ func formatAccounts(client *bot.Client, guildID snowflake.ID, p *message.Printer
 
 	for i, account := range accounts {
 		memberName := account.MemberID.String()
-		guildMember, _ := guild.GetMemberByID(guildID, account.MemberID.ID())
+		guildMember, _ := guild.GetMemberByID(guildID, account.MemberID)
 		if guildMember != nil {
 			memberName = guildMember.Name
 		}

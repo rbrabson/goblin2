@@ -125,7 +125,7 @@ func accountHandler(data discord.SlashCommandInteractionData, e *handler.Command
 		memberID = optionMemberID
 	}
 
-	account := GetAccount(guildID.ID(), memberID.ID())
+	account := GetAccount(guildID, memberID)
 	if account == nil {
 		slog.Error("account not found",
 			slog.Any("guild_id", guildID),
@@ -179,7 +179,7 @@ func setDefaultBalanceHandler(data discord.SlashCommandInteractionData, e *handl
 	p := message.NewPrinter(language.AmericanEnglish)
 
 	balance := intValue(data, "value")
-	b := GetBank(e.Member().GuildID)
+	b := GetBank(discordid.NewSnowflakeID(e.Member().GuildID))
 	b.SetDefaultBalance(balance)
 
 	slog.Debug("/bank-admin balance",
@@ -197,7 +197,7 @@ func setBankNameHandler(data discord.SlashCommandInteractionData, e *handler.Com
 	p := message.NewPrinter(language.AmericanEnglish)
 
 	name := strings.TrimSpace(stringValue(data, "value"))
-	b := GetBank(e.Member().GuildID)
+	b := GetBank(discordid.NewSnowflakeID(e.Member().GuildID))
 	b.SetName(name)
 
 	slog.Debug("/bank-admin name",
@@ -215,7 +215,7 @@ func setBankCurrencyHandler(data discord.SlashCommandInteractionData, e *handler
 	p := message.NewPrinter(language.AmericanEnglish)
 
 	currency := strings.TrimSpace(stringValue(data, "value"))
-	b := GetBank(e.Member().GuildID)
+	b := GetBank(discordid.NewSnowflakeID(e.Member().GuildID))
 	b.SetCurrency(currency)
 
 	slog.Debug("/bank-admin currency",
@@ -232,7 +232,7 @@ func setBankCurrencyHandler(data discord.SlashCommandInteractionData, e *handler
 func getBankInfoHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	p := message.NewPrinter(language.AmericanEnglish)
 
-	b := GetBank(e.Member().GuildID)
+	b := GetBank(discordid.NewSnowflakeID(e.Member().GuildID))
 
 	content := p.Sprintf("**Bank Name**: %s\n**Currency**: %s\n**Default Balance**: %d\n",
 		b.Name,

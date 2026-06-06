@@ -2,6 +2,7 @@ package shop
 
 import (
 	"fmt"
+	"goblin2/discordid"
 	"goblin2/guild"
 	goblinmsg "goblin2/message"
 	"log/slog"
@@ -133,8 +134,8 @@ func shopAdmin(data discord.SlashCommandInteractionData, e *handler.CommandEvent
 		})
 	}
 
-	g := guild.GetGuild(member.GuildID)
-	guildMember := guild.GetMember(member.GuildID, &member.Member)
+	g := guild.GetGuild(discordid.NewSnowflakeID(member.GuildID))
+	guildMember := guild.GetMember(discordid.NewSnowflakeID(member.GuildID), &member.Member)
 	if guildMember == nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "Unable to resolve your server membership.",
@@ -224,14 +225,14 @@ func addRoleToShop(data discord.SlashCommandInteractionData, e *handler.CommandE
 		})
 	}
 
-	if err := roleExistsChecks(member.GuildID, roleName); err != nil {
+	if err := roleExistsChecks(discordid.NewSnowflakeID(member.GuildID), roleName); err != nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: err.Error(),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
 
-	role := NewRole(member.GuildID, roleName, description, price, duration, autoRenewable)
+	role := NewRole(discordid.NewSnowflakeID(member.GuildID), roleName, description, price, duration, autoRenewable)
 	if role == nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "Unable to add role to the shop.",
@@ -263,7 +264,7 @@ func removeRoleFromShop(data discord.SlashCommandInteractionData, e *handler.Com
 	}
 
 	roleName := strings.TrimSpace(stringValue(data, "name"))
-	role := GetRole(member.GuildID, roleName)
+	role := GetRole(discordid.NewSnowflakeID(member.GuildID), roleName)
 	if role == nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: fmt.Sprintf("Role `%s` is not in the shop.", roleName),
@@ -295,7 +296,7 @@ func setShopChannel(data discord.SlashCommandInteractionData, e *handler.Command
 	}
 
 	channelID := strings.TrimSpace(stringValue(data, "id"))
-	config := GetConfig(member.GuildID)
+	config := GetConfig(discordid.NewSnowflakeID(member.GuildID))
 	config.SetChannel(channelID)
 
 	return e.CreateMessage(discord.MessageCreate{
@@ -314,7 +315,7 @@ func setShopModChannel(data discord.SlashCommandInteractionData, e *handler.Comm
 	}
 
 	channelID := strings.TrimSpace(stringValue(data, "id"))
-	config := GetConfig(member.GuildID)
+	config := GetConfig(discordid.NewSnowflakeID(member.GuildID))
 	config.SetModChannel(channelID)
 
 	return e.CreateMessage(discord.MessageCreate{
@@ -332,7 +333,7 @@ func getShopInfo(_ discord.SlashCommandInteractionData, e *handler.CommandEvent)
 		})
 	}
 
-	config := GetConfig(member.GuildID)
+	config := GetConfig(discordid.NewSnowflakeID(member.GuildID))
 
 	return e.CreateMessage(discord.MessageCreate{
 		Content: fmt.Sprintf(
@@ -391,14 +392,14 @@ func buyRole(data discord.SlashCommandInteractionData, e *handler.CommandEvent) 
 	roleName := strings.TrimSpace(stringValue(data, "name"))
 	autoRenew := boolValue(data, "auto-renew")
 
-	if err := rolePurchaseChecks(member.GuildID, member.User.ID, roleName); err != nil {
+	if err := rolePurchaseChecks(discordid.NewSnowflakeID(member.GuildID), discordid.NewSnowflakeID(member.User.ID), roleName); err != nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: err.Error(),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
 
-	role := GetRole(member.GuildID, roleName)
+	role := GetRole(discordid.NewSnowflakeID(member.GuildID), roleName)
 	if role == nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: fmt.Sprintf("Role `%s` was not found in the shop.", roleName),
@@ -406,7 +407,7 @@ func buyRole(data discord.SlashCommandInteractionData, e *handler.CommandEvent) 
 		})
 	}
 
-	purchase, err := role.Purchase(member.User.ID, autoRenew)
+	purchase, err := role.Purchase(discordid.NewSnowflakeID(member.User.ID), autoRenew)
 	if err != nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: err.Error(),
@@ -414,7 +415,7 @@ func buyRole(data discord.SlashCommandInteractionData, e *handler.CommandEvent) 
 		})
 	}
 
-	guildRole, err := getExistingGuildRole(member.GuildID, roleName)
+	guildRole, err := getExistingGuildRole(discordid.NewSnowflakeID(member.GuildID), roleName)
 	if err != nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: fmt.Sprintf("Purchased `%s`, but I could not find the Discord role to assign it.", roleName),

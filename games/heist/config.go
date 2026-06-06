@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -57,9 +56,9 @@ func LoadConfig(path string) error {
 }
 
 // GetConfig retrieves the heist configuration for the specified guild.
-func GetConfig(guildID snowflake.ID) *Config {
+func GetConfig(guildID discordid.SnowflakeID) *Config {
 	key := configCacheKey{
-		guildID: discordid.NewSnowflakeID(guildID),
+		guildID: guildID,
 	}
 
 	if cfg, ok := configCache.Get(key); ok {
@@ -84,9 +83,9 @@ func GetConfig(guildID snowflake.ID) *Config {
 	return cfg
 }
 
-func createNewConfig(guildID snowflake.ID) *Config {
+func createNewConfig(guildID discordid.SnowflakeID) *Config {
 	c := &Config{
-		GuildID:            discordid.NewSnowflakeID(guildID),
+		GuildID:            guildID,
 		BailBase:           defaultConfig.BailBase,
 		BoostPercentage:    defaultConfig.BoostPercentage,
 		BoostEnabled:       defaultConfig.BoostEnabled,

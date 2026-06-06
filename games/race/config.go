@@ -1,0 +1,79 @@
+package race
+
+import (
+	"encoding/json"
+	"goblin2/discordid"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"time"
+	
+	"go.mongodb.org/mongo-driver/v2/bson"
+)
+
+const (
+	defaultBabyDragonBuffPercent = 50
+)
+
+// Config represents the configuration for the race game.
+type Config struct {
+	ID                    bson.ObjectID         `json:"_id,omitempty" bson:"_id,omitempty"`
+	GuildID               discordid.SnowflakeID `json:"guild_id" bson:"guild_id"`
+	BetAmount             int                   `json:"bet_amount" bson:"bet_amount"`
+	Currency              string                `json:"currency" bson:"currency"`
+	MaxPrizeAmount        int                   `json:"max_prize_amount" bson:"max_prize_amount"`
+	MaxNumRacers          int                   `json:"max_num_racers" bson:"max_num_racers"`
+	MinNumRacers          int                   `json:"min_num_racers" bson:"min_num_racers"`
+	MinPrizeAmount        int                   `json:"min_price_amount" bson:"min_price_amount"`
+	Theme                 string                `json:"theme" bson:"theme"`
+	WaitBetweenRaces      time.Duration         `json:"wait_beween_races" bson:"wait_between_races"`
+	WaitForBets           time.Duration         `json:"wait_for_bets" bson:"wait_for_bets"`
+	WaitToStart           time.Duration         `json:"wait_to_start" bson:"wait_to_start"`
+	StartingLine          string                `json:"starting_line" bson:"starting_line"`
+	Track                 string                `json:"track" bson:"track"`
+	EndingLine            string                `json:"ending_line" bson:"ending_line"`
+	BabyDragonBuffPercent int                   `json:"babydragon_buff_percent" bson:"babydragon_buff_percent"`
+}
+
+// GetConfig gets the race configuration for the guild. If the configuration does not
+// exist, then a new one is created.
+func GetConfig(guildID string) *Config {
+	config := readConfig(guildID)
+	if config == nil {
+		config = readConfigFromFile(guildID)
+	}
+	if config.BabyDragonBuffPercent == 0 {
+		config.BabyDragonBuffPercent = defaultBabyDragonBuffPercent
+		writeConfig(config)
+		slog.Debug("set baby dragon buff percent", slog.String("guildID", guildID), slog.Int("babydragon_buff_percent", config.BabyDragonBuffPercent))
+	}
+	return config
+}
+
+// readConfigFromFile gets a new configuration for the guild. If the oconfiguration cannot be
+// read from the configuration file or decdoded, then a default configuration is
+// returned.
+func readConfigFromFile(guildID string) *Config {
+	configFileName := filepath.Join(discord.ConfigDir, "race", "config", raceTheme+".json")
+	bytes, err := os.ReadFile(configFileName)
+	if err != nil {
+		slog.Error("failed to read race config", slog.String("guildID", guildID), slog.String("theme", raceTheme), slog.Any("error", err))
+	}
+
+	config := &Config{}
+	err = json.Unmarshal(bytes, config)
+	if err != nil {
+		slog.Error("failed to unmarshal race config",
+			slog.String("guildID", guildID),
+			slog.String("theme", raceTheme),
+			slog.String("file", configFileName),
+			slog.Any("error", err),
+		)
+	}
+	config.GuildID = guildID
+
+	writeConfig(config)
+	slog.Debug("create new race config", slog.String("guildID", guildID), slog.String("theme", raceTheme))
+
+	return config
+}

@@ -45,8 +45,8 @@ type PlayerRetention struct {
 
 // getPlayerStats retrieves the player statistics for a specific guild, member, and game.
 // If the player stats do not exist, it creates a new PlayerStats instance.
-func getPlayerStats(guildID snowflake.ID, memberID snowflake.ID, game string) *PlayerStats {
-	ps, _ := readPlayerStats(discordid.NewSnowflakeID(guildID), discordid.NewSnowflakeID(memberID), game)
+func getPlayerStats(guildID, memberID discordid.SnowflakeID, game string) *PlayerStats {
+	ps, _ := readPlayerStats(guildID, memberID, game)
 	if ps == nil {
 		ps = newPlayerStats(guildID, memberID, game)
 	}
@@ -55,11 +55,11 @@ func getPlayerStats(guildID snowflake.ID, memberID snowflake.ID, game string) *P
 }
 
 // newPlayerStats creates a new PlayerStats instance with the current date as FirstPlayed and LastPlayed.
-func newPlayerStats(guildID snowflake.ID, memberID snowflake.ID, game string) *PlayerStats {
+func newPlayerStats(guildID, memberID discordid.SnowflakeID, game string) *PlayerStats {
 	today := today()
 	ps := &PlayerStats{
-		GuildID:             discordid.NewSnowflakeID(guildID),
-		MemberID:            discordid.NewSnowflakeID(memberID),
+		GuildID:             guildID,
+		MemberID:            memberID,
 		Game:                game,
 		FirstPlayed:         today,
 		LastPlayed:          time.Time{},
@@ -68,8 +68,8 @@ func newPlayerStats(guildID snowflake.ID, memberID snowflake.ID, game string) *P
 	err := writeNewPlayerStats(ps)
 	if err != nil {
 		slog.Error("failed to write player stats",
-			slog.String("guild_id", guildID.String()),
-			slog.String("member_id", memberID.String()),
+			slog.Any("guild_id", guildID),
+			slog.Any("member_id", memberID),
 			slog.String("game", game),
 			slog.Any("error", err),
 		)
@@ -79,7 +79,7 @@ func newPlayerStats(guildID snowflake.ID, memberID snowflake.ID, game string) *P
 }
 
 // updatePlayerStatsWithRetry updates player stats using optimistic locking.
-func updatePlayerStatsWithRetry(guildID snowflake.ID, memberID snowflake.ID, game string, update func(*PlayerStats)) (*PlayerStats, error) {
+func updatePlayerStatsWithRetry(guildID, memberID discordid.SnowflakeID, game string, update func(*PlayerStats)) (*PlayerStats, error) {
 	const maxRetries = 3
 
 	for range maxRetries {

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -62,9 +61,9 @@ func LoadTheme(path string) error {
 }
 
 // GetTheme returns the theme for a guild
-func GetTheme(guildID snowflake.ID) *Theme {
+func GetTheme(guildID discordid.SnowflakeID) *Theme {
 	key := themeCacheKey{
-		guildID: discordid.NewSnowflakeID(guildID),
+		guildID: guildID,
 	}
 
 	if theme, ok := themeCache.Get(key); ok {
@@ -84,9 +83,9 @@ func GetTheme(guildID snowflake.ID) *Theme {
 }
 
 // createNewTheme creates a new theme for a guild with the default theme values.
-func createNewTheme(guildID snowflake.ID) *Theme {
+func createNewTheme(guildID discordid.SnowflakeID) *Theme {
 	theme := &Theme{
-		GuildID:             discordid.NewSnowflakeID(guildID),
+		GuildID:             guildID,
 		Name:                defaultTheme.Name,
 		EscapedMessages:     copyHeistMessages(defaultTheme.EscapedMessages),
 		ApprehendedMessages: copyHeistMessages(defaultTheme.ApprehendedMessages),

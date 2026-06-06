@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -38,9 +37,9 @@ type Bank struct {
 }
 
 // GetBank returns the bank for the given guild.
-func GetBank(guildID snowflake.ID) *Bank {
+func GetBank(guildID discordid.SnowflakeID) *Bank {
 	key := bankCacheKey{
-		guildID: discordid.NewSnowflakeID(guildID),
+		guildID: guildID,
 	}
 
 	if bank, ok := bankCache.Get(key); ok {
@@ -59,9 +58,9 @@ func GetBank(guildID snowflake.ID) *Bank {
 }
 
 // createDefaultBank creates a new bank for the given guild using the configured theme defaults.
-func createDefaultBank(guildID snowflake.ID) *Bank {
+func createDefaultBank(guildID discordid.SnowflakeID) *Bank {
 	return &Bank{
-		GuildID:        discordid.NewSnowflakeID(guildID),
+		GuildID:        guildID,
 		Name:           theme.BankName,
 		Currency:       theme.Currency,
 		DefaultBalance: theme.DefaultBalance,
@@ -83,14 +82,14 @@ func CloseBankCache() {
 }
 
 // UpdateBank updates the bank with the given mutation, retrying on version conflicts.
-func UpdateBank(guildID snowflake.ID, mutate func(*Bank) error) error {
+func UpdateBank(guildID discordid.SnowflakeID, mutate func(*Bank) error) error {
 	const maxRetries = 3
 
 	bankMu.RLock()
 	defer bankMu.RUnlock()
 
 	key := bankCacheKey{
-		guildID: discordid.NewSnowflakeID(guildID),
+		guildID: guildID,
 	}
 
 	for range maxRetries {
@@ -128,7 +127,7 @@ func UpdateBank(guildID snowflake.ID, mutate func(*Bank) error) error {
 
 // SetDefaultBalance sets the default balance for the bank.
 func (b *Bank) SetDefaultBalance(balance int) {
-	if err := UpdateBank(b.GuildID.ID(), func(bank *Bank) error {
+	if err := UpdateBank(b.GuildID, func(bank *Bank) error {
 		if balance == bank.DefaultBalance {
 			return nil
 		}
@@ -149,7 +148,7 @@ func (b *Bank) SetDefaultBalance(balance int) {
 
 // SetName sets the name of the bank.
 func (b *Bank) SetName(name string) {
-	if err := UpdateBank(b.GuildID.ID(), func(bank *Bank) error {
+	if err := UpdateBank(b.GuildID, func(bank *Bank) error {
 		if name == bank.Name {
 			return nil
 		}
@@ -170,7 +169,7 @@ func (b *Bank) SetName(name string) {
 
 // SetCurrency sets the currency used by the bank.
 func (b *Bank) SetCurrency(currency string) {
-	if err := UpdateBank(b.GuildID.ID(), func(bank *Bank) error {
+	if err := UpdateBank(b.GuildID, func(bank *Bank) error {
 		if currency == bank.Currency {
 			return nil
 		}

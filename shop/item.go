@@ -7,7 +7,6 @@ import (
 	"goblin2/discordid"
 	"log/slog"
 
-	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -48,9 +47,9 @@ func getShopItem(guildID discordid.SnowflakeID, name string, itemType string) *I
 }
 
 // newShopItem creates a new ShopItem with the given guild ID, name, description, type, and price.
-func newShopItem(guildID snowflake.ID, name string, description string, itemType string, price int, duration string, autoRenewable bool, maxPurchases int) *Item {
+func newShopItem(guildID discordid.SnowflakeID, name string, description string, itemType string, price int, duration string, autoRenewable bool, maxPurchases int) *Item {
 	item := &Item{
-		GuildID:       discordid.NewSnowflakeID(guildID),
+		GuildID:       guildID,
 		Name:          name,
 		Description:   description,
 		Type:          itemType,
@@ -74,14 +73,14 @@ func newShopItem(guildID snowflake.ID, name string, description string, itemType
 }
 
 // UpdateShopItem updates the shop item with the given mutation, retrying on version conflicts.
-func UpdateShopItem(guildID snowflake.ID, name string, itemType string, mutate func(*Item) error) error {
+func UpdateShopItem(guildID discordid.SnowflakeID, name string, itemType string, mutate func(*Item) error) error {
 	const maxRetries = 3
 
 	itemMu.RLock()
 	defer itemMu.RUnlock()
 
 	key := itemCacheKey{
-		guildID:  discordid.NewSnowflakeID(guildID),
+		guildID:  guildID,
 		name:     name,
 		itemType: itemType,
 	}
@@ -131,7 +130,7 @@ func (item *Item) update(name string, description string, itemType string, price
 	oldName := item.Name
 	oldType := item.Type
 
-	err := UpdateShopItem(item.GuildID.ID(), oldName, oldType, func(latest *Item) error {
+	err := UpdateShopItem(item.GuildID, oldName, oldType, func(latest *Item) error {
 		latest.Name = name
 		latest.Description = description
 		latest.Type = itemType
@@ -196,8 +195,8 @@ func (item *Item) removeFromShop(s *Shop) error {
 
 // purchase purchases the shop item for the given member. If the purchase is successful, a purchase
 // object is returned. If the purchase fails, an error is returned.
-func (item *Item) purchase(memberID snowflake.ID, status string, renew bool) (*Purchase, error) {
-	purchase, err := PurchaseItem(item.GuildID.ID(), memberID, item, status, renew)
+func (item *Item) purchase(memberID discordid.SnowflakeID, status string, renew bool) (*Purchase, error) {
+	purchase, err := PurchaseItem(item.GuildID, memberID, item, status, renew)
 	if err != nil {
 		slog.Error("unable to create purchase", "guild", item.GuildID, "member", memberID, "item", item.Name, "error", err)
 		return nil, err
@@ -207,8 +206,8 @@ func (item *Item) purchase(memberID snowflake.ID, status string, renew bool) (*P
 }
 
 // createChecks performs checks to see if a role can be added to the shop.
-func createChecks(guildID snowflake.ID, itemName string, itemType string) error {
-	shopItem := getShopItem(discordid.NewSnowflakeID(guildID), itemName, itemType)
+func createChecks(guildID discordid.SnowflakeID, itemName string, itemType string) error {
+	shopItem := getShopItem(guildID, itemName, itemType)
 	if shopItem != nil {
 		slog.Error("item already exists in the shop", "guild", guildID, "name", itemName, "type", itemType)
 		return fmt.Errorf("%s `%s` already exists in the shop", itemType, itemName)
@@ -218,15 +217,15 @@ func createChecks(guildID snowflake.ID, itemName string, itemType string) error 
 }
 
 // purchaseChecks performs checks to see if a member can purchase the shop item.
-func purchaseChecks(guildID snowflake.ID, memberID snowflake.ID, itemType string, itemName string) error {
-	purchase := getPurchase(discordid.NewSnowflakeID(guildID), discordid.NewSnowflakeID(memberID), itemName, itemType)
+func purchaseChecks(guildID, memberID discordid.SnowflakeID, itemType string, itemName string) error {
+	purchase := getPurchase(guildID, memberID, itemName, itemType)
 	if purchase != nil && !purchase.IsExpired {
 		slog.Debug("item already purchased", "guild", guildID, "member", memberID, "name", itemName, "type", itemType)
 		return fmt.Errorf("you have already purchased %s `%s`", itemType, itemName)
 	}
 
 	// Make sure the member has enough funds to purchase the item
-	item := getShopItem(discordid.NewSnowflakeID(guildID), itemName, itemType)
+	item := getShopItem(guildID, itemName, itemType)
 	if item == nil {
 		slog.Error("failed to read item from shop", "guildID", guildID, "itemName", itemName, "itemType", itemType)
 		return fmt.Errorf("%s `%s` not found in the shop", itemType, itemName)

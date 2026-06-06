@@ -13,7 +13,6 @@ import (
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
-	"github.com/disgoorg/snowflake/v2"
 	"github.com/olekukonko/tablewriter"
 	"github.com/olekukonko/tablewriter/renderer"
 	"github.com/olekukonko/tablewriter/tw"
@@ -302,13 +301,13 @@ func runHeist(e *handler.CommandEvent, heist *Heist) {
 func createHeist(e *handler.CommandEvent, guildMember *guild.Member) (*Heist, error) {
 	member := e.Member()
 
-	heist, err := NewHeist(member.GuildID, member.User.ID)
+	heist, err := NewHeist(discordid.NewSnowflakeID(member.GuildID), discordid.NewSnowflakeID(member.User.ID))
 	if err != nil {
 		slog.Warn("unable to create the heist", slog.Any("error", err))
 		return nil, err
 	}
 
-	account := bank.GetAccount(member.GuildID, member.User.ID)
+	account := bank.GetAccount(heist.GuildID, heist.Organizer.MemberID)
 	if err := account.Withdraw(heist.config.HeistCost); err != nil {
 		slog.Error("failed to withdraw heist cost", slog.Any("error", err))
 		heist.Cancel()
@@ -448,7 +447,7 @@ func sendMemberResults(e *handler.CommandEvent, res *Result) error {
 		result.Player.heist = result.heist
 
 		if len(res.Escaped) > 0 && result.StolenCredits != 0 {
-			account := bank.GetAccount(gID, result.Player.MemberID.ID())
+			account := bank.GetAccount(gID, result.Player.MemberID)
 			if err := account.Deposit(result.StolenCredits + result.BonusCredits); err != nil {
 				slog.Error("failed to deposit stolen credits",
 					slog.Any("guildID", gID),
@@ -558,9 +557,9 @@ func joinHeist(e *handler.ComponentEvent) error {
 		return updateComponentResponse(e, "This command can only be used in a server.")
 	}
 
-	heist := GetHeist(member.GuildID)
+	heist := GetHeist(discordid.NewSnowflakeID(member.GuildID))
 	if heist == nil {
-		theme := GetTheme(member.GuildID)
+		theme := GetTheme(discordid.NewSnowflakeID(member.GuildID))
 		content := "No heist is being planned"
 		if theme != nil {
 			content = fmt.Sprintf("No %s is being planned", theme.Heist)
@@ -569,10 +568,10 @@ func joinHeist(e *handler.ComponentEvent) error {
 	}
 
 	guildMember := resolvedGuildMember(member)
-	heistMember := GetMember(member.GuildID, member.User.ID)
+	heistMember := GetMember(discordid.NewSnowflakeID(member.GuildID), discordid.NewSnowflakeID(member.User.ID))
 	heistMember.SetGuildMember(guildMember)
 
-	account := bank.GetAccount(member.GuildID, heistMember.MemberID.ID())
+	account := bank.GetAccount(discordid.NewSnowflakeID(member.GuildID), heistMember.MemberID)
 	if err := account.Withdraw(heist.config.HeistCost); err != nil {
 		slog.Error("failed to withdraw heist",
 			slog.Any("guildID", member.GuildID),
@@ -619,11 +618,11 @@ func playerStats(_ discord.SlashCommandInteractionData, e *handler.CommandEvent)
 	p := message.NewPrinter(language.AmericanEnglish)
 
 	guildMember := resolvedGuildMember(member)
-	player := GetMember(member.GuildID, member.User.ID)
+	player := GetMember(guildMember.GuildID, guildMember.MemberID)
 	player.SetGuildMember(guildMember)
 
 	caser := cases.Title(language.Und, cases.NoLower)
-	account := bank.GetAccount(member.GuildID, member.User.ID)
+	account := bank.GetAccount(guildMember.GuildID, guildMember.MemberID)
 
 	sentence := "None"
 	if player.Status == Apprehended {
@@ -634,9 +633,9 @@ func playerStats(_ discord.SlashCommandInteractionData, e *handler.CommandEvent)
 		}
 	}
 
-	theme := GetTheme(member.GuildID)
+	theme := GetTheme(guildMember.GuildID)
 	if theme == nil {
-		slog.Error("failed to get heist theme", slog.Any("guildID", member.GuildID))
+		slog.Error("failed to get heist theme", slog.Any("guildID", guildMember.GuildID))
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "Internal error: failed to get the heist theme",
 			Flags:   discord.MessageFlagEphemeral,
@@ -683,13 +682,13 @@ func bailoutPlayer(data discord.SlashCommandInteractionData, e *handler.CommandE
 	}
 
 	initiatingGuildMember := resolvedGuildMember(member)
-	initiatingHeistMember := GetMember(member.GuildID, member.User.ID)
+	initiatingHeistMember := GetMember(discordid.NewSnowflakeID(member.GuildID), discordid.NewSnowflakeID(member.User.ID))
 	initiatingHeistMember.SetGuildMember(initiatingGuildMember)
 
-	account := bank.GetAccount(member.GuildID, member.User.ID)
+	account := bank.GetAccount(initiatingHeistMember.GuildID, initiatingHeistMember.MemberID)
 
-	heistMember := GetMember(member.GuildID, targetID)
-	targetGuildMember, _ := guild.GetMemberByID(member.GuildID, targetID)
+	heistMember := GetMember(initiatingHeistMember.GuildID, discordid.NewSnowflakeID(targetID))
+	targetGuildMember, _ := guild.GetMemberByID(discordid.NewSnowflakeID(member.GuildID), discordid.NewSnowflakeID(targetID))
 	if targetGuildMember != nil {
 		heistMember.SetGuildMember(targetGuildMember)
 	}
@@ -937,7 +936,7 @@ func listTargets(_ discord.SlashCommandInteractionData, e *handler.CommandEvent)
 		return serverOnly(e)
 	}
 
-	theme := GetTheme(member.GuildID)
+	theme := GetTheme(discordid.NewSnowflakeID(member.GuildID))
 	if theme == nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "There aren't any targets!",
@@ -945,7 +944,7 @@ func listTargets(_ discord.SlashCommandInteractionData, e *handler.CommandEvent)
 		})
 	}
 
-	targets := GetTargets(member.GuildID)
+	targets := GetTargets(discordid.NewSnowflakeID(member.GuildID))
 	if len(targets) == 0 {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "There aren't any targets!",
@@ -1022,7 +1021,7 @@ func clearMember(data discord.SlashCommandInteractionData, e *handler.CommandEve
 	}
 
 	gID := guildID(e)
-	member, err := guild.GetMemberByID(gID, user.ID)
+	member, err := guild.GetMemberByID(gID, discordid.NewSnowflakeID(user.ID))
 	if err != nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "The user you specified does not exist.",
@@ -1030,7 +1029,7 @@ func clearMember(data discord.SlashCommandInteractionData, e *handler.CommandEve
 		})
 	}
 
-	heistMember := GetMember(gID, user.ID)
+	heistMember := GetMember(gID, discordid.NewSnowflakeID(user.ID))
 	heistMember.FreeMember()
 
 	return e.CreateMessage(discord.MessageCreate{
@@ -1239,7 +1238,7 @@ func requireAdmin(e *handler.CommandEvent) error {
 		})
 	}
 
-	ok, err := guildMember.IsAdmin(e.Client(), guild.GetGuild(member.GuildID))
+	ok, err := guildMember.IsAdmin(e.Client(), guild.GetGuild(discordid.NewSnowflakeID(member.GuildID)))
 	if err != nil {
 		slog.Error("failed to check admin permissions", slog.Any("error", err))
 	}
@@ -1285,17 +1284,18 @@ func resolvedGuildMember(member *discord.ResolvedMember) *guild.Member {
 	}
 }
 
-func guildID(e *handler.CommandEvent) snowflake.ID {
+func guildID(e *handler.CommandEvent) discordid.SnowflakeID {
 	if member := e.Member(); member != nil {
-		return member.GuildID
+		return discordid.NewSnowflakeID(member.GuildID)
 	}
 	if id := e.GuildID(); id != nil {
-		return *id
+		return discordid.NewSnowflakeID(*id)
 	}
+
 	return 0
 }
 
-func resetVaultsToMaximumValue(guildID snowflake.ID) {
+func resetVaultsToMaximumValue(guildID discordid.SnowflakeID) {
 	targets := GetTargets(guildID)
 	for _, target := range targets {
 		target.Vault = target.VaultMax
