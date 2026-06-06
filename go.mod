@@ -7,6 +7,8 @@ require (
 	github.com/disgoorg/snowflake/v2 v2.0.3
 	github.com/joho/godotenv v1.5.1
 	github.com/olekukonko/tablewriter v1.1.4
+	github.com/rbrabson/blackjack v1.3.8
+	github.com/rbrabson/cards v0.0.0-20250930172612-22ab548ff9f8
 	go.mongodb.org/mongo-driver/v2 v2.6.0
 	golang.org/x/text v0.37.0
 	gopkg.in/yaml.v3 v3.0.1

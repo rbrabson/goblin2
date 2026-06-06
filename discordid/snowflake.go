@@ -16,6 +16,15 @@ func NewSnowflakeID(id snowflake.ID) SnowflakeID {
 	return SnowflakeID(id)
 }
 
+// SnowflakeIDFromString converts a string into a SnowflakeID.
+func SnowflakeIDFromString(s string) (SnowflakeID, error) {
+	parsed, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return SnowflakeID(0), fmt.Errorf("cannot parse SnowflakeID %q: %w", s, err)
+	}
+	return SnowflakeID(snowflake.ID(parsed)), nil
+}
+
 // ID converts the SnowflakeID back to a Disgo snowflake.ID.
 func (s SnowflakeID) ID() snowflake.ID {
 	return snowflake.ID(s)

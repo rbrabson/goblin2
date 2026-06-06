@@ -44,6 +44,10 @@ github.com/olekukonko/tablewriter v1.1.4 h1:ORUMI3dXbMnRlRggJX3+q7OzQFDdvgbN9nVW
 github.com/olekukonko/tablewriter v1.1.4/go.mod h1:+kedxuyTtgoZLwif3P1Em4hARJs+mVnzKxmsCL/C5RY=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+github.com/rbrabson/blackjack v1.3.8 h1:0jqmo8y8axB50yQ7BWr/lAZX4gqa9yzcV8OqMQMyZBU=
+github.com/rbrabson/blackjack v1.3.8/go.mod h1:vqi9ITtqUkJmeaF0K1sBSSVLxz+gXRx3gSdC9tUGic8=
+github.com/rbrabson/cards v0.0.0-20250930172612-22ab548ff9f8 h1:zV4v1cB/XaIxj0Z0cXDCzTx8zTMe8j6IdKAF6vmPwCw=
+github.com/rbrabson/cards v0.0.0-20250930172612-22ab548ff9f8/go.mod h1:GPk2LWWWqovPc2zsQqRYCvFYqR/APTi1bcQf2ldVWGE=
 github.com/sasha-s/go-csync v0.0.0-20240107134140-fcbab37b09ad h1:qIQkSlF5vAUHxEmTbaqt1hkJ/t6skqEGYiMag343ucI=
 github.com/sasha-s/go-csync v0.0.0-20240107134140-fcbab37b09ad/go.mod h1:/pA7k3zsXKdjjAiUhB5CjuKib9KJGCaLvZwtxGC8U0s=
 github.com/stretchr/testify v1.10.0 h1:Xv5erBjTwe/5IxqUQTdXv5kgmIvbHo3QQyRwhJsOfJA=

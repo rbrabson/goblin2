@@ -95,6 +95,11 @@ func GetAccounts(filter interface{}, sortBy interface{}, limit int64) []*Account
 	return readAccounts(filter, sortBy, limit)
 }
 
+// GetBalance returns the current balance of the account.
+func (a *Account) GetBalance() int {
+	return a.CurrentBalance
+}
+
 // Deposit adds the given amount to the account.
 func (a *Account) Deposit(amount int) error {
 	return UpdateAccount(a.GuildID, a.MemberID, func(acc *Account) error {
