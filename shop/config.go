@@ -1,0 +1,101 @@
+package shop
+
+import (
+	"goblin2/discordid"
+	"log/slog"
+
+	"github.com/disgoorg/snowflake/v2"
+	"go.mongodb.org/mongo-driver/v2/bson"
+)
+
+// Config represents the configuration for the shop in a guild.
+type Config struct {
+	ID             bson.ObjectID         `json:"_id,omitempty" bson:"_id,omitempty"`
+	GuildID        discordid.SnowflakeID `json:"guild_id" bson:"guild_id"`
+	ChannelID      string                `json:"channel_id" bson:"channel_id"`
+	MessageID      string                `json:"message_id" bson:"message_id"`
+	ModChannelID   string                `json:"mod_channel_id" bson:"mod_channel_id"`
+	NotificationID string                `json:"notification_id" bson:"notification_id"`
+}
+
+// GetConfig reads the configuration from the database. If the config does not exist,
+// then one is created.
+func GetConfig(guildID snowflake.ID) *Config {
+	config, _ := readConfig(discordid.NewSnowflakeID(guildID))
+	if config == nil {
+		config = newConfig(guildID)
+	}
+
+	return config
+}
+
+// newConfig creates a new configuration for the given guild ID and writes it to the database.
+func newConfig(guildID snowflake.ID) *Config {
+	config := &Config{
+		GuildID: discordid.NewSnowflakeID(guildID),
+	}
+	if err := writeConfig(config); err != nil {
+		slog.Error("error writing the shop config", "error", err)
+	}
+
+	slog.Info("created new shop config", "guildID", guildID)
+
+	return config
+}
+
+// SetChannel sets the channel to which to publish the shop items
+func (c *Config) SetChannel(channelID string) {
+	if c.ChannelID != channelID {
+		c.ChannelID = channelID
+		c.MessageID = ""
+		if err := writeConfig(c); err != nil {
+			slog.Error("error setting the shop channel", "error", err)
+		}
+		slog.Debug("set shop channel", "guildID", c.GuildID, "channel", channelID)
+	}
+}
+
+// SetModChannel sets the channel to which to publish the shop purchases and expirations.
+func (c *Config) SetModChannel(channelID string) {
+	if c.ModChannelID != channelID {
+		c.ModChannelID = channelID
+		if err := writeConfig(c); err != nil {
+			slog.Error("error setting the shop mod channel", "error", err)
+		}
+		slog.Debug("set shop mod channel", "guildID", c.GuildID, "channel", channelID)
+	}
+}
+
+// SetNotificationID sets the channel to which to notify a user (e.g., ModMail) about an action to take to complete a member's purchase.
+func (c *Config) SetNotificationID(id string) {
+	if c.NotificationID != id {
+		c.NotificationID = id
+		if err := writeConfig(c); err != nil {
+			slog.Error("error setting the shop notification id", "error", err)
+		}
+		slog.Debug("set shop notification ID", "guildID", c.GuildID, "member", id)
+	}
+}
+
+// SetMessageID saves the interaction used to publish the shop items.
+func (c *Config) SetMessageID(messageID string) {
+	if c.MessageID != messageID {
+		c.MessageID = messageID
+		if err := writeConfig(c); err != nil {
+			slog.Error("error setting the shop message id", "error", err)
+		}
+		slog.Debug("set shop message ID", "guildID", c.GuildID, "messageID", messageID)
+	}
+}
+
+// String returns a string representation of the config.
+func (c *Config) String() string {
+	return "Config{" +
+		"ID: " + c.ID.Hex() +
+		", GuildID: " + c.GuildID.String() +
+		", ChannelID: " + c.ChannelID +
+		", MessageID: " + c.MessageID +
+		", ModChannelID: " + c.ModChannelID +
+		", NotificationID: " + c.NotificationID +
+		"}"
+}
