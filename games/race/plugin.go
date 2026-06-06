@@ -83,8 +83,8 @@ func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 // GetComponentHandlers returns component handlers for the race plugin.
 func (p *Plugin) GetComponentHandlers() map[string]handler.ComponentHandler {
 	return map[string]handler.ComponentHandler{
-		"/race/join/{guildID}":           joinRace,
-		"/race/bet/{guildID}/{memberID}": betOnRace,
+		"/race/join": joinRace,
+		"/race/bet":  betOnRace,
 	}
 }
 

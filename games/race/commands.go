@@ -94,7 +94,6 @@ func startRace(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) e
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
-	defer race.End()
 
 	race.interaction = e
 
@@ -125,36 +124,50 @@ func startRace(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) e
 		return err
 	}
 
-	slog.Info("waiting for members to join the race", slog.Any("guildID", gID))
+	go runRace(race)
+
+	return nil
+}
+
+// runRace runs the race lifecycle after the initial slash command interaction has been acknowledged.
+func runRace(race *Race) {
+	defer race.End()
+
+	slog.Info("waiting for members to join the race", slog.Any("guildID", race.GuildID))
 	waitForMembersToJoin(race)
 
 	if len(race.Racers) < race.config.MinNumRacers {
 		slog.Info("race cancelled due to insufficient racers",
-			slog.Any("guildID", gID),
+			slog.Any("guildID", race.GuildID),
 			slog.Int("racers", len(race.Racers)),
 		)
-		return raceMessage(race, "cancelled")
+		if err := raceMessage(race, "cancelled"); err != nil {
+			slog.Error("failed to send race cancelled message", slog.Any("error", err))
+		}
+		return
 	}
 
 	race.setState(RaceWaitingForBets)
 	if err := raceMessage(race, "betting"); err != nil {
-		return err
+		slog.Error("failed to open race betting", slog.Any("error", err))
+		return
 	}
 	defer removeBetButtons(race)
 
 	slog.Info("waiting for bets",
-		slog.Any("guildID", gID),
+		slog.Any("guildID", race.GuildID),
 		slog.Int("racers", len(race.Racers)),
 	)
 	waitForBetsToBePlaced(race)
 
 	race.setState(RaceInProgress)
 	if err := raceMessage(race, "started"); err != nil {
-		return err
+		slog.Error("failed to send race started message", slog.Any("error", err))
+		return
 	}
 
 	slog.Info("race starting",
-		slog.Any("guildID", gID),
+		slog.Any("guildID", race.GuildID),
 		slog.Int("racers", len(race.Racers)),
 		slog.Int("betsPlaced", len(race.Betters)),
 	)
@@ -164,12 +177,15 @@ func startRace(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) e
 
 	race.setState(RaceFinished)
 	if err := raceMessage(race, "ended"); err != nil {
-		return err
+		slog.Error("failed to send race ended message", slog.Any("error", err))
+		return
 	}
 
-	slog.Info("race ended", slog.Any("guildID", gID))
+	slog.Info("race ended", slog.Any("guildID", race.GuildID))
 
-	return sendRaceResults(race)
+	if err := sendRaceResults(race); err != nil {
+		slog.Error("failed to send race results", slog.Any("error", err))
+	}
 }
 
 // waitForMembersToJoin waits until members join the race before proceeding to taking bets.
