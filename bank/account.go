@@ -49,27 +49,15 @@ func GetAccount(guildID snowflake.ID, memberID snowflake.ID) *Account {
 	}
 
 	if account, ok := accountCache.Get(key); ok {
-		slog.Error("account found in the cache",
-			slog.Any("guildID", guildID),
-			slog.Any("memberID", memberID),
-		)
 		return copyAccount(&account)
 	}
 
 	account := readAccount(key.guildID, key.memberID)
 	if account != nil {
-		slog.Error("account not found in the cache, read from database",
-			slog.Any("guildID", guildID),
-			slog.Any("memberID", memberID),
-		)
 		accountCache.Set(key, *account)
 		return copyAccount(account)
 	}
 
-	slog.Error("account not found in the database, creating a new one",
-		slog.Any("guildID", guildID),
-		slog.Any("memberID", memberID),
-	)
 	account = createNewAccount(guildID, memberID)
 	accountCache.Set(key, *account)
 	return copyAccount(account)
