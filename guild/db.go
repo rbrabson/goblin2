@@ -110,16 +110,33 @@ func writeMember(m *Member) error {
 
 // updateMember updates an existing member in the database.
 func updateMember(m *Member) error {
+	versionFilter := bson.M{"version": m.Version}
+	if m.Version == 0 {
+		versionFilter = bson.M{
+			"$or": bson.A{
+				bson.M{"version": 0},
+				bson.M{"version": bson.M{"$exists": false}},
+			},
+		}
+	}
+
 	filter := bson.M{
 		"guild_id":  m.GuildID,
 		"member_id": m.MemberID,
 	}
+	for key, value := range versionFilter {
+		filter[key] = value
+	}
+
 	update := bson.M{
 		"$set": bson.M{
 			"username":    m.UserName,
 			"global_name": m.GlobalName,
 			"nickname":    m.NickName,
 			"name":        m.Name,
+		},
+		"$inc": bson.M{
+			"version": 1,
 		},
 	}
 
@@ -133,8 +150,10 @@ func updateMember(m *Member) error {
 		return err
 	}
 	if result.MatchedCount == 0 {
-		return writeMember(m)
+		return ErrVersionConflict
 	}
+
+	m.Version++
 
 	return nil
 }

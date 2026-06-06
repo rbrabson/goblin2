@@ -1,14 +1,33 @@
 package guild
 
 import (
+	"errors"
 	"fmt"
 	"goblin2/discordid"
+	"goblin2/internal/cache"
 	"log/slog"
+	"sync"
+	"time"
 
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
+)
+
+const (
+	memberCacheTTL             = 30 * time.Minute
+	memberCacheCleanupInterval = 5 * time.Minute
+)
+
+type memberCacheKey struct {
+	guildID  discordid.SnowflakeID
+	memberID discordid.SnowflakeID
+}
+
+var (
+	memberCache = cache.New[memberCacheKey, Member](memberCacheTTL, memberCacheCleanupInterval)
+	memberMu    sync.RWMutex
 )
 
 // Member represents a Discord guild member
@@ -20,6 +39,7 @@ type Member struct {
 	GlobalName string                `bson:"global_name"`
 	NickName   string                `bson:"nickname"`
 	Name       string                `bson:"name"`
+	Version    int                   `bson:"version"`
 }
 
 // GetMember returns the member within a guild.
@@ -29,22 +49,46 @@ func GetMember(guildID snowflake.ID, member *discord.Member) *Member {
 		return nil
 	}
 
-	m := readMember(discordid.NewSnowflakeID(guildID), discordid.NewSnowflakeID(member.User.ID))
+	key := memberCacheKey{
+		guildID:  discordid.NewSnowflakeID(guildID),
+		memberID: discordid.NewSnowflakeID(member.User.ID),
+	}
+
+	if cached, ok := memberCache.Get(key); ok {
+		m := copyMember(&cached)
+		m.Update(member)
+		return m
+	}
+
+	m := readMember(key.guildID, key.memberID)
 	if m == nil {
 		m = createNewMember(guildID, member)
 	}
 
 	m.Update(member)
-	return m
+	memberCache.Set(key, *m)
+
+	return copyMember(m)
 }
 
 // GetMemberByID returns the member within a guild by ID.
 func GetMemberByID(guildID snowflake.ID, memberID snowflake.ID) (*Member, error) {
-	m := readMember(discordid.NewSnowflakeID(guildID), discordid.NewSnowflakeID(memberID))
+	key := memberCacheKey{
+		guildID:  discordid.NewSnowflakeID(guildID),
+		memberID: discordid.NewSnowflakeID(memberID),
+	}
+
+	if cached, ok := memberCache.Get(key); ok {
+		return copyMember(&cached), nil
+	}
+
+	m := readMember(key.guildID, key.memberID)
 	if m == nil {
 		return nil, ErrMemberNotFound
 	}
-	return m, nil
+
+	memberCache.Set(key, *m)
+	return copyMember(m), nil
 }
 
 // createNewMember creates a new member within a guild.
@@ -56,50 +100,140 @@ func createNewMember(guildID snowflake.ID, member *discord.Member) *Member {
 	return m
 }
 
+// copyMember returns a copy of the given member. This prevents callers from
+// mutating the cached member directly.
+func copyMember(member *Member) *Member {
+	if member == nil {
+		return nil
+	}
+
+	return new(*member)
+}
+
+// CloseMemberCache stops the member cache cleanup goroutine and clears all
+// cached member entries.
+func CloseMemberCache() {
+	memberCache.Destroy()
+}
+
 // Update updates the member with the given member information. Returns true if the member was updated.
 func (m *Member) Update(member *discord.Member) bool {
 	if member == nil {
 		slog.Error("discord member is nil")
 		return false
 	}
+
+	changed := false
+	if err := UpdateMember(member.GuildID, member.User.ID, member, func(latest *Member) error {
+		changed = updateMemberFields(latest, member)
+		return nil
+	}); err != nil {
+		slog.Error("unable to persist guild member",
+			slog.Any("guildID", m.GuildID),
+			slog.Any("memberID", m.MemberID),
+			slog.Any("error", err),
+		)
+		return false
+	}
+
+	key := memberCacheKey{
+		guildID:  discordid.NewSnowflakeID(member.GuildID),
+		memberID: discordid.NewSnowflakeID(member.User.ID),
+	}
+	if cached, ok := memberCache.Get(key); ok {
+		*m = cached
+	}
+
+	return changed
+}
+
+func updateMemberFields(m *Member, member *discord.Member) bool {
 	guildID := member.GuildID
 	memberID := member.User.ID
+
 	var globalName string
 	if member.User.GlobalName != nil {
 		globalName = *member.User.GlobalName
 	}
+
 	username := member.User.Username
+
 	var nickname string
 	if member.Nick != nil {
 		nickname = *member.Nick
 	}
+
 	name := member.EffectiveName()
 
-	if m.GuildID.ID() != guildID || m.MemberID.ID() != memberID || m.UserName != username || m.GlobalName != globalName || m.NickName != nickname || m.Name != name {
-		m.GuildID = discordid.NewSnowflakeID(guildID)
-		m.MemberID = discordid.NewSnowflakeID(memberID)
-		m.UserName = username
-		m.GlobalName = globalName
-		m.NickName = nickname
-		m.Name = name
-
-		var err error
-		if m.ID.IsZero() {
-			err = writeMember(m)
-		} else {
-			err = updateMember(m)
-		}
-		if err != nil {
-			slog.Error("unable to persist guild member",
-				slog.Any("guildID", m.GuildID),
-				slog.Any("memberID", m.MemberID),
-				slog.Any("error", err),
-			)
-		}
-
-		return true
+	if m.GuildID.ID() == guildID &&
+		m.MemberID.ID() == memberID &&
+		m.UserName == username &&
+		m.GlobalName == globalName &&
+		m.NickName == nickname &&
+		m.Name == name {
+		return false
 	}
-	return false
+
+	m.GuildID = discordid.NewSnowflakeID(guildID)
+	m.MemberID = discordid.NewSnowflakeID(memberID)
+	m.UserName = username
+	m.GlobalName = globalName
+	m.NickName = nickname
+	m.Name = name
+
+	return true
+}
+
+// UpdateMember applies the given mutation to the member, retrying on version conflicts.
+func UpdateMember(guildID, memberID snowflake.ID, discordMember *discord.Member, mutate func(*Member) error) error {
+	const maxRetries = 3
+
+	memberMu.RLock()
+	defer memberMu.RUnlock()
+
+	key := memberCacheKey{
+		guildID:  discordid.NewSnowflakeID(guildID),
+		memberID: discordid.NewSnowflakeID(memberID),
+	}
+
+	for range maxRetries {
+		member, err := GetMemberByID(guildID, memberID)
+		if err != nil {
+			if !errors.Is(err, ErrMemberNotFound) || discordMember == nil {
+				return err
+			}
+			member = createNewMember(guildID, discordMember)
+		}
+
+		if err := mutate(member); err != nil {
+			return err
+		}
+
+		var writeErr error
+		if member.ID.IsZero() {
+			writeErr = writeMember(member)
+		} else {
+			writeErr = updateMember(member)
+		}
+
+		if writeErr == nil {
+			memberCache.Set(key, *member)
+			return nil
+		}
+		if !errors.Is(writeErr, ErrVersionConflict) {
+			memberCache.Delete(key)
+			return writeErr
+		}
+
+		memberCache.Delete(key)
+
+		slog.Warn("version conflict on guild member, retrying",
+			slog.Any("guildID", guildID),
+			slog.Any("memberID", memberID),
+		)
+	}
+
+	return fmt.Errorf("failed to update guild member after %d retries: %w", maxRetries, ErrVersionConflict)
 }
 
 // GetRoles returns the list of roles for member in a given guild.
