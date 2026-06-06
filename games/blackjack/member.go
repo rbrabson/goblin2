@@ -52,11 +52,22 @@ func (m *Member) String() string {
 // GetMember retrieves the member statistics for a specific guild and user.
 // If the member does not exist, a new member is created and returned.
 func GetMember(guildID, userID discordid.SnowflakeID) *Member {
-	member := readMember(guildID, userID)
+	key := memberCacheKey{
+		guildID:  guildID,
+		memberID: userID,
+	}
+
+	if member, ok := memberCache.Get(key); ok {
+		return copyMember(&member)
+	}
+
+	member := readMember(key.guildID, key.memberID)
 	if member == nil {
 		member = newMember(guildID, userID)
 	}
-	return member
+
+	memberCache.Set(key, *member)
+	return copyMember(member)
 }
 
 // newMember creates a new Member instance with default values and writes it to the database.
@@ -99,4 +110,8 @@ func (m *Member) RoundPlayed(game *Game, player *bj.Player) {
 	m.LastPlayed = time.Now()
 
 	writeMember(m)
+	memberCache.Set(memberCacheKey{
+		guildID:  m.GuildID,
+		memberID: m.MemberID,
+	}, *m)
 }

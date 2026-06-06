@@ -155,7 +155,7 @@ func (g *Game) addPlayer(memberID discordid.SnowflakeID) error {
 		return ErrGameFull
 	}
 
-	cm := NewChipManager(g, memberID.String())
+	cm := NewChipManager(g, memberID)
 	g.game.AddPlayer(playerID, bj.WithChipManager(cm))
 	player := g.GetPlayer(memberID)
 	if err := player.CurrentHand().PlaceBet(g.config.BetAmount); err != nil {

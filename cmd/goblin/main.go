@@ -5,6 +5,7 @@ import (
 	"goblin2/config"
 	"goblin2/database"
 	"goblin2/disgobot"
+	"goblin2/games/blackjack"
 	"goblin2/games/heist"
 	"goblin2/games/race"
 	"goblin2/guild"
@@ -92,6 +93,13 @@ func getPlugins(configPath string) []plugin.Plugin {
 	p, err = race.NewPlugin(configPath)
 	if err != nil {
 		slog.Error("failed to create race plugin", "error", err)
+		os.Exit(-1)
+	}
+	plugins = append(plugins, p)
+
+	p, err = blackjack.NewPlugin(configPath)
+	if err != nil {
+		slog.Error("failed to create blackjack plugin", "error", err)
 		os.Exit(-1)
 	}
 	plugins = append(plugins, p)

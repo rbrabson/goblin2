@@ -32,7 +32,15 @@ type Config struct {
 
 // GetConfig retrieves the blackjack configuration, either from a file or defaults.
 func GetConfig(guildID discordid.SnowflakeID) *Config {
-	cfg := readConfig(guildID)
+	key := configCacheKey{
+		guildID: guildID,
+	}
+
+	if cfg, ok := configCache.Get(key); ok {
+		return copyConfig(&cfg)
+	}
+
+	cfg := readConfig(key.guildID)
 	if cfg == nil {
 		cfg = createNewConfig(guildID)
 		cfg.GuildID = guildID
@@ -44,7 +52,9 @@ func GetConfig(guildID discordid.SnowflakeID) *Config {
 		cfg.ShowPlayerTurn = 0
 		cfg.ShowDealerTurn = 0
 	}
-	return cfg
+
+	configCache.Set(key, *cfg)
+	return copyConfig(cfg)
 }
 
 // createNewConfig creates a new configuration with default values.
