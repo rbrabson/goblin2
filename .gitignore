@@ -34,3 +34,4 @@ yaml/
 .vscode/
 
 github.com/rbrabson/goblin2/
+/.idea/
