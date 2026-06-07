@@ -122,9 +122,11 @@ func (m *Member) Update(member *discord.Member) bool {
 		return false
 	}
 
+	var updated *Member
 	changed := false
 	if err := UpdateMember(discordid.NewSnowflakeID(member.GuildID), discordid.NewSnowflakeID(member.User.ID), member, func(latest *Member) error {
 		changed = updateMemberFields(latest, member)
+		updated = latest
 		return nil
 	}); err != nil {
 		slog.Error("unable to persist guild member",
@@ -135,12 +137,8 @@ func (m *Member) Update(member *discord.Member) bool {
 		return false
 	}
 
-	key := memberCacheKey{
-		guildID:  discordid.NewSnowflakeID(member.GuildID),
-		memberID: discordid.NewSnowflakeID(member.User.ID),
-	}
-	if cached, ok := memberCache.Get(key); ok {
-		*m = cached
+	if updated != nil {
+		*m = *updated
 	}
 
 	return changed
