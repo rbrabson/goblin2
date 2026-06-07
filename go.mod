@@ -3,13 +3,12 @@ module goblin2
 go 1.26
 
 require (
-	github.com/disgoorg/disgo v0.19.4
+	github.com/disgoorg/disgo v0.19.5
 	github.com/disgoorg/snowflake/v2 v2.0.3
 	github.com/joho/godotenv v1.5.1
 	github.com/olekukonko/tablewriter v1.1.4
 	github.com/rbrabson/blackjack v1.3.8
 	github.com/rbrabson/cards v1.0.0
-	github.com/rbrabson/goblin v0.0.0-20260529010438-fa4b5a9a1cbe
 	github.com/rbrabson/slots v1.0.3
 	go.mongodb.org/mongo-driver/v2 v2.6.0
 	golang.org/x/text v0.37.0
@@ -17,7 +16,6 @@ require (
 )
 
 require (
-	github.com/bwmarrin/discordgo v0.29.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
@@ -28,14 +26,12 @@ require (
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
-	github.com/mattn/go-colorable v0.1.14 // indirect
+	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
-	github.com/mattn/go-runewidth v0.0.23 // indirect
+	github.com/mattn/go-runewidth v0.0.24 // indirect
 	github.com/olekukonko/cat v0.0.0-20250911104152-50322a0618f6 // indirect
 	github.com/olekukonko/errors v1.3.0 // indirect
 	github.com/olekukonko/ll v0.1.8 // indirect
-	github.com/rbrabson/disgomsg v0.12.1 // indirect
-	github.com/rbrabson/disgopage v0.3.0 // indirect
 	github.com/sasha-s/go-csync v0.0.0-20240107134140-fcbab37b09ad // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.2.0 // indirect
