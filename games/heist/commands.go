@@ -209,7 +209,7 @@ func startHeist(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) 
 	if err != nil {
 		slog.Warn("unable to create the heist", slog.Any("error", err))
 		return e.CreateMessage(discord.MessageCreate{
-			Content: firstToUpper(err.Error()),
+			Content: format.FirstToUpper(err.Error()),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
@@ -261,7 +261,7 @@ func runHeist(e *handler.CommandEvent, heist *Heist) {
 		}
 
 		if _, sendErr := e.Client().Rest.CreateMessage(e.Channel().ID(), discord.MessageCreate{
-			Content: firstToUpper(err.Error()),
+			Content: format.FirstToUpper(err.Error()),
 		}); sendErr != nil {
 			slog.Error("failed to send heist failure message", slog.Any("error", sendErr))
 		}
@@ -592,7 +592,7 @@ func joinHeist(e *handler.ComponentEvent) error {
 			)
 		}
 
-		return updateComponentResponse(e, firstToUpper(err.Error()))
+		return updateComponentResponse(e, format.FirstToUpper(err.Error()))
 	}
 
 	if err := heistMessage(heist); err != nil {
@@ -1326,12 +1326,4 @@ func criminalLevelString(level CriminalLevel) string {
 	default:
 		return fmt.Sprintf("%d", level)
 	}
-}
-
-// firstToUpper returns the input string with the first letter capitalized.
-func firstToUpper(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
 }

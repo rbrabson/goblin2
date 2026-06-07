@@ -90,7 +90,7 @@ func startRace(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) e
 			slog.Any("error", err),
 		)
 		return e.CreateMessage(discord.MessageCreate{
-			Content: firstToLower(err.Error()),
+			Content: format.FirstToLower(err.Error()),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
@@ -264,7 +264,7 @@ func joinRace(e *handler.ComponentEvent) error {
 	raceMember := getMember(gID, guildMember)
 
 	if _, err := race.addRaceParticipant(raceMember); err != nil {
-		return updateComponentResponse(e, firstToUpper(err.Error()))
+		return updateComponentResponse(e, format.FirstToUpper(err.Error()))
 	}
 
 	slog.Debug("joined the race",
@@ -357,7 +357,7 @@ func betOnRace(e *handler.ComponentEvent) error {
 			slog.Any("memberID", memberID),
 			slog.Any("error", err),
 		)
-		return updateComponentResponse(e, firstToUpper(err.Error()))
+		return updateComponentResponse(e, format.FirstToUpper(err.Error()))
 	}
 
 	participant := race.getRaceParticipant(memberID)
@@ -773,18 +773,4 @@ func splitString(s string, pos int) (string, string) {
 	}
 
 	return string(runes[:pos]), string(runes[pos:])
-}
-
-func firstToUpper(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
-}
-
-func firstToLower(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToLower(s[:1]) + s[1:]
 }
