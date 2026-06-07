@@ -140,6 +140,7 @@ func (b *Bot) connectToGateway() error {
 	return nil
 }
 
+// getEventListeners returns the event listener handler for the bot.
 func (b *Bot) getEventListeners() *handler.Mux {
 	h := handler.New()
 	b.router = h
