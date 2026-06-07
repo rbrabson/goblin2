@@ -64,7 +64,7 @@ type PayoutAverages struct {
 
 // GetPayoutAverages uses an aggregation pipeline to calculate comprehensive payout statistics
 // across all slots members in a guild
-func GetPayoutAverages(guildID string) (*PayoutAverages, error) {
+func GetPayoutAverages(guildID discordid.SnowflakeID) (*PayoutAverages, error) {
 	pipeline := mongo.Pipeline{
 		// Stage 1: Match documents for the specific guild
 		bson.D{
@@ -172,7 +172,7 @@ func GetPayoutAverages(guildID string) (*PayoutAverages, error) {
 	docs, err := db.Aggregate(MemberCollection, pipeline)
 	if err != nil {
 		slog.Error("failed to get payout averages",
-			slog.String("guildID", guildID),
+			slog.Any("guildID", guildID),
 			slog.Any("error", err),
 		)
 		return nil, err
@@ -180,7 +180,7 @@ func GetPayoutAverages(guildID string) (*PayoutAverages, error) {
 
 	if len(docs) == 0 {
 		slog.Debug("no slots data found for guild",
-			slog.String("guildID", guildID),
+			slog.Any("guildID", guildID),
 		)
 		// Return zero values if no data found
 		return &PayoutAverages{}, nil
