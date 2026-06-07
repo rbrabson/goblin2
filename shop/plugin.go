@@ -99,7 +99,9 @@ func (p *Plugin) GetSlashCommands() []discord.ApplicationCommandCreate {
 	return commands
 }
 
-// GetComponentHandlers returns the component handlers for the bank plugin.
+// GetComponentHandlers returns the component handlers for the shop plugin.
 func (p *Plugin) GetComponentHandlers() map[string]handler.ComponentHandler {
-	return nil
+	return map[string]handler.ComponentHandler{
+		shopBuyRoleComponentRoute: buyRoleButtonHandler,
+	}
 }

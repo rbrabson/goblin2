@@ -186,6 +186,13 @@ func playSlotsHandler(data discord.SlashCommandInteractionData, e *handler.Comma
 		Timestamp: new(time.Now()),
 	}
 
+	slog.Info("slots played",
+		slog.Any("guildID", guildID),
+		slog.String("member", member.EffectiveName()),
+		slog.Int("bet", spinResult.Bet),
+		slog.Int("payout", spinResult.Payout),
+		slog.String("result", spinResult.Message),
+	)
 	return e.CreateMessage(discord.MessageCreate{
 		Embeds: []discord.Embed{embed},
 	})

@@ -55,7 +55,7 @@ func startBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.Com
 
 	game, err := StartGame(guildID, memberID)
 	if err != nil {
-		slog.Warn("failed to start blackjack game",
+		slog.Debug("failed to start blackjack game",
 			slog.Any("guildID", guildID),
 			slog.Any("memberID", memberID),
 			slog.Any("error", err),
@@ -76,6 +76,11 @@ func startBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.Com
 		game.EndRound()
 		return err
 	}
+
+	slog.Info("blackjack game started",
+		slog.Any("guildID", guildID),
+		slog.Any("memberID", memberID),
+	)
 
 	go runBlackjack(game)
 
@@ -159,6 +164,11 @@ func blackjackJoinButtonHandler(e *handler.ComponentEvent) error {
 			slog.Any("error", err),
 		)
 	}
+
+	slog.Info("blackjack game joined",
+		slog.Any("guildID", guildID),
+		slog.Any("memberID", memberID),
+	)
 
 	return updateComponentResponse(e, "You joined the blackjack game.")
 }
@@ -257,6 +267,10 @@ func runBlackjack(game *Game) {
 	if err := updateBlackjackMessage(game, false); err != nil {
 		slog.Error("failed to update final blackjack message", slog.Any("error", err))
 	}
+
+	slog.Info("blackjack game ended",
+		slog.Any("guildID", game.guildID),
+	)
 }
 
 // waitForBlackjackPlayers waits for players to join before starting the round.

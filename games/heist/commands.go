@@ -239,6 +239,10 @@ func startHeistHandler(_ discord.SlashCommandInteractionData, e *handler.Command
 		return err
 	}
 
+	slog.Info("heist planning started",
+		slog.Any("guildID", heist.GuildID),
+		slog.Any("organizer", guildMember.Name),
+	)
 	go runHeist(e, heist)
 
 	return nil
@@ -604,6 +608,10 @@ func joinHeistButtonHandler(e *handler.ComponentEvent) error {
 		slog.Error("failed to update heist message", slog.Any("error", err))
 	}
 
+	slog.Info("player joined heist",
+		slog.Any("guildID", heist.GuildID),
+		slog.Any("memberID", member.User.ID),
+	)
 	p := message.NewPrinter(language.AmericanEnglish)
 	return updateComponentResponse(e, p.Sprintf("You have joined the %s at a cost of %d credits.", heist.config.Theme.Heist, heist.config.HeistCost))
 }

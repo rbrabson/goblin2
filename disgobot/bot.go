@@ -41,7 +41,6 @@ func NewBot(cfg *Config, version string) *Bot {
 	return goblin
 }
 
-// Start starts the Discord Bot instance.
 func (b *Bot) Start(mongoDB *database.MongoDB) error {
 	slog.Info("starting bot", slog.String("disgo version", disgo.Version))
 	if b.cfg.Token == "" {
@@ -51,10 +50,6 @@ func (b *Bot) Start(mongoDB *database.MongoDB) error {
 		return ErrMongoDBRequired
 	}
 	db = mongoDB
-
-	for _, p := range b.plugins {
-		p.Initialize(db, b.client)
-	}
 
 	client, err := disgo.New(b.cfg.Token,
 		bot.WithGatewayConfigOpts(
@@ -75,6 +70,10 @@ func (b *Bot) Start(mongoDB *database.MongoDB) error {
 		return ErrClientNotCreated
 	}
 	b.client = client
+
+	for _, p := range b.plugins {
+		p.Initialize(db, b.client)
+	}
 
 	if err := b.connectToGateway(); err != nil {
 		return err

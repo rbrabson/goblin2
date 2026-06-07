@@ -161,6 +161,18 @@ func addRoleHandler(data discord.SlashCommandInteractionData, e *handler.Command
 		})
 	}
 
+	s = GetShop(member.GuildID.String())
+	if err := s.Publish(); err != nil {
+		slog.Error("unable to publish shop",
+			slog.Any("guildID", member.GuildID),
+			slog.Any("error", err),
+		)
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Role was added, but I could not publish the updated shop.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
 	return e.CreateMessage(discord.MessageCreate{
 		Content: fmt.Sprintf("Added role `%s` to the shop for %d credits.", roleName, price),
 		Flags:   discord.MessageFlagEphemeral,
@@ -198,6 +210,18 @@ func removeRoleHandler(data discord.SlashCommandInteractionData, e *handler.Comm
 		})
 	}
 
+	s = GetShop(member.GuildID.String())
+	if err := s.Publish(); err != nil {
+		slog.Error("unable to publish shop",
+			slog.Any("guildID", member.GuildID),
+			slog.Any("error", err),
+		)
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Role was removed, but I could not publish the updated shop.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
 	return e.CreateMessage(discord.MessageCreate{
 		Content: fmt.Sprintf("Removed role `%s` from the shop.", roleName),
 		Flags:   discord.MessageFlagEphemeral,
@@ -221,6 +245,19 @@ func setChannelHandler(data discord.SlashCommandInteractionData, e *handler.Comm
 	channelID := strings.TrimSpace(stringValue(data, "id"))
 	config := GetConfig(discordid.NewSnowflakeID(member.GuildID))
 	config.SetChannel(channelID)
+
+	s := GetShop(member.GuildID.String())
+	if err := s.Publish(); err != nil {
+		slog.Error("unable to publish shop",
+			slog.Any("guildID", member.GuildID),
+			slog.String("channelID", channelID),
+			slog.Any("error", err),
+		)
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Shop channel was set, but I could not publish the shop.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
 
 	return e.CreateMessage(discord.MessageCreate{
 		Content: fmt.Sprintf("Shop channel set to %s.", channelID),
@@ -316,6 +353,74 @@ func purchasesHandler(_ discord.SlashCommandInteractionData, e *handler.CommandE
 		}),
 	)
 	return p.CreateInteractionResponse(e, "Your Shop Purchases", fields, true)
+}
+
+// buyRoleButtonHandler handles the purchase of a role from the shop via a button component.
+func buyRoleButtonHandler(e *handler.ComponentEvent) error {
+	member := e.Member()
+	if member == nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "This button can only be used in a server.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	roleName := strings.TrimSpace(e.Vars["roleName"])
+	if roleName == "" {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Invalid shop role button.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	if err := rolePurchaseChecks(discordid.NewSnowflakeID(member.GuildID), discordid.NewSnowflakeID(member.User.ID), roleName); err != nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: err.Error(),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	role := GetRole(discordid.NewSnowflakeID(member.GuildID), roleName)
+	if role == nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: fmt.Sprintf("Role `%s` was not found in the shop.", roleName),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	purchase, err := role.Purchase(discordid.NewSnowflakeID(member.User.ID), false)
+	if err != nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: err.Error(),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	guildRole, err := getExistingGuildRole(discordid.NewSnowflakeID(member.GuildID), roleName)
+	if err != nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: fmt.Sprintf("Purchased `%s`, but I could not find the Discord role to assign it.", roleName),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	if err := client.Rest.AddMemberRole(member.GuildID, member.User.ID, guildRole.ID); err != nil {
+		slog.Error("unable to assign purchased role",
+			slog.Any("guildID", member.GuildID),
+			slog.Any("memberID", member.User.ID),
+			slog.String("roleName", roleName),
+			slog.Any("error", err),
+		)
+		return e.CreateMessage(discord.MessageCreate{
+			Content: fmt.Sprintf("Purchased `%s`, but I could not assign the Discord role. Please contact an admin.", roleName),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	return e.CreateMessage(discord.MessageCreate{
+		Content: fmt.Sprintf("Purchased role `%s` for %d credits.", purchase.Item.Name, purchase.Item.Price),
+		Flags:   discord.MessageFlagEphemeral,
+	})
 }
 
 // formatPurchase formats a purchase into a human-readable string.

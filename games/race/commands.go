@@ -129,6 +129,10 @@ func startRaceHandler(_ discord.SlashCommandInteractionData, e *handler.CommandE
 		return err
 	}
 
+	slog.Info("race started",
+		slog.Any("guildID", race.GuildID),
+		slog.Any("racer", guildMember.Name),
+	)
 	go runRace(race)
 
 	return nil
@@ -281,6 +285,10 @@ func joinRaceButtonHandler(e *handler.ComponentEvent) error {
 		slog.Error("failed to update race message", slog.Any("error", err))
 	}
 
+	slog.Info("race joined",
+		slog.Any("guildID", gID),
+		slog.Any("racer", guildMember.Name),
+	)
 	return updateComponentResponse(e, "You have joined the race")
 }
 
@@ -399,6 +407,11 @@ func betOnRaceButtonHandler(e *handler.ComponentEvent) error {
 		return updateComponentResponse(e, fmt.Sprintf("Unable to place a bet. Error: %s", err.Error()))
 	}
 
+	slog.Info("bet placed on race",
+		slog.Any("guildID", gID),
+		slog.Any("better", better.Member.guildMember.Name),
+		slog.Any("raceParticipant", raceParticipant.Member.guildMember.Name),
+	)
 	p := message.NewPrinter(language.AmericanEnglish)
 	return updateComponentResponse(e, p.Sprintf("You have placed a %d credit bet on %s", race.config.BetAmount, raceParticipant.Member.guildMember.Name))
 }

@@ -74,7 +74,7 @@ func paydayHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEven
 
 	slog.Info("payday",
 		slog.Any("guildID", member.GuildID),
-		slog.Any("memberID", member.User.ID),
+		slog.Any("member", member.EffectiveName()),
 		slog.Int("paydayAmount", paydayAmount),
 		slog.Int("currentBalance", account.CurrentBalance),
 	)
