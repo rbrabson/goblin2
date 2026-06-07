@@ -1,8 +1,6 @@
 package stats
 
 import (
-	"errors"
-	"fmt"
 	"goblin2/discordid"
 	"log/slog"
 	"time"
@@ -64,35 +62,41 @@ func newGameStats(guildID discordid.SnowflakeID, game string, day time.Time) *Ga
 	return gs
 }
 
-// updateGameStatsWithRetry updates game stats using optimistic locking.
+// updateGameStatsWithRetry updates game stats using an upsert.
 func updateGameStatsWithRetry(guildID discordid.SnowflakeID, game string, day time.Time, update func(*GameStats)) (*GameStats, error) {
-	const maxRetries = 3
-
-	for range maxRetries {
-		gs := getGameStats(guildID, game, day)
-		if gs == nil {
-			return nil, fmt.Errorf("unable to get or create game stats")
-		}
-
-		update(gs)
-
-		err := updateGameStats(gs)
-		if err == nil {
-			return gs, nil
-		}
-		if !errors.Is(err, ErrVersionConflict) {
-			return nil, err
-		}
-
-		slog.Debug("retrying game stats update after version conflict",
-			slog.Any("guild_id", guildID),
-			slog.String("game", game),
-			slog.Time("day", day),
-			slog.Int("version", gs.Version),
-		)
+	gs := &GameStats{
+		GuildID: guildID,
+		Game:    game,
+		Day:     day,
 	}
 
-	return nil, fmt.Errorf("failed to update game stats after %d retries: %w", maxRetries, ErrVersionConflict)
+	update(gs)
+
+	filter := bson.M{
+		"guild_id": guildID,
+		"game":     game,
+		"day":      day,
+	}
+
+	mongoUpdate := bson.M{
+		"$setOnInsert": bson.M{
+			"guild_id": guildID,
+			"game":     game,
+			"day":      day,
+		},
+		"$inc": bson.M{
+			"unique_players": gs.UniquePlayers,
+			"total_players":  gs.TotalPlayers,
+			"games_played":   gs.GamesPlayed,
+			"version":        1,
+		},
+	}
+
+	if _, err := db.UpdateOneUpsert(gameStatsCollection, filter, mongoUpdate); err != nil {
+		return nil, err
+	}
+
+	return gs, nil
 }
 
 // UpdateGameStats updates the game statistics for a specific game in a guild.
