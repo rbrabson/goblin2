@@ -117,36 +117,39 @@ func readMember(guildID discordid.SnowflakeID, memberID discordid.SnowflakeID) *
 
 // writeMember inserts a new member into the database.
 func writeMember(m *Member) error {
-	_, err := db.InsertOne(memberCollection, m)
+	m.Version = 0
+
+	result, err := db.InsertOne(memberCollection, m)
 	if err != nil {
 		slog.Error("unable to create member",
 			slog.Any("guildID", m.GuildID),
 			slog.Any("memberID", m.MemberID),
 			slog.Any("error", err),
 		)
+		return err
 	}
 
-	return err
+	if id, ok := result.InsertedID.(bson.ObjectID); ok {
+		m.ID = id
+	}
+
+	return nil
 }
 
 // updateMember updates an existing member in the database.
 func updateMember(m *Member) error {
-	versionFilter := bson.M{"version": m.Version}
-	if m.Version == 0 {
-		versionFilter = bson.M{
-			"$or": bson.A{
-				bson.M{"version": 0},
-				bson.M{"version": bson.M{"$exists": false}},
-			},
-		}
-	}
-
 	filter := bson.M{
 		"guild_id":  m.GuildID,
 		"member_id": m.MemberID,
 	}
-	for key, value := range versionFilter {
-		filter[key] = value
+
+	if m.Version == 0 {
+		filter["$or"] = bson.A{
+			bson.M{"version": 0},
+			bson.M{"version": bson.M{"$exists": false}},
+		}
+	} else {
+		filter["version"] = m.Version
 	}
 
 	update := bson.M{
@@ -166,6 +169,7 @@ func updateMember(m *Member) error {
 		slog.Error("unable to update member",
 			slog.Any("guildID", m.GuildID),
 			slog.Any("memberID", m.MemberID),
+			slog.Any("version", m.Version),
 			slog.Any("error", err),
 		)
 		return err
