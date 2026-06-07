@@ -18,7 +18,7 @@ var (
 	db *database.MongoDB
 )
 
-// readPayday loads payday information for the guild from the database.
+// readPayday loads paydayHandler information for the guild from the database.
 func readPayday(guildID discordid.SnowflakeID) *Payday {
 	filter := bson.M{
 		"guild_id": guildID,
@@ -33,7 +33,7 @@ func readPayday(guildID discordid.SnowflakeID) *Payday {
 	return &payday
 }
 
-// writePayday inserts new payday information for the guild into the database.
+// writePayday inserts new paydayHandler information for the guild into the database.
 func writePayday(payday *Payday) error {
 	payday.Version = 0
 
@@ -53,8 +53,8 @@ func writePayday(payday *Payday) error {
 	return nil
 }
 
-// updatePayday updates existing payday information using optimistic locking via the version field.
-// Returns bank.ErrVersionConflict if another writer updated the payday since it was read.
+// updatePayday updates existing paydayHandler information using optimistic locking via the version field.
+// Returns bank.ErrVersionConflict if another writer updated the paydayHandler since it was read.
 func updatePayday(payday *Payday) error {
 	filter := bson.M{
 		"guild_id": payday.GuildID,
@@ -99,7 +99,7 @@ func updatePayday(payday *Payday) error {
 	return nil
 }
 
-// readAccount loads payday information for a given account in the guild from the database.
+// readAccount loads paydayHandler information for a given account in the guild from the database.
 func readAccount(guildID discordid.SnowflakeID, accountID discordid.SnowflakeID) *Account {
 	filter := bson.M{"guild_id": guildID, "member_id": accountID}
 	var account Account
@@ -112,7 +112,7 @@ func readAccount(guildID discordid.SnowflakeID, accountID discordid.SnowflakeID)
 	return &account
 }
 
-// writeAccount inserts a new payday account into the database.
+// writeAccount inserts a new paydayHandler account into the database.
 func writeAccount(account *Account) error {
 	account.Version = 0
 
@@ -133,8 +133,8 @@ func writeAccount(account *Account) error {
 	return nil
 }
 
-// updateAccount updates an existing payday account using optimistic locking via the version field.
-// Returns bank.ErrVersionConflict if another writer updated the payday account since it was read.
+// updateAccount updates an existing paydayHandler account using optimistic locking via the version field.
+// Returns bank.ErrVersionConflict if another writer updated the paydayHandler account since it was read.
 func updateAccount(account *Account) error {
 	filter := bson.M{
 		"guild_id":  account.GuildID,

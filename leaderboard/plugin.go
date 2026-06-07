@@ -72,12 +72,12 @@ func (p *Plugin) Status() plugin.Status {
 // GetSlashHandlers returns the slash command handlers for the leaderboard plugin.
 func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	return map[string]handler.SlashCommandHandler{
-		"/lb/current":       currentLeaderboard,
-		"/lb/monthly":       monthlyLeaderboard,
-		"/lb/lifetime":      lifetimeLeaderboard,
-		"/lb/rank":          rank,
-		"/lb-admin/channel": leaderboardAdmin,
-		"/lb-admin/info":    leaderboardAdmin,
+		"/lb/current":       currentLeaderboardHandler,
+		"/lb/monthly":       monthlyLeaderboardHandler,
+		"/lb/lifetime":      lifetimeLeaderboardHandler,
+		"/lb/rank":          rankHandler,
+		"/lb-admin/channel": setLeaderboardChannelHandler,
+		"/lb-admin/info":    getLeaderboardInfoHandler,
 	}
 }
 

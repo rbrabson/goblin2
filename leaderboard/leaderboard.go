@@ -44,12 +44,46 @@ type Leaderboard struct {
 	Version    int                   `bson:"version"`
 }
 
-// newLeaderboard creates a new leaderboard for the given guildID and sets the last season to the current month.
-func newLeaderboard(guildID discordid.SnowflakeID) *Leaderboard {
-	return &Leaderboard{
+// getLeaderboard returns the leaderboard for the given guild.
+func getLeaderboard(guildID discordid.SnowflakeID) *Leaderboard {
+	key := leaderboardCacheKey{
+		guildID: guildID,
+	}
+
+	if lb, ok := leaderboardCache.Get(key); ok {
+		return copyLeaderboard(&lb)
+	}
+
+	lb := readLeaderboard(key.guildID)
+	if lb != nil {
+		leaderboardCache.Set(key, *lb)
+		return copyLeaderboard(lb)
+	}
+
+	lb = createLeaderboard(guildID)
+	leaderboardCache.Set(key, *lb)
+	return copyLeaderboard(lb)
+}
+
+// createLeaderboard creates a new leaderboard for the given guildID and sets the last season to the current month.
+func createLeaderboard(guildID discordid.SnowflakeID) *Leaderboard {
+	lb := &Leaderboard{
 		GuildID:    guildID,
 		LastSeason: disctime.CurrentMonth(time.Now()),
 	}
+	slog.Info("created new leaderboard",
+		slog.Any("guild_id", guildID),
+	)
+
+	err := writeLeaderboard(lb)
+	if err != nil {
+		slog.Error("unable to write leaderboard to database",
+			slog.Any("guildID", guildID),
+			slog.Any("error", err),
+		)
+	}
+
+	return lb
 }
 
 // copyLeaderboard returns a copy of the given leaderboard. This prevents callers from mutating the cached leaderboard directly.
@@ -90,27 +124,6 @@ func getLeaderboards() []*Leaderboard {
 
 	slog.Debug("leaderboards", "count", len(leaderboards))
 	return leaderboards
-}
-
-// getLeaderboard returns the leaderboard for the given guild.
-func getLeaderboard(guildID discordid.SnowflakeID) *Leaderboard {
-	key := leaderboardCacheKey{
-		guildID: guildID,
-	}
-
-	if lb, ok := leaderboardCache.Get(key); ok {
-		return copyLeaderboard(&lb)
-	}
-
-	lb := readLeaderboard(key.guildID)
-	if lb != nil {
-		leaderboardCache.Set(key, *lb)
-		return copyLeaderboard(lb)
-	}
-
-	lb = newLeaderboard(guildID)
-	leaderboardCache.Set(key, *lb)
-	return copyLeaderboard(lb)
 }
 
 // UpdateLeaderboard updates the leaderboard with the given mutation, retrying on version conflicts.

@@ -36,8 +36,8 @@ var (
 	}
 )
 
-// startBlackjack starts a blackjack game that other members may join.
-func startBlackjack(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// startBlackjackHandler starts a blackjack game that other members may join.
+func startBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -82,8 +82,8 @@ func startBlackjack(_ discord.SlashCommandInteractionData, e *handler.CommandEve
 	return nil
 }
 
-// blackjackStats returns a player's blackjack stats.
-func blackjackStats(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// blackjackStatsHandler returns a player's blackjack stats.
+func blackjackStatsHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -129,8 +129,8 @@ func blackjackStats(_ discord.SlashCommandInteractionData, e *handler.CommandEve
 	})
 }
 
-// blackjackJoin handles the join button.
-func blackjackJoin(e *handler.ComponentEvent) error {
+// blackjackJoinButtonHandler handles the join button.
+func blackjackJoinButtonHandler(e *handler.ComponentEvent) error {
 	if err := e.DeferCreateMessage(true); err != nil {
 		slog.Error("failed to defer blackjack join component response", slog.Any("error", err))
 	}
@@ -163,28 +163,28 @@ func blackjackJoin(e *handler.ComponentEvent) error {
 	return updateComponentResponse(e, "You joined the blackjack game.")
 }
 
-// blackjackHit handles the hit button.
-func blackjackHit(e *handler.ComponentEvent) error {
+// blackjackHitButtonHandler handles the hit button.
+func blackjackHitButtonHandler(e *handler.ComponentEvent) error {
 	return blackjackAction(e, Hit)
 }
 
-// blackjackStand handles the stand button.
-func blackjackStand(e *handler.ComponentEvent) error {
+// blackjackStandButtonHandler handles the stand button.
+func blackjackStandButtonHandler(e *handler.ComponentEvent) error {
 	return blackjackAction(e, Stand)
 }
 
-// blackjackDoubleDown handles the double down button.
-func blackjackDoubleDown(e *handler.ComponentEvent) error {
+// blackjackDoubleDownButtonHandler handles the double down button.
+func blackjackDoubleDownButtonHandler(e *handler.ComponentEvent) error {
 	return blackjackAction(e, DoubleDown)
 }
 
-// blackjackSplit handles the split button.
-func blackjackSplit(e *handler.ComponentEvent) error {
+// blackjackSplitButtonHandler handles the split button.
+func blackjackSplitButtonHandler(e *handler.ComponentEvent) error {
 	return blackjackAction(e, Split)
 }
 
-// blackjackSurrender handles the surrender button.
-func blackjackSurrender(e *handler.ComponentEvent) error {
+// blackjackSurrenderButtonHandler handles the surrender button.
+func blackjackSurrenderButtonHandler(e *handler.ComponentEvent) error {
 	return blackjackAction(e, Surrender)
 }
 

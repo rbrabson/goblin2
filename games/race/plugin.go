@@ -74,17 +74,17 @@ func (p *Plugin) Status() plugin.Status {
 // GetSlashHandlers returns slash command handlers for the race plugin.
 func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	return map[string]handler.SlashCommandHandler{
-		"/race/start":       startRace,
-		"/race/stats":       raceStats,
-		"/race-admin/reset": resetRace,
+		"/race/start":       startRaceHandler,
+		"/race/stats":       raceStatsHandler,
+		"/race-admin/reset": resetRaceHandler,
 	}
 }
 
 // GetComponentHandlers returns component handlers for the race plugin.
 func (p *Plugin) GetComponentHandlers() map[string]handler.ComponentHandler {
 	return map[string]handler.ComponentHandler{
-		"/race/join": joinRace,
-		"/race/bet":  betOnRace,
+		"/race/join": joinRaceButtonHandler,
+		"/race/bet":  betOnRaceButtonHandler,
 	}
 }
 

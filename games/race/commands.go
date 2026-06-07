@@ -58,8 +58,8 @@ type raceButton struct {
 	racer *Participant
 }
 
-// resetRace resets a hung race.
-func resetRace(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// resetRaceHandler resets a hung race.
+func resetRaceHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -73,8 +73,8 @@ func resetRace(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) e
 	})
 }
 
-// startRace starts a race that other members may join.
-func startRace(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// startRaceHandler starts a race that other members may join.
+func startRaceHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -242,8 +242,8 @@ func waitForBetsToBePlaced(race *Race) {
 	}
 }
 
-// joinRace attempts to join a race that is getting ready to start.
-func joinRace(e *handler.ComponentEvent) error {
+// joinRaceButtonHandler attempts to join a race that is getting ready to start.
+func joinRaceButtonHandler(e *handler.ComponentEvent) error {
 	if err := e.DeferCreateMessage(true); err != nil {
 		slog.Error("failed to defer race join component response", slog.Any("error", err))
 	}
@@ -284,8 +284,8 @@ func joinRace(e *handler.ComponentEvent) error {
 	return updateComponentResponse(e, "You have joined the race")
 }
 
-// raceStats returns a player's race stats.
-func raceStats(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// raceStatsHandler returns a player's race stats.
+func raceStatsHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -337,8 +337,8 @@ func raceStats(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) e
 	})
 }
 
-// betOnRace processes a bet placed by a member on the race.
-func betOnRace(e *handler.ComponentEvent) error {
+// betOnRaceButtonHandler processes a bet placed by a member on the race.
+func betOnRaceButtonHandler(e *handler.ComponentEvent) error {
 	if err := e.DeferCreateMessage(true); err != nil {
 		slog.Error("failed to defer race bet component response", slog.Any("error", err))
 	}

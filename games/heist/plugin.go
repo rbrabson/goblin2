@@ -92,30 +92,30 @@ func (p *Plugin) Status() plugin.Status {
 // GetSlashHandlers returns the slash command handlers for the heist plugin.
 func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	return map[string]handler.SlashCommandHandler{
-		"/heist/bail":    bailoutPlayer,
-		"/heist/stats":   playerStats,
-		"/heist/start":   startHeist,
-		"/heist/targets": listTargets,
+		"/heist/bail":    bailoutPlayerHandler,
+		"/heist/stats":   playerStatsHandler,
+		"/heist/start":   startHeistHandler,
+		"/heist/targets": listTargetsHandler,
 
-		"/heist-admin/boost":                       enableBoost,
-		"/heist-admin/clear":                       clearMember,
-		"/heist-admin/config/info":                 configInfo,
-		"/heist-admin/config/bail":                 configBail,
-		"/heist-admin/config/boost":                configBoost,
-		"/heist-admin/config/cost":                 configCost,
-		"/heist-admin/config/death":                configDeath,
-		"/heist-admin/config/patrol":               configPatrol,
-		"/heist-admin/config/sentence":             configSentence,
-		"/heist-admin/config/boost-vault-recovery": configBoostVaultRecovery,
-		"/heist-admin/config/wait":                 configWait,
-		"/heist-admin/reset":                       resetHeist,
-		"/heist-admin/vault-reset":                 resetVaults,
+		"/heist-admin/boost":                       enableBoostHandler,
+		"/heist-admin/clear":                       clearMemberHandler,
+		"/heist-admin/config/info":                 configInfoHandler,
+		"/heist-admin/config/bail":                 configBailHandler,
+		"/heist-admin/config/boost":                configBoostHandler,
+		"/heist-admin/config/cost":                 configCostHandler,
+		"/heist-admin/config/death":                configDeathHandler,
+		"/heist-admin/config/patrol":               configPatrolHandler,
+		"/heist-admin/config/sentence":             configSentenceHandler,
+		"/heist-admin/config/boost-vault-recovery": configBoostVaultRecoveryHandler,
+		"/heist-admin/config/wait":                 configWaitHandler,
+		"/heist-admin/reset":                       resetHeistHandler,
+		"/heist-admin/vault-reset":                 resetVaultsHandler,
 	}
 }
 
 func (p *Plugin) GetComponentHandlers() map[string]handler.ComponentHandler {
 	return map[string]handler.ComponentHandler{
-		"/heist/join": joinHeist,
+		"/heist/join": joinHeistButtonHandler,
 	}
 }
 

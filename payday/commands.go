@@ -27,8 +27,8 @@ var (
 	}
 )
 
-// payday handles the `/payday` command.
-func payday(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// paydayHandler handles the `/payday` command.
+func paydayHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -84,12 +84,12 @@ func payday(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) erro
 	})
 }
 
-// showStats handles the `/payday-stats` command.
-func showStats(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// paydayStatsHandler handles the `/payday-stats` command.
+func paydayStatsHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
-	
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{

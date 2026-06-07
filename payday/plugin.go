@@ -70,8 +70,8 @@ func (p *Plugin) Status() plugin.Status {
 // GetSlashHandlers returns the slash command handlers for the payday plugin.
 func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	return map[string]handler.SlashCommandHandler{
-		"/payday":       payday,
-		"/payday-stats": showStats,
+		"/payday":       paydayHandler,
+		"/payday-stats": paydayStatsHandler,
 	}
 }
 

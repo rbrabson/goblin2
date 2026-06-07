@@ -63,7 +63,7 @@ func GetPaydayAccount(guildID, memberID discordid.SnowflakeID) *Account {
 	return copyPaydayAccount(account)
 }
 
-// newAccount creates new payday information for a server/guild.
+// newAccount creates new paydayHandler information for a server/guild.
 func newAccount(guildID, memberID discordid.SnowflakeID) *Account {
 	return &Account{
 		MemberID: memberID,
@@ -131,12 +131,12 @@ func UpdatePaydayAccount(guildID, memberID discordid.SnowflakeID, mutate func(*A
 	return fmt.Errorf("failed to update payday account after %d retries: %w", maxRetries, bank.ErrVersionConflict)
 }
 
-// getNextPayday returns the next payday for the user.
+// getNextPayday returns the next paydayHandler for the user.
 func (a *Account) getNextPayday() time.Time {
 	return a.NextPayday
 }
 
-// setNextPayday sets the next payday for the user.
+// setNextPayday sets the next paydayHandler for the user.
 func (a *Account) setNextPayday(minWait time.Duration) {
 	if err := UpdatePaydayAccount(a.GuildID, a.MemberID, func(latest *Account) error {
 		latest.NextPayday = time.Now().Add(minWait)
@@ -163,7 +163,7 @@ func (a *Account) setNextPayday(minWait time.Duration) {
 	)
 }
 
-// getPayAmount returns the number of credits the user will receive on their next payday.
+// getPayAmount returns the number of credits the user will receive on their next paydayHandler.
 func (a *Account) getPayAmount() int {
 	payday := GetPayday(a.GuildID)
 	a.updateStreak(payday.PaydayFrequency)
@@ -183,7 +183,7 @@ func (a *Account) getPayAmount() int {
 	return pay
 }
 
-// updateStreak updates the user's current streak based on their last payday.
+// updateStreak updates the user's current streak based on their last paydayHandler.
 func (a *Account) updateStreak(minWait time.Duration) {
 	if a.NextPayday.After(time.Now()) {
 		return

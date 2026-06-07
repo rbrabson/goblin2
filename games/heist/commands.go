@@ -197,8 +197,8 @@ var (
 	}
 )
 
-// startHeist plans a new heist.
-func startHeist(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// startHeistHandler plans a new heist.
+func startHeistHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -553,8 +553,8 @@ func sendWinningsTable(e *handler.CommandEvent, res *Result) error {
 	return nil
 }
 
-// joinHeist attempts to join a heist that is being planned.
-func joinHeist(e *handler.ComponentEvent) error {
+// joinHeistButtonHandler attempts to join a heist that is being planned.
+func joinHeistButtonHandler(e *handler.ComponentEvent) error {
 	if err := e.DeferCreateMessage(true); err != nil {
 		slog.Error("failed to defer join heist component response", slog.Any("error", err))
 	}
@@ -616,8 +616,8 @@ func updateComponentResponse(e *handler.ComponentEvent, content string) error {
 	return err
 }
 
-// playerStats shows a player's heist stats.
-func playerStats(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// playerStatsHandler shows a player's heist stats.
+func playerStatsHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -679,8 +679,8 @@ func playerStats(_ discord.SlashCommandInteractionData, e *handler.CommandEvent)
 	})
 }
 
-// bailoutPlayer bails a player out from jail.
-func bailoutPlayer(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// bailoutPlayerHandler bails a player out from jail.
+func bailoutPlayerHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -873,8 +873,8 @@ func heistMessage(heist *Heist) error {
 	return err
 }
 
-// listTargets displays a list of available heist targets.
-func listTargets(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// listTargetsHandler displays a list of available heist targets.
+func listTargetsHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -956,8 +956,8 @@ func listTargets(_ discord.SlashCommandInteractionData, e *handler.CommandEvent)
 
 /******** ADMIN COMMANDS ********/
 
-// enableBoost enables or disables the boost for the heist game.
-func enableBoost(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// enableBoostHandler enables or disables the boost for the heist game.
+func enableBoostHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -979,8 +979,8 @@ func enableBoost(data discord.SlashCommandInteractionData, e *handler.CommandEve
 	})
 }
 
-// resetHeist resets the heist in case it hangs.
-func resetHeist(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// resetHeistHandler resets the heist in case it hangs.
+func resetHeistHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -1014,8 +1014,8 @@ func resetHeist(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) 
 	})
 }
 
-// resetVaults sets the vaults within the guild to their maximum value.
-func resetVaults(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// resetVaultsHandler sets the vaults within the guild to their maximum value.
+func resetVaultsHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -1026,8 +1026,8 @@ func resetVaults(_ discord.SlashCommandInteractionData, e *handler.CommandEvent)
 	})
 }
 
-// clearMember clears the criminal state of the player.
-func clearMember(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// clearMemberHandler clears the criminal state of the player.
+func clearMemberHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -1057,8 +1057,8 @@ func clearMember(data discord.SlashCommandInteractionData, e *handler.CommandEve
 	})
 }
 
-// configCost sets the cost to plan or join a heist.
-func configCost(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// configCostHandler sets the cost to plan or join a heist.
+func configCostHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -1075,8 +1075,8 @@ func configCost(data discord.SlashCommandInteractionData, e *handler.CommandEven
 	})
 }
 
-// configSentence sets the base apprehension time when a player is apprehended.
-func configSentence(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// configSentenceHandler sets the base apprehension time when a player is apprehended.
+func configSentenceHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -1101,8 +1101,8 @@ func configSentence(data discord.SlashCommandInteractionData, e *handler.Command
 	})
 }
 
-// configPatrol sets the time authorities will prevent a new heist following one being completed.
-func configPatrol(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// configPatrolHandler sets the time authorities will prevent a new heist following one being completed.
+func configPatrolHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -1119,8 +1119,8 @@ func configPatrol(data discord.SlashCommandInteractionData, e *handler.CommandEv
 	})
 }
 
-// configBail sets the base cost of bail.
-func configBail(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// configBailHandler sets the base cost of bail.
+func configBailHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -1137,8 +1137,8 @@ func configBail(data discord.SlashCommandInteractionData, e *handler.CommandEven
 	})
 }
 
-// configBoost sets the percentage to increase payouts when boosts are enabled.
-func configBoost(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// configBoostHandler sets the percentage to increase payouts when boosts are enabled.
+func configBoostHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -1158,8 +1158,8 @@ func configBoost(data discord.SlashCommandInteractionData, e *handler.CommandEve
 	})
 }
 
-// configDeath sets how long players remain dead.
-func configDeath(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// configDeathHandler sets how long players remain dead.
+func configDeathHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -1176,8 +1176,8 @@ func configDeath(data discord.SlashCommandInteractionData, e *handler.CommandEve
 	})
 }
 
-// configBoostVaultRecovery sets the percentage of the vault that is recovered every minute when boosts are enabled.
-func configBoostVaultRecovery(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// configBoostVaultRecoveryHandler sets the percentage of the vault that is recovered every minute when boosts are enabled.
+func configBoostVaultRecoveryHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -1194,8 +1194,8 @@ func configBoostVaultRecovery(data discord.SlashCommandInteractionData, e *handl
 	})
 }
 
-// configWait sets how long players wait for others to join the heist.
-func configWait(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// configWaitHandler sets how long players wait for others to join the heist.
+func configWaitHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -1212,8 +1212,8 @@ func configWait(data discord.SlashCommandInteractionData, e *handler.CommandEven
 	})
 }
 
-// configInfo returns the configuration for the Heist bot on this server.
-func configInfo(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// configInfoHandler returns the configuration for the Heist bot on this server.
+func configInfoHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}

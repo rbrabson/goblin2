@@ -59,7 +59,7 @@ func GetPayday(guildID discordid.SnowflakeID) *Payday {
 	return copyPayday(payday)
 }
 
-// copyPayday returns a copy of the given payday. This prevents callers from mutating the cached payday directly.
+// copyPayday returns a copy of the given paydayHandler. This prevents callers from mutating the cached paydayHandler directly.
 func copyPayday(payday *Payday) *Payday {
 	if payday == nil {
 		return nil
@@ -142,9 +142,9 @@ func (payday *Payday) SetPaydayFrequency(frequency time.Duration) {
 	}
 }
 
-// createNewPayday creates new payday information for a server/guild.
-// If the default payday configuration file cannot be read or decoded, then a
-// default payday configuration is created.
+// createNewPayday creates new paydayHandler information for a server/guild.
+// If the default paydayHandler configuration file cannot be read or decoded, then a
+// default paydayHandler configuration is created.
 func createNewPayday(guildID discordid.SnowflakeID) *Payday {
 	payday := &Payday{
 		GuildID:           guildID,

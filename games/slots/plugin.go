@@ -89,9 +89,9 @@ func (p *Plugin) GetAdminHelp() map[string]string {
 // GetSlashHandlers returns the slash command handlers for the slots plugin.
 func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	return map[string]handler.SlashCommandHandler{
-		"/slots/play":     playSlots,
-		"/slots/paytable": payTable,
-		"/slots/stats":    showStats,
+		"/slots/play":     playSlotsHandler,
+		"/slots/paytable": payTableHandler,
+		"/slots/stats":    showStatsHandler,
 	}
 }
 

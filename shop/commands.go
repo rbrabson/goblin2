@@ -3,7 +3,6 @@ package shop
 import (
 	"fmt"
 	"goblin2/disgobot"
-	"goblin2/guild"
 	"goblin2/internal/discordid"
 	"goblin2/internal/message"
 	"log/slog"
@@ -98,26 +97,6 @@ var (
 			Description: "Commands used to interact with the shop.",
 			Options: []discord.ApplicationCommandOption{
 				discord.ApplicationCommandOptionSubCommand{
-					Name:        "list",
-					Description: "Lists the items available in the shop.",
-				},
-				discord.ApplicationCommandOptionSubCommand{
-					Name:        "buy-role",
-					Description: "Purchases a role from the shop.",
-					Options: []discord.ApplicationCommandOption{
-						discord.ApplicationCommandOptionString{
-							Name:        "name",
-							Description: "The role name.",
-							Required:    true,
-						},
-						discord.ApplicationCommandOptionBool{
-							Name:        "auto-renew",
-							Description: "Whether to auto-renew the purchase.",
-							Required:    false,
-						},
-					},
-				},
-				discord.ApplicationCommandOptionSubCommand{
 					Name:        "purchases",
 					Description: "Lists your shop purchases.",
 				},
@@ -126,90 +105,12 @@ var (
 	}
 )
 
-// shopAdmin handles the /shop admin command.
-func shopAdmin(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// addRoleHandler handles the /shop add-role command.
+func addRoleHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
-	
-	member := e.Member()
-	if member == nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "This command can only be used in a server.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
 
-	g := guild.GetGuild(discordid.NewSnowflakeID(member.GuildID))
-	guildMember := guild.GetMember(discordid.NewSnowflakeID(member.GuildID), &member.Member)
-	if guildMember == nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "Unable to resolve your server membership.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	isAdmin, err := guildMember.IsAdmin(e.Client(), g)
-	if err != nil {
-		slog.Error("failed to check shop admin permissions",
-			slog.Any("guildID", member.GuildID),
-			slog.Any("memberID", member.User.ID),
-			slog.Any("error", err),
-		)
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "Unable to verify your permissions.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-	if !isAdmin {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "You do not have permission to use this command.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	switch slashSubCommandName(data) {
-	case "add-role":
-		return addRoleToShop(data, e)
-	case "remove-role":
-		return removeRoleFromShop(data, e)
-	case "channel":
-		return setShopChannel(data, e)
-	case "mod-channel":
-		return setShopModChannel(data, e)
-	case "info":
-		return getShopInfo(data, e)
-	default:
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "Invalid shop admin command.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-}
-
-// shop handles the /shop command.
-func shop(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if disgobot.IsShuttingDown(e) {
-		return disgobot.ErrUnableToProcessCommand
-	}
-
-	switch slashSubCommandName(data) {
-	case "list":
-		return listShop(data, e)
-	case "buy-role":
-		return buyRole(data, e)
-	case "purchases":
-		return listPurchases(data, e)
-	default:
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "Invalid shop command.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-}
-
-// addRoleToShop handles the /shop add-role command.
-func addRoleToShop(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -266,8 +167,12 @@ func addRoleToShop(data discord.SlashCommandInteractionData, e *handler.CommandE
 	})
 }
 
-// removeRoleFromShop handles the /shop remove-role command.
-func removeRoleFromShop(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// removeRoleHandler handles the /shop remove-role command.
+func removeRoleHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -299,8 +204,12 @@ func removeRoleFromShop(data discord.SlashCommandInteractionData, e *handler.Com
 	})
 }
 
-// setShopChannel handles the /shop set-channel command.
-func setShopChannel(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// setChannelHandler handles the /shop set-channel command.
+func setChannelHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -319,8 +228,12 @@ func setShopChannel(data discord.SlashCommandInteractionData, e *handler.Command
 	})
 }
 
-// setShopModChannel handles the /shop set-mod-channel command.
-func setShopModChannel(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// setModChannelHandler handles the /shop set-mod-channel command.
+func setModChannelHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -339,8 +252,12 @@ func setShopModChannel(data discord.SlashCommandInteractionData, e *handler.Comm
 	})
 }
 
-// getShopInfo handles the /shop info command.
-func getShopInfo(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// getShopInfoHandler handles the /shop info command.
+func getShopInfoHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -363,105 +280,12 @@ func getShopInfo(_ discord.SlashCommandInteractionData, e *handler.CommandEvent)
 	})
 }
 
-// listShop handles the /shop list command.
-func listShop(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	member := e.Member()
-	if member == nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "This command can only be used in a server.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
+// purchasesHandler handles the /shop purchases command.
+func purchasesHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
 	}
 
-	s := GetShop(member.GuildID.String())
-	if len(s.Items) == 0 {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "The shop is empty.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	fields := make([]discord.EmbedField, 0, len(s.Items))
-	for _, item := range s.Items {
-		fields = append(fields, discord.EmbedField{
-			Name:  fmt.Sprintf("%s `%s`", item.Type, item.Name),
-			Value: formatShopItem(item),
-		})
-	}
-
-	p := message.NewPaginator(
-		message.WithDiscordConfig(message.DiscordConfig{
-			Client: client,
-		}),
-	)
-	return p.CreateInteractionResponse(e, "Shop", fields, true)
-}
-
-// buyRole handles the /shop buy command.
-func buyRole(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	member := e.Member()
-	if member == nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "This command can only be used in a server.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	roleName := strings.TrimSpace(stringValue(data, "name"))
-	autoRenew := boolValue(data, "auto-renew")
-
-	if err := rolePurchaseChecks(discordid.NewSnowflakeID(member.GuildID), discordid.NewSnowflakeID(member.User.ID), roleName); err != nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: err.Error(),
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	role := GetRole(discordid.NewSnowflakeID(member.GuildID), roleName)
-	if role == nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: fmt.Sprintf("Role `%s` was not found in the shop.", roleName),
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	purchase, err := role.Purchase(discordid.NewSnowflakeID(member.User.ID), autoRenew)
-	if err != nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: err.Error(),
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	guildRole, err := getExistingGuildRole(discordid.NewSnowflakeID(member.GuildID), roleName)
-	if err != nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: fmt.Sprintf("Purchased `%s`, but I could not find the Discord role to assign it.", roleName),
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	if err := client.Rest.AddMemberRole(member.GuildID, member.User.ID, guildRole.ID); err != nil {
-		slog.Error("unable to assign purchased role",
-			slog.Any("guildID", member.GuildID),
-			slog.Any("memberID", member.User.ID),
-			slog.String("roleName", roleName),
-			slog.Any("error", err),
-		)
-		return e.CreateMessage(discord.MessageCreate{
-			Content: fmt.Sprintf("Purchased `%s`, but I could not assign the Discord role. Please contact an admin.", roleName),
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	return e.CreateMessage(discord.MessageCreate{
-		Content: fmt.Sprintf("Purchased role `%s` for %d credits.", purchase.Item.Name, purchase.Item.Price),
-		Flags:   discord.MessageFlagEphemeral,
-	})
-}
-
-// listPurchases handles the /shop purchases command.
-func listPurchases(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -494,24 +318,6 @@ func listPurchases(_ discord.SlashCommandInteractionData, e *handler.CommandEven
 	return p.CreateInteractionResponse(e, "Your Shop Purchases", fields, true)
 }
 
-// formatShopItem formats a shop item into a human-readable string.
-func formatShopItem(item *Item) string {
-	var parts []string
-
-	parts = append(parts, fmt.Sprintf("**Price**: %d", item.Price))
-	if item.Description != "" {
-		parts = append(parts, fmt.Sprintf("**Description**: %s", item.Description))
-	}
-	if item.Duration != "" {
-		parts = append(parts, fmt.Sprintf("**Duration**: %s", item.Duration))
-	}
-	if item.AutoRenewable {
-		parts = append(parts, "**Auto-renewable**: yes")
-	}
-
-	return strings.Join(parts, "\n")
-}
-
 // formatPurchase formats a purchase into a human-readable string.
 func formatPurchase(purchase *Purchase) string {
 	var parts []string
@@ -531,15 +337,6 @@ func formatPurchase(purchase *Purchase) string {
 	}
 
 	return strings.Join(parts, "\n")
-}
-
-// slashSubCommandName returns the subcommand name from the given slash command interaction data, or an empty string if there is no subcommand.
-func slashSubCommandName(data discord.SlashCommandInteractionData) string {
-	if data.SubCommandName == nil {
-		return ""
-	}
-
-	return *data.SubCommandName
 }
 
 // stringValue returns the string value of the given option name from the given slash command interaction data or an empty string if the option is not present.

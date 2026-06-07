@@ -72,20 +72,20 @@ func (p *Plugin) Status() plugin.Status {
 // GetSlashHandlers returns slash command handlers for blackjack.
 func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	return map[string]handler.SlashCommandHandler{
-		"/blackjack/start": startBlackjack,
-		"/blackjack/stats": blackjackStats,
+		"/blackjack/start": startBlackjackHandler,
+		"/blackjack/stats": blackjackStatsHandler,
 	}
 }
 
 // GetComponentHandlers returns component handlers for blackjack.
 func (p *Plugin) GetComponentHandlers() map[string]handler.ComponentHandler {
 	return map[string]handler.ComponentHandler{
-		"/blackjack/join":        blackjackJoin,
-		"/blackjack/hit":         blackjackHit,
-		"/blackjack/stand":       blackjackStand,
-		"/blackjack/double-down": blackjackDoubleDown,
-		"/blackjack/split":       blackjackSplit,
-		"/blackjack/surrender":   blackjackSurrender,
+		"/blackjack/join":        blackjackJoinButtonHandler,
+		"/blackjack/hit":         blackjackHitButtonHandler,
+		"/blackjack/stand":       blackjackStandButtonHandler,
+		"/blackjack/double-down": blackjackDoubleDownButtonHandler,
+		"/blackjack/split":       blackjackSplitButtonHandler,
+		"/blackjack/surrender":   blackjackSurrenderButtonHandler,
 	}
 }
 

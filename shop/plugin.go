@@ -82,14 +82,12 @@ func (p *Plugin) Status() plugin.Status {
 // GetSlashHandlers returns the slash command handlers for the shop plugin.
 func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	return map[string]handler.SlashCommandHandler{
-		"/shop/list":              shop,
-		"/shop/buy-role":          shop,
-		"/shop/purchases":         shop,
-		"/shop-admin/add-role":    shopAdmin,
-		"/shop-admin/remove-role": shopAdmin,
-		"/shop-admin/channel":     shopAdmin,
-		"/shop-admin/mod-channel": shopAdmin,
-		"/shop-admin/info":        shopAdmin,
+		"/shop/purchases":         purchasesHandler,
+		"/shop-admin/add-role":    addRoleHandler,
+		"/shop-admin/remove-role": removeRoleHandler,
+		"/shop-admin/channel":     setChannelHandler,
+		"/shop-admin/mod-channel": setModChannelHandler,
+		"/shop-admin/info":        getShopInfoHandler,
 	}
 }
 

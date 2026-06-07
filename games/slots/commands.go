@@ -68,8 +68,8 @@ var (
 	}
 )
 
-// playSlots handles the `/slots play` command.
-func playSlots(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// playSlotsHandler handles the `/slots play` command.
+func playSlotsHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -191,8 +191,8 @@ func playSlots(data discord.SlashCommandInteractionData, e *handler.CommandEvent
 	})
 }
 
-// showStats handles the `/slots stats` command.
-func showStats(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// showStatsHandler handles the `/slots stats` command.
+func showStatsHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -306,8 +306,8 @@ func showStats(data discord.SlashCommandInteractionData, e *handler.CommandEvent
 	})
 }
 
-// payTable handles the `/slots paytable` command.
-func payTable(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// payTableHandler handles the `/slots paytable` command.
+func payTableHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}

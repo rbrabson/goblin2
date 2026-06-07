@@ -86,68 +86,12 @@ var (
 	}
 )
 
-// leaderboardAdmin updates the leaderboardAdmin channel.
-func leaderboardAdmin(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
-		return disgobot.ErrUnableToProcessCommand
-	}
-
-	member := e.Member()
-	if member == nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "This command can only be used in a server.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	g := guild.GetGuild(discordid.NewSnowflakeID(member.GuildID))
-	guildMember := guild.GetMember(discordid.NewSnowflakeID(member.GuildID), &member.Member)
-	if guildMember == nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "Unable to resolve your server membership.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	isAdmin, err := guildMember.IsAdmin(e.Client(), g)
-	if err != nil {
-		slog.Error("failed to check admin permissions",
-			slog.Any("guildID", member.GuildID),
-			slog.Any("memberID", member.User.ID),
-			slog.Any("error", err),
-		)
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "Unable to verify your permissions.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-	if !isAdmin {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "You do not have permission to use this command.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	subCommandName := slashSubCommandName(data)
-	switch subCommandName {
-	case "channel":
-		return setLeaderboardChannel(data, e)
-	case "info":
-		return getLeaderboardInfo(data, e)
-	default:
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "Invalid command: " + subCommandName,
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-}
-
-// currentLeaderboard returns the top-ranked accounts for the current balance.
-func currentLeaderboard(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// currentLeaderboardHandler returns the top-ranked accounts for the current balance.
+func currentLeaderboardHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
-	
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -161,8 +105,8 @@ func currentLeaderboard(_ discord.SlashCommandInteractionData, e *handler.Comman
 	return sendLeaderboard(e, CurrentLeaderboard, leaderboard)
 }
 
-// monthlyLeaderboard returns the top-ranked accounts for the current month.
-func monthlyLeaderboard(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// monthlyLeaderboardHandler returns the top-ranked accounts for the current month.
+func monthlyLeaderboardHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -180,8 +124,8 @@ func monthlyLeaderboard(_ discord.SlashCommandInteractionData, e *handler.Comman
 	return sendLeaderboard(e, MonthlyLeaderboard, leaderboard)
 }
 
-// lifetimeLeaderboard returns the top-ranked accounts for the lifetime of the server.
-func lifetimeLeaderboard(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// lifetimeLeaderboardHandler returns the top-ranked accounts for the lifetime of the server.
+func lifetimeLeaderboardHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -199,8 +143,12 @@ func lifetimeLeaderboard(_ discord.SlashCommandInteractionData, e *handler.Comma
 	return sendLeaderboard(e, LifetimeLeaderboard, leaderboard)
 }
 
-// setLeaderboardChannel sets the server channel to which the monthly leaderboard is published.
-func setLeaderboardChannel(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// setLeaderboardChannelHandler sets the server channel to which the monthly leaderboard is published.
+func setLeaderboardChannelHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -219,8 +167,12 @@ func setLeaderboardChannel(data discord.SlashCommandInteractionData, e *handler.
 	})
 }
 
-// getLeaderboardInfo returns the leaderboard configuration for the server.
-func getLeaderboardInfo(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// getLeaderboardInfoHandler returns the leaderboard configuration for the server.
+func getLeaderboardInfoHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -232,7 +184,7 @@ func getLeaderboardInfo(_ discord.SlashCommandInteractionData, e *handler.Comman
 	lb := getLeaderboard(discordid.NewSnowflakeID(member.GuildID))
 
 	return e.CreateMessage(discord.MessageCreate{
-		Content: fmt.Sprintf("Channel ID for the monthly leaderboard is %s.", lb.ChannelID),
+		Content: fmt.Sprintf("Channel ID for the monthly leaderboard is `%s`.", lb.ChannelID),
 		Flags:   discord.MessageFlagEphemeral,
 	})
 }
@@ -261,8 +213,8 @@ func sendLeaderboard(e *handler.CommandEvent, title Type, accounts []*bank.Accou
 	})
 }
 
-// rank returns the rank of the member in the leaderboard.
-func rank(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// rankHandler returns the rankHandler of the member in the leaderboard.
+func rankHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -411,15 +363,6 @@ func formatAccounts(_ *bot.Client, guildID discordid.SnowflakeID, p *message.Pri
 			},
 		},
 	}
-}
-
-// slashSubCommandName returns the name of the subcommand. If the command is not a subcommand, it returns an empty string.
-func slashSubCommandName(data discord.SlashCommandInteractionData) string {
-	if data.SubCommandName == nil {
-		return ""
-	}
-
-	return *data.SubCommandName
 }
 
 // userIDValue returns the SnowflakeID value of the option with the given name.
