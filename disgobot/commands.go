@@ -3,7 +3,7 @@ package disgobot
 import (
 	"fmt"
 	"goblin2/internal/log"
-	"goblin2/message"
+	"goblin2/internal/message"
 	"goblin2/plugin"
 	"log/slog"
 	"sort"

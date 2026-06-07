@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"goblin2/guild"
 	"goblin2/internal/discordid"
-	goblinmsg "goblin2/message"
+	"goblin2/internal/message"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -372,8 +372,8 @@ func listShop(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) er
 		})
 	}
 
-	p := goblinmsg.NewPaginator(
-		goblinmsg.WithDiscordConfig(goblinmsg.DiscordConfig{
+	p := message.NewPaginator(
+		message.WithDiscordConfig(message.DiscordConfig{
 			Client: client,
 		}),
 	)
@@ -467,8 +467,8 @@ func listPurchases(_ discord.SlashCommandInteractionData, e *handler.CommandEven
 		})
 	}
 
-	p := goblinmsg.NewPaginator(
-		goblinmsg.WithDiscordConfig(goblinmsg.DiscordConfig{
+	p := message.NewPaginator(
+		message.WithDiscordConfig(message.DiscordConfig{
 			Client: client,
 		}),
 	)
