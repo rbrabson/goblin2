@@ -132,6 +132,7 @@ func (s *Shop) Publish() error {
 	return nil
 }
 
+// messageCreate creates a message for the shop.
 func (s *Shop) messageCreate() discord.MessageCreate {
 	fields := make([]discord.EmbedField, 0, len(s.Items))
 	buttons := make([]discord.InteractiveComponent, 0, len(s.Items))
@@ -172,6 +173,7 @@ func (s *Shop) messageCreate() discord.MessageCreate {
 	}
 }
 
+// formatPublishedShopItem formats the shop item for display in the published shop message.
 func formatPublishedShopItem(item *Item) string {
 	var parts []string
 
@@ -188,10 +190,41 @@ func formatPublishedShopItem(item *Item) string {
 	return strings.Join(parts, "\n")
 }
 
+// shopItemDisplayType converts the item type to a display-friendly format.
 func shopItemDisplayType(itemType string) string {
 	if itemType == "" {
 		return ""
 	}
 
 	return strings.ToUpper(itemType[:1]) + itemType[1:]
+}
+
+// repairPublishedShops republishes all shops that have a channel configured. This is used to repair shops that have
+// been published but are missing their message ID in the database, which can happen if the bot is restarted while
+// publishing a shop.
+func repairPublishedShops() {
+	configs, err := readAllShopConfigsWithChannel()
+	if err != nil {
+		slog.Error("unable to read shop configs for repair", slog.Any("error", err))
+		return
+	}
+
+	for _, config := range configs {
+		if config.ChannelID == "" {
+			continue
+		}
+
+		s := GetShop(config.GuildID.String())
+		if err := s.Publish(); err != nil {
+			slog.Warn("unable to repair published shop",
+				slog.Any("guildID", config.GuildID),
+				slog.Any("error", err),
+			)
+		} else {
+			slog.Info("republished shop",
+				slog.Any("guildID", config.GuildID),
+				slog.String("channelID", config.ChannelID),
+			)
+		}
+	}
 }

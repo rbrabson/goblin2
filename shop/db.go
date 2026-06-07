@@ -33,6 +33,37 @@ func readConfig(guildID discordid.SnowflakeID) (*Config, error) {
 	return &config, nil
 }
 
+// readAllShopConfigsWithChannel reads all shop configs that have a configured shop channel.
+func readAllShopConfigsWithChannel() ([]*Config, error) {
+	filter := bson.M{
+		"channel_id": bson.M{
+			"$exists": true,
+			"$ne":     "",
+		},
+	}
+
+	var configs []*Config
+	if err := db.FindMany(configCollection, filter, &configs, bson.D{}, 0); err != nil {
+		slog.Error("unable to read shop configs with configured channels",
+			slog.Any("filter", filter),
+			slog.Any("error", err),
+		)
+		return nil, err
+	}
+
+	for _, config := range configs {
+		if config == nil {
+			continue
+		}
+
+		configCache.Set(configCacheKey{
+			guildID: config.GuildID,
+		}, *config)
+	}
+
+	return configs, nil
+}
+
 // writeConfig inserts the configuration into the database.
 func writeConfig(config *Config) error {
 	config.Version = 0

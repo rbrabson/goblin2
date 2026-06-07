@@ -40,6 +40,7 @@ func (p *Plugin) Initialize(mongoDB *database.MongoDB, botClient *bot.Client) {
 	client = botClient
 
 	go checkForExpiredPurchases()
+	go repairPublishedShops()
 }
 
 // GetHelp returns the help text for the shop plugin.
