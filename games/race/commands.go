@@ -3,6 +3,7 @@ package race
 import (
 	"errors"
 	"fmt"
+	"goblin2/disgobot"
 	"goblin2/guild"
 	"goblin2/internal/discordid"
 	"goblin2/internal/format"
@@ -59,8 +60,8 @@ type raceButton struct {
 
 // resetRace resets a hung race.
 func resetRace(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if err := requireAdmin(e); err != nil {
-		return err
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
 	}
 
 	gID := guildID(e)
@@ -74,6 +75,10 @@ func resetRace(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) e
 
 // startRace starts a race that other members may join.
 func startRace(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return serverOnly(e)
@@ -281,6 +286,10 @@ func joinRace(e *handler.ComponentEvent) error {
 
 // raceStats returns a player's race stats.
 func raceStats(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return serverOnly(e)
@@ -691,35 +700,6 @@ func updateComponentResponse(e *handler.ComponentEvent, content string) error {
 		Content: &content,
 	})
 	return err
-}
-
-// requireAdmin checks if the user has admin permissions in the guild.
-func requireAdmin(e *handler.CommandEvent) error {
-	member := e.Member()
-	if member == nil {
-		return serverOnly(e)
-	}
-
-	guildMember := resolvedGuildMember(member)
-	if guildMember == nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "You do not have permission to use this command.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	ok, err := guildMember.IsAdmin(e.Client(), guild.GetGuild(guildMember.GuildID))
-	if err != nil {
-		slog.Error("failed to check admin permissions", slog.Any("error", err))
-	}
-	if err != nil || !ok {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "You do not have permission to use this command.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	return nil
 }
 
 // serverOnly checks if the command is being used in a server context.

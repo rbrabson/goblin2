@@ -53,7 +53,7 @@ var adminCommands = discord.SlashCommandCreate{
 
 // guildAdminRoleListHandler returns the list of admin roles for the server.
 func guildAdminRoleListHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if !IsAdmin(e) || isShuttingDown(e) {
+	if !isAdmin(e) || isShuttingDown(e) {
 		return ErrUnableToProcessCommand
 	}
 
@@ -70,7 +70,7 @@ func guildAdminRoleListHandler(_ discord.SlashCommandInteractionData, e *handler
 
 // guildAdminRoleAddHandler adds an admin role for the server.
 func guildAdminRoleAddHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if !IsAdmin(e) || isShuttingDown(e) {
+	if !isAdmin(e) || isShuttingDown(e) {
 		return ErrUnableToProcessCommand
 	}
 
@@ -100,7 +100,7 @@ func guildAdminRoleAddHandler(data discord.SlashCommandInteractionData, e *handl
 
 // guildAdminRoleRemoveHandler removes an admin role for the server.
 func guildAdminRoleRemoveHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if !IsAdmin(e) || isShuttingDown(e) {
+	if !isAdmin(e) || isShuttingDown(e) {
 		return ErrUnableToProcessCommand
 	}
 
@@ -128,9 +128,9 @@ func guildAdminRoleRemoveHandler(data discord.SlashCommandInteractionData, e *ha
 	})
 }
 
-// IsAdmin checks if the member has permissions to manage the server. If not, it sends an ephemeral message to the user
+// isAdmin checks if the member has permissions to manage the server. If not, it sends an ephemeral message to the user
 // and returns false. Otherwise, it returns true.
-func IsAdmin(e *handler.CommandEvent) bool {
+func isAdmin(e *handler.CommandEvent) bool {
 	guild := GetGuild(discordid.NewSnowflakeID(e.Member().GuildID))
 	member := GetMember(guild.GuildID, &e.Member().Member)
 	isAdmin, _ := member.IsAdmin(e.Client(), guild)

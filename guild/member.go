@@ -275,7 +275,7 @@ func (m *Member) HasRole(client *bot.Client, roleName string) (bool, error) {
 	return false, nil
 }
 
-// IsAdmin checks if the member has any of the guild's configured admin roles.
+// isAdmin checks if the member has any of the guild's configured admin roles.
 func (m *Member) IsAdmin(client *bot.Client, guild *Guild) (bool, error) {
 	if guild == nil {
 		return false, nil
