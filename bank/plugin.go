@@ -91,7 +91,6 @@ func (p *Plugin) GetComponentHandlers() map[string]handler.ComponentHandler {
 
 // Stop stops the bank plugin.
 func (p *Plugin) Stop() {
-	CloseAccountCache()
 	p.status = plugin.Stopped
 }
 

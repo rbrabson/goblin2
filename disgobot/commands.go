@@ -338,11 +338,69 @@ func serverStatusHandler(_ discord.SlashCommandInteractionData, e *handler.Comma
 	if err := canManageServer(e); err != nil {
 		return err
 	}
-	// TODO: lots to do here....
-	return e.CreateMessage(discord.MessageCreate{
-		Content: "stub: server status",
-		Flags:   discord.MessageFlagEphemeral,
-	})
+
+	plugins := goblin.GetPlugins()
+	inline := true
+	pluginStatus := make([]discord.EmbedField, 0, len(plugins))
+
+	botStatus := plugin.Running
+	for _, p := range plugins {
+		slog.Error("plugin status",
+			slog.String("plugin", p.GetName()),
+			slog.String("status", p.Status().String()),
+		)
+		switch p.Status() {
+		case plugin.Stopping:
+			botStatus = plugin.Stopping
+			break
+		case plugin.Stopped:
+			if botStatus == plugin.Running {
+				botStatus = plugin.Stopped
+			}
+		default:
+			// NO-OP
+		}
+
+		pluginStatus = append(pluginStatus, discord.EmbedField{
+			Name:   cases.Title(language.AmericanEnglish).String(p.GetName()),
+			Value:  p.Status().String(),
+			Inline: &inline,
+		})
+	}
+
+	if len(pluginStatus) == 0 {
+		pluginStatus = append(pluginStatus, discord.EmbedField{
+			Name:   "No plugins",
+			Value:  "No plugins are registered.",
+			Inline: &inline,
+		})
+	}
+
+	embeds := []discord.Embed{
+		{
+			Title:       "Server Status",
+			Description: botStatus.String(),
+		},
+		{
+			Title:  "Plugin Status",
+			Fields: pluginStatus,
+		},
+	}
+
+	if err := e.CreateMessage(discord.MessageCreate{
+		Embeds: embeds,
+		Flags:  discord.MessageFlagEphemeral,
+	}); err != nil {
+		slog.Error("failed to send server status",
+			slog.Any("error", err),
+		)
+		return err
+	}
+
+	slog.Debug("sent server status",
+		slog.Any("embeds", embeds),
+	)
+	return nil
 }
 
 // serverOwnerAddHandler handles the server owner add command.
