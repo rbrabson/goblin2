@@ -246,6 +246,7 @@ func getBankInfoHandler(_ discord.SlashCommandInteractionData, e *handler.Comman
 	})
 }
 
+// userIDValue returns the SnowflakeID value of the option with the given name, or 0 if not found or invalid.
 func userIDValue(data discord.SlashCommandInteractionData, name string) (discordid.SnowflakeID, bool) {
 	value, ok := data.Options[name]
 	if !ok {
