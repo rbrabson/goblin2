@@ -2,6 +2,8 @@ package bank
 
 import (
 	"fmt"
+	"goblin2/disgobot"
+	"goblin2/guild"
 	"goblin2/internal/discordid"
 	"log/slog"
 	"strconv"
@@ -115,6 +117,10 @@ var (
 
 // accountHandler gets information about a member's bank account.
 func accountHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	p := message.NewPrinter(language.AmericanEnglish)
 
 	member := e.Member()
@@ -152,30 +158,98 @@ func accountHandler(data discord.SlashCommandInteractionData, e *handler.Command
 
 // setAccountBalanceHandler sets the balance of the account for the member of the guild to the specified amount.
 func setAccountBalanceHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	slog.Warn("TBD: bank-admin account handler",
-		slog.Any("options", data.Options),
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
+	p := message.NewPrinter(language.AmericanEnglish)
+
+	member := e.Member()
+	guildID := discordid.NewSnowflakeID(member.GuildID)
+	memberID := discordid.NewSnowflakeID(member.User.ID)
+	if optionMemberID, ok := userIDValue(data, "user"); ok {
+		memberID = optionMemberID
+	}
+
+	account := GetAccount(guildID, memberID)
+	amount := data.Options["amount"].Int()
+
+	if err := account.SetBalance(amount); err != nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: p.Sprintf("Unable to set the account balance for %s.", memberID),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	memberName := memberID.String()
+	if m, err := guild.GetMemberByID(guildID, memberID); err == nil {
+		memberName = m.Name
+	}
+
+	slog.Debug("/bank-admin account",
+		slog.Any("guildID", guildID),
+		slog.Any("memberID", memberID),
+		slog.String("memberName", memberName),
+		slog.Int("balance", account.GetBalance()),
 	)
 
 	return e.CreateMessage(discord.MessageCreate{
-		Content: "stub: bank-admin account",
-		Flags:   discord.MessageFlagEphemeral,
+		Content: p.Sprintf("Account balance for <@%s> was set to %d", memberID, account.GetBalance()),
 	})
 }
 
 // addAccountBalanceHandler adds the amount to the balance of the account for the member of the guild.
 func addAccountBalanceHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	slog.Warn("TBD: bank-admin add handler",
-		slog.Any("options", data.Options),
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
+	p := message.NewPrinter(language.AmericanEnglish)
+
+	member := e.Member()
+	guildID := discordid.NewSnowflakeID(member.GuildID)
+	memberID := discordid.NewSnowflakeID(member.User.ID)
+	if optionMemberID, ok := userIDValue(data, "user"); ok {
+		memberID = optionMemberID
+	}
+
+	account := GetAccount(guildID, memberID)
+	amount := data.Options["amount"].Int()
+
+	if err := account.Deposit(amount); err != nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: p.Sprintf("Unable to add to the account balance for %s.", memberID),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	memberName := memberID.String()
+	if m, err := guild.GetMemberByID(guildID, memberID); err == nil {
+		memberName = m.Name
+	}
+
+	slog.Debug("/bank-admin add",
+		slog.Any("guildID", guildID),
+		slog.Any("memberID", memberID),
+		slog.String("memberName", memberName),
+		slog.Int("balance", account.GetBalance()),
 	)
 
 	return e.CreateMessage(discord.MessageCreate{
-		Content: "stub: bank-admin add",
-		Flags:   discord.MessageFlagEphemeral,
+		Content: p.Sprintf("Account balance for <@%s> was increased by %d and is now %d", memberID, amount, account.GetBalance()),
 	})
 }
 
 // setDefaultBalanceHandler sets the default balance for the bank for the guild.
 func setDefaultBalanceHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	p := message.NewPrinter(language.AmericanEnglish)
 
 	balance := intValue(data, "value")
@@ -194,6 +268,10 @@ func setDefaultBalanceHandler(data discord.SlashCommandInteractionData, e *handl
 
 // setBankNameHandler sets the name of the bank for the guild.
 func setBankNameHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	p := message.NewPrinter(language.AmericanEnglish)
 
 	name := strings.TrimSpace(stringValue(data, "value"))
@@ -212,6 +290,10 @@ func setBankNameHandler(data discord.SlashCommandInteractionData, e *handler.Com
 
 // setBankCurrencyHandler sets the name of the currency used by the bank for the guild.
 func setBankCurrencyHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	p := message.NewPrinter(language.AmericanEnglish)
 
 	currency := strings.TrimSpace(stringValue(data, "value"))
@@ -230,6 +312,10 @@ func setBankCurrencyHandler(data discord.SlashCommandInteractionData, e *handler
 
 // getBankInfoHandler gets information about the bank for the guild.
 func getBankInfoHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	p := message.NewPrinter(language.AmericanEnglish)
 
 	b := GetBank(discordid.NewSnowflakeID(e.Member().GuildID))
@@ -273,7 +359,7 @@ func stringValue(data discord.SlashCommandInteractionData, name string) string {
 		return ""
 	}
 
-	return fmt.Sprint(value)
+	return value.String()
 }
 
 // intValue returns the int value of the option with the given name.
@@ -283,15 +369,5 @@ func intValue(data discord.SlashCommandInteractionData, name string) int {
 		return 0
 	}
 
-	var result int
-	if _, err := fmt.Sscan(fmt.Sprint(value), &result); err != nil {
-		slog.Warn("unable to parse int option",
-			slog.String("name", name),
-			slog.Any("value", value),
-			slog.Any("error", err),
-		)
-		return 0
-	}
-
-	return result
+	return value.Int()
 }

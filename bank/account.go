@@ -100,9 +100,28 @@ func (a *Account) GetBalance() int {
 	return a.CurrentBalance
 }
 
+// update updates the account and syncs the successful updated value back into the receiver.
+func (a *Account) update(mutate func(*Account) error) error {
+	var updated *Account
+	if err := UpdateAccount(a.GuildID, a.MemberID, func(account *Account) error {
+		if err := mutate(account); err != nil {
+			return err
+		}
+		updated = account
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if updated != nil {
+		*a = *updated
+	}
+	return nil
+}
+
 // Deposit adds the given amount to the account.
 func (a *Account) Deposit(amount int) error {
-	return UpdateAccount(a.GuildID, a.MemberID, func(acc *Account) error {
+	return a.update(func(acc *Account) error {
 		acc.CurrentBalance += amount
 		acc.MonthlyBalance += amount
 		acc.LifetimeBalance += amount
@@ -119,7 +138,7 @@ func (a *Account) Deposit(amount int) error {
 // DepositIntoCurrent adds the given amount to the current balance of the account. This does not affect the
 // monthly or lifetime balances.
 func (a *Account) DepositIntoCurrent(amount int) error {
-	return UpdateAccount(a.GuildID, a.MemberID, func(acc *Account) error {
+	return a.update(func(acc *Account) error {
 		acc.CurrentBalance += amount
 		slog.Debug("deposit to the current balance for the account",
 			slog.Any("guildID", acc.GuildID),
@@ -133,24 +152,24 @@ func (a *Account) DepositIntoCurrent(amount int) error {
 
 // Withdraw withdraws the given amount from the account.
 func (a *Account) Withdraw(amount int) error {
-	return UpdateAccount(a.GuildID, a.MemberID, func(a *Account) error {
-		if a.CurrentBalance < amount {
+	return a.update(func(acc *Account) error {
+		if acc.CurrentBalance < amount {
 			slog.Debug("insufficient funds to withdraw from account",
-				slog.Any("guildID", a.GuildID),
-				slog.Any("memberID", a.MemberID),
-				slog.Int("balance", a.CurrentBalance),
+				slog.Any("guildID", acc.GuildID),
+				slog.Any("memberID", acc.MemberID),
+				slog.Int("balance", acc.CurrentBalance),
 				slog.Int("amount", amount),
 			)
 			return ErrInsufficientFunds
 		}
-		a.CurrentBalance -= amount
-		a.MonthlyBalance -= amount
-		a.LifetimeBalance -= amount
+		acc.CurrentBalance -= amount
+		acc.MonthlyBalance -= amount
+		acc.LifetimeBalance -= amount
 
 		slog.Debug("withdraw from account",
-			slog.Any("guildID", a.GuildID),
-			slog.Any("memberID", a.MemberID),
-			slog.Int("balance", a.CurrentBalance),
+			slog.Any("guildID", acc.GuildID),
+			slog.Any("memberID", acc.MemberID),
+			slog.Int("balance", acc.CurrentBalance),
 			slog.Int("amount", amount),
 		)
 
@@ -161,22 +180,22 @@ func (a *Account) Withdraw(amount int) error {
 // WithdrawFromCurrent withdraws the given amount from the account. This only updates the current balance
 // and does not affect the monthly or lifetime balances.
 func (a *Account) WithdrawFromCurrent(amount int) error {
-	return UpdateAccount(a.GuildID, a.MemberID, func(a *Account) error {
-		if a.CurrentBalance < amount {
+	return a.update(func(acc *Account) error {
+		if acc.CurrentBalance < amount {
 			slog.Debug("insufficient funds to withdraw from the account",
-				slog.Any("guildID", a.GuildID),
-				slog.Any("memberID", a.MemberID),
-				slog.Int("balance", a.CurrentBalance),
+				slog.Any("guildID", acc.GuildID),
+				slog.Any("memberID", acc.MemberID),
+				slog.Int("balance", acc.CurrentBalance),
 				slog.Int("amount", amount),
 			)
 			return ErrInsufficientFunds
 		}
-		a.CurrentBalance -= amount
+		acc.CurrentBalance -= amount
 
 		slog.Debug("withdraw from the current balance for the account",
-			slog.Any("guildID", a.GuildID),
-			slog.Any("memberID", a.MemberID),
-			slog.Int("balance", a.CurrentBalance),
+			slog.Any("guildID", acc.GuildID),
+			slog.Any("memberID", acc.MemberID),
+			slog.Int("balance", acc.CurrentBalance),
 			slog.Int("amount", amount),
 		)
 
@@ -186,21 +205,21 @@ func (a *Account) WithdrawFromCurrent(amount int) error {
 
 // SetBalance sets the current balance of the account to the given amount.
 func (a *Account) SetBalance(amount int) error {
-	if amount < 0 {
+	if amount <= 0 {
 		return ErrInvalidAmount
 	}
-	return UpdateAccount(a.GuildID, a.MemberID, func(a *Account) error {
-		a.CurrentBalance = amount
-		if a.LifetimeBalance < amount {
-			a.LifetimeBalance = amount
+	return a.update(func(acc *Account) error {
+		acc.CurrentBalance = amount
+		if acc.LifetimeBalance < amount {
+			acc.LifetimeBalance = amount
 		}
-		if a.MonthlyBalance < amount {
-			a.MonthlyBalance = amount
+		if acc.MonthlyBalance < amount {
+			acc.MonthlyBalance = amount
 		}
 		slog.Info("admin set the account balance",
-			slog.Any("guildID", a.GuildID),
-			slog.Any("memberID", a.MemberID),
-			slog.Int("balance", a.CurrentBalance),
+			slog.Any("guildID", acc.GuildID),
+			slog.Any("memberID", acc.MemberID),
+			slog.Int("balance", acc.CurrentBalance),
 		)
 		return nil
 	})

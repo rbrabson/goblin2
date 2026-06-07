@@ -161,7 +161,12 @@ func helpHandler(b *Bot) handler.SlashCommandHandler {
 	helpMessages := buildHelpMessages(b, func(p plugin.Plugin) map[string]string {
 		return p.GetHelp()
 	})
-	return staticHelpHandler(b, "Commands", helpMessages)
+	return func(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+		if IsShuttingDown(e) {
+			return ErrUnableToProcessCommand
+		}
+		return sendHelpMessages(b, e, "Commands", helpMessages)
+	}
 }
 
 // adminHelpHandler is a slash command handler that provides help information for admin commands.
@@ -169,13 +174,11 @@ func adminHelpHandler(b *Bot) handler.SlashCommandHandler {
 	helpMessages := buildHelpMessages(b, func(p plugin.Plugin) map[string]string {
 		return p.GetAdminHelp()
 	})
-	return staticHelpHandler(b, "Admin Commands", helpMessages)
-}
-
-// staticHelpHandler is a helper function that returns a slash command handler that sends a static help message.
-func staticHelpHandler(b *Bot, title string, helpMessages [][]string) handler.SlashCommandHandler {
 	return func(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-		return sendHelpMessages(b, e, title, helpMessages)
+		if !IsAdmin(e) || IsShuttingDown(e) {
+			return ErrUnableToProcessCommand
+		}
+		return sendHelpMessages(b, e, "Admin Commands", helpMessages)
 	}
 }
 
@@ -241,6 +244,10 @@ func collectPluginHelp(b *Bot, helpSelector func(plugin.Plugin) map[string]strin
 // versionHandler handles the version command.
 func versionHandler(b *Bot) handler.SlashCommandHandler {
 	return func(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+		if IsShuttingDown(e) {
+			return ErrUnableToProcessCommand
+		}
+
 		member := e.Member()
 		slog.Info("version command handler",
 			slog.String("user", member.User.Username),
@@ -319,8 +326,8 @@ func sendHelpMessages(b *Bot, e *handler.CommandEvent, title string, helpMessage
 
 // serverShutdownHandler handles the server shutdown command.
 func serverShutdownHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if err := canManageServer(e); err != nil {
-		return err
+	if !isOwner(e) || IsShuttingDown(e) {
+		return ErrUnableToProcessCommand
 	}
 
 	for _, p := range goblin.plugins {
@@ -329,14 +336,13 @@ func serverShutdownHandler(_ discord.SlashCommandInteractionData, e *handler.Com
 
 	return e.CreateMessage(discord.MessageCreate{
 		Content: "Shutting down all bot services.",
-		Flags:   discord.MessageFlagEphemeral,
 	})
 }
 
 // serverStatusHandler handles the server status command.
 func serverStatusHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if err := canManageServer(e); err != nil {
-		return err
+	if !isOwner(e) {
+		return ErrUnableToProcessCommand
 	}
 
 	plugins := goblin.GetPlugins()
@@ -405,8 +411,8 @@ func serverStatusHandler(_ discord.SlashCommandInteractionData, e *handler.Comma
 
 // serverOwnerAddHandler handles the server owner add command.
 func serverOwnerAddHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if err := canManageServer(e); err != nil {
-		return err
+	if !isOwner(e) || IsShuttingDown(e) {
+		return ErrUnableToProcessCommand
 	}
 
 	user := fmt.Sprint(data.Options["user"])
@@ -436,8 +442,8 @@ func serverOwnerAddHandler(data discord.SlashCommandInteractionData, e *handler.
 
 // serverOwnerRemoveHandler handles the server owner remove command.
 func serverOwnerRemoveHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if err := canManageServer(e); err != nil {
-		return err
+	if !isOwner(e) || IsShuttingDown(e) {
+		return ErrUnableToProcessCommand
 	}
 
 	user := fmt.Sprint(data.Options["user"])
@@ -468,9 +474,10 @@ func serverOwnerRemoveHandler(data discord.SlashCommandInteractionData, e *handl
 
 // serverOwnerListHandler handles the server owner list command.
 func serverOwnerListHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if err := canManageServer(e); err != nil {
-		return err
+	if !isOwner(e) || IsShuttingDown(e) {
+		return ErrUnableToProcessCommand
 	}
+
 	server := GetServer()
 	owners := server.ListOwners()
 	if len(owners) == 0 {
@@ -505,8 +512,8 @@ func serverOwnerListHandler(_ discord.SlashCommandInteractionData, e *handler.Co
 
 // serverAdminAddHandler handles the server admin add command.
 func serverAdminAddHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if err := canManageServer(e); err != nil {
-		return err
+	if !isOwner(e) || IsShuttingDown(e) {
+		return ErrUnableToProcessCommand
 	}
 
 	user := fmt.Sprint(data.Options["user"])
@@ -536,8 +543,8 @@ func serverAdminAddHandler(data discord.SlashCommandInteractionData, e *handler.
 
 // serverAdminRemoveHandler handles the server admin remove command.
 func serverAdminRemoveHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if err := canManageServer(e); err != nil {
-		return err
+	if !isOwner(e) || IsShuttingDown(e) {
+		return ErrUnableToProcessCommand
 	}
 
 	user := fmt.Sprint(data.Options["user"])
@@ -568,9 +575,10 @@ func serverAdminRemoveHandler(data discord.SlashCommandInteractionData, e *handl
 
 // serverAdminListHandler handles the server admin list command.
 func serverAdminListHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if err := canManageServer(e); err != nil {
-		return err
+	if !isOwner(e) || IsShuttingDown(e) {
+		return ErrUnableToProcessCommand
 	}
+
 	server := GetServer()
 	owners := server.ListOwners()
 	if len(owners) == 0 {
@@ -605,8 +613,8 @@ func serverAdminListHandler(_ discord.SlashCommandInteractionData, e *handler.Co
 
 // serverLogHandler handles the server log command.
 func serverLogHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if err := canManageServer(e); err != nil {
-		return err
+	if !isOwner(e) || IsShuttingDown(e) {
+		return ErrUnableToProcessCommand
 	}
 
 	level := data.Options["level"]
@@ -618,11 +626,10 @@ func serverLogHandler(data discord.SlashCommandInteractionData, e *handler.Comma
 	})
 }
 
-// canManageServer checks if the member has permissions to manage the server.
-func canManageServer(e *handler.CommandEvent) error {
+// isOwner checks if the member has permissions to manage the server.
+func isOwner(e *handler.CommandEvent) bool {
 	server := GetServer()
-	memberID := discordid.NewSnowflakeID(e.Member().User.ID)
-	if !server.CanManageOwners(memberID) {
+	if !server.CanManageOwners(discordid.NewSnowflakeID(e.Member().User.ID)) {
 		slog.Warn("user does not have permission to manage server",
 			slog.String("user", e.Member().User.Username),
 			slog.Any("user_id", e.Member().User.ID),
@@ -637,10 +644,54 @@ func canManageServer(e *handler.CommandEvent) error {
 				slog.Any("error", err),
 			)
 		}
-		return ErrNotOwner
+		return false
 	}
 
-	return nil
+	return true
+}
+
+// IsAdmin checks if the member has permissions to manage the server. If not, it sends an ephemeral message to the user
+// and returns false. Otherwise, it returns true.
+func IsAdmin(e *handler.CommandEvent) bool {
+	server := GetServer()
+	if !server.IsAdmin(discordid.NewSnowflakeID(e.Member().User.ID)) {
+		slog.Warn("user is not a guild admin",
+			slog.String("user", e.Member().User.Username),
+			slog.Any("user_id", e.Member().User.ID),
+			slog.String("name", e.Member().EffectiveName()),
+		)
+		err := e.CreateMessage(discord.MessageCreate{
+			Content: "You do not have permission to manage this server",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+		if err != nil {
+			slog.Error("error sending permission error message",
+				slog.Any("error", err),
+			)
+		}
+		return false
+	}
+
+	return true
+}
+
+// IsShuttingDown checks if the bot is shutting down. If it is, it sends an ephemeral message to the user and returns
+// true. Otherwise, it returns false.
+func IsShuttingDown(e *handler.CommandEvent) bool {
+	if goblin.IsStopping() {
+		err := e.CreateMessage(discord.MessageCreate{
+			Content: "The bot is shutting down and cannot process this command.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+		if err != nil {
+			slog.Error("error sending shutdown message",
+				slog.Any("error", err),
+			)
+		}
+		return true
+	}
+	return false
+
 }
 
 // getUserID parses a user ID from a string.
