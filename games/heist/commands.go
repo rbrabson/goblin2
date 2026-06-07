@@ -962,10 +962,6 @@ func enableBoost(data discord.SlashCommandInteractionData, e *handler.CommandEve
 		return disgobot.ErrUnableToProcessCommand
 	}
 
-	if err := requireAdmin(e); err != nil {
-		return err
-	}
-
 	gID := guildID(e)
 	boostEnabled := data.Bool("enable")
 
@@ -987,10 +983,6 @@ func enableBoost(data discord.SlashCommandInteractionData, e *handler.CommandEve
 func resetHeist(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
-	}
-
-	if err := requireAdmin(e); err != nil {
-		return err
 	}
 
 	gID := guildID(e)
@@ -1028,10 +1020,6 @@ func resetVaults(_ discord.SlashCommandInteractionData, e *handler.CommandEvent)
 		return disgobot.ErrUnableToProcessCommand
 	}
 
-	if err := requireAdmin(e); err != nil {
-		return err
-	}
-
 	resetVaultsToMaximumValue(guildID(e))
 	return e.CreateMessage(discord.MessageCreate{
 		Content: "Vaults have been reset to their maximum value",
@@ -1042,10 +1030,6 @@ func resetVaults(_ discord.SlashCommandInteractionData, e *handler.CommandEvent)
 func clearMember(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
-	}
-
-	if err := requireAdmin(e); err != nil {
-		return err
 	}
 
 	user, ok := data.OptUser("user")
@@ -1079,10 +1063,6 @@ func configCost(data discord.SlashCommandInteractionData, e *handler.CommandEven
 		return disgobot.ErrUnableToProcessCommand
 	}
 
-	if err := requireAdmin(e); err != nil {
-		return err
-	}
-
 	config := GetConfig(guildID(e))
 	cost := data.Int("amount")
 	config.HeistCost = cost
@@ -1099,10 +1079,6 @@ func configCost(data discord.SlashCommandInteractionData, e *handler.CommandEven
 func configSentence(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
-	}
-
-	if err := requireAdmin(e); err != nil {
-		return err
 	}
 
 	config := GetConfig(guildID(e))
@@ -1131,10 +1107,6 @@ func configPatrol(data discord.SlashCommandInteractionData, e *handler.CommandEv
 		return disgobot.ErrUnableToProcessCommand
 	}
 
-	if err := requireAdmin(e); err != nil {
-		return err
-	}
-
 	config := GetConfig(guildID(e))
 	patrol := data.Int("time")
 	config.PoliceAlert = time.Duration(patrol) * time.Second
@@ -1153,10 +1125,6 @@ func configBail(data discord.SlashCommandInteractionData, e *handler.CommandEven
 		return disgobot.ErrUnableToProcessCommand
 	}
 
-	if err := requireAdmin(e); err != nil {
-		return err
-	}
-
 	config := GetConfig(guildID(e))
 	bail := data.Int("amount")
 	config.BailBase = bail
@@ -1173,10 +1141,6 @@ func configBail(data discord.SlashCommandInteractionData, e *handler.CommandEven
 func configBoost(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
-	}
-
-	if err := requireAdmin(e); err != nil {
-		return err
 	}
 
 	config := GetConfig(guildID(e))
@@ -1200,10 +1164,6 @@ func configDeath(data discord.SlashCommandInteractionData, e *handler.CommandEve
 		return disgobot.ErrUnableToProcessCommand
 	}
 
-	if err := requireAdmin(e); err != nil {
-		return err
-	}
-
 	config := GetConfig(guildID(e))
 	death := data.Int("time")
 	config.DeathTimer = time.Duration(death) * time.Second
@@ -1220,10 +1180,6 @@ func configDeath(data discord.SlashCommandInteractionData, e *handler.CommandEve
 func configBoostVaultRecovery(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
-	}
-
-	if err := requireAdmin(e); err != nil {
-		return err
 	}
 
 	config := GetConfig(guildID(e))
@@ -1244,10 +1200,6 @@ func configWait(data discord.SlashCommandInteractionData, e *handler.CommandEven
 		return disgobot.ErrUnableToProcessCommand
 	}
 
-	if err := requireAdmin(e); err != nil {
-		return err
-	}
-
 	config := GetConfig(guildID(e))
 	wait := data.Int("time")
 	config.WaitTime = time.Duration(wait) * time.Second
@@ -1264,10 +1216,6 @@ func configWait(data discord.SlashCommandInteractionData, e *handler.CommandEven
 func configInfo(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
-	}
-
-	if err := requireAdmin(e); err != nil {
-		return err
 	}
 
 	config := GetConfig(guildID(e))
@@ -1296,35 +1244,6 @@ func configInfo(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) 
 	})
 }
 
-// requireAdmin checks if the user has administrator permissions and returns an error message if they do not.
-func requireAdmin(e *handler.CommandEvent) error {
-	member := e.Member()
-	if member == nil {
-		return serverOnly(e)
-	}
-
-	guildMember := resolvedGuildMember(member)
-	if guildMember == nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "You do not have permission to use this command.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	ok, err := guildMember.IsAdmin(e.Client(), guild.GetGuild(discordid.NewSnowflakeID(member.GuildID)))
-	if err != nil {
-		slog.Error("failed to check admin permissions", slog.Any("error", err))
-	}
-	if err != nil || !ok {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "You do not have permission to use this command.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	return nil
-}
-
 // serverOnly returns an error message indicating that the command can only be used in a server.
 func serverOnly(e *handler.CommandEvent) error {
 	return e.CreateMessage(discord.MessageCreate{
@@ -1339,24 +1258,8 @@ func resolvedGuildMember(member *discord.ResolvedMember) *guild.Member {
 		return nil
 	}
 
-	globalName := ""
-	if member.User.GlobalName != nil {
-		globalName = *member.User.GlobalName
-	}
-
-	nickname := ""
-	if member.Nick != nil {
-		nickname = *member.Nick
-	}
-
-	return &guild.Member{
-		GuildID:    discordid.NewSnowflakeID(member.GuildID),
-		MemberID:   discordid.NewSnowflakeID(member.User.ID),
-		UserName:   member.User.Username,
-		GlobalName: globalName,
-		NickName:   nickname,
-		Name:       member.EffectiveName(),
-	}
+	g := guild.GetGuild(discordid.NewSnowflakeID(member.GuildID))
+	return g.GetMember(&member.Member)
 }
 
 // guildID retrieves the guild ID from the command event, handling both member and non-member contexts.

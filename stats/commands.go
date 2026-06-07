@@ -2,6 +2,7 @@ package stats
 
 import (
 	"fmt"
+	"goblin2/disgobot"
 	"goblin2/guild"
 	"goblin2/internal/discordid"
 	"log/slog"
@@ -166,6 +167,10 @@ var (
 
 // statsAdmin handles the /stats-admin command.
 func statsAdmin(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -378,6 +383,10 @@ func gamesPlayed(data discord.SlashCommandInteractionData, e *handler.CommandEve
 
 // stats handles the /stats command.
 func stats(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	switch slashSubCommandName(data) {
 	case "played":
 		return playerGames(data, e)

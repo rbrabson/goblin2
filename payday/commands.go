@@ -2,6 +2,7 @@ package payday
 
 import (
 	"goblin2/bank"
+	"goblin2/disgobot"
 	"goblin2/internal/discordid"
 	"goblin2/internal/format"
 	"log/slog"
@@ -28,6 +29,10 @@ var (
 
 // payday handles the `/payday` command.
 func payday(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -81,6 +86,10 @@ func payday(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) erro
 
 // showStats handles the `/payday-stats` command.
 func showStats(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+	
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{

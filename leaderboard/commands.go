@@ -3,6 +3,7 @@ package leaderboard
 import (
 	"fmt"
 	"goblin2/bank"
+	"goblin2/disgobot"
 	"goblin2/guild"
 	"goblin2/internal/discordid"
 	"log/slog"
@@ -87,6 +88,10 @@ var (
 
 // leaderboardAdmin updates the leaderboardAdmin channel.
 func leaderboardAdmin(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -139,6 +144,10 @@ func leaderboardAdmin(data discord.SlashCommandInteractionData, e *handler.Comma
 
 // currentLeaderboard returns the top-ranked accounts for the current balance.
 func currentLeaderboard(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+	
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -154,6 +163,10 @@ func currentLeaderboard(_ discord.SlashCommandInteractionData, e *handler.Comman
 
 // monthlyLeaderboard returns the top-ranked accounts for the current month.
 func monthlyLeaderboard(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -169,6 +182,10 @@ func monthlyLeaderboard(_ discord.SlashCommandInteractionData, e *handler.Comman
 
 // lifetimeLeaderboard returns the top-ranked accounts for the lifetime of the server.
 func lifetimeLeaderboard(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -246,6 +263,10 @@ func sendLeaderboard(e *handler.CommandEvent, title Type, accounts []*bank.Accou
 
 // rank returns the rank of the member in the leaderboard.
 func rank(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{

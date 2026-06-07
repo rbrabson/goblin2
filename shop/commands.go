@@ -2,6 +2,7 @@ package shop
 
 import (
 	"fmt"
+	"goblin2/disgobot"
 	"goblin2/guild"
 	"goblin2/internal/discordid"
 	"goblin2/internal/message"
@@ -127,6 +128,10 @@ var (
 
 // shopAdmin handles the /shop admin command.
 func shopAdmin(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+	
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -184,6 +189,10 @@ func shopAdmin(data discord.SlashCommandInteractionData, e *handler.CommandEvent
 
 // shop handles the /shop command.
 func shop(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	switch slashSubCommandName(data) {
 	case "list":
 		return listShop(data, e)

@@ -3,6 +3,7 @@ package slots
 import (
 	"fmt"
 	"goblin2/bank"
+	"goblin2/disgobot"
 	"goblin2/internal/discordid"
 	"log/slog"
 	"strconv"
@@ -69,6 +70,10 @@ var (
 
 // playSlots handles the `/slots play` command.
 func playSlots(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -188,6 +193,10 @@ func playSlots(data discord.SlashCommandInteractionData, e *handler.CommandEvent
 
 // showStats handles the `/slots stats` command.
 func showStats(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -299,6 +308,10 @@ func showStats(data discord.SlashCommandInteractionData, e *handler.CommandEvent
 
 // payTable handles the `/slots paytable` command.
 func payTable(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
