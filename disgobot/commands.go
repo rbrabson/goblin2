@@ -2,6 +2,8 @@ package disgobot
 
 import (
 	"fmt"
+	"goblin2/guild"
+	"goblin2/internal/discordid"
 	"goblin2/internal/log"
 	"goblin2/internal/message"
 	"goblin2/plugin"
@@ -251,92 +253,6 @@ func versionHandler(b *Bot) handler.SlashCommandHandler {
 	}
 }
 
-// serverShutdownHandler handles the server shutdown command.
-func serverShutdownHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	return e.CreateMessage(discord.MessageCreate{
-		Content: "stub: server shutdown",
-		Flags:   discord.MessageFlagEphemeral,
-	})
-}
-
-// serverStatusHandler handles the server status command.
-func serverStatusHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	return e.CreateMessage(discord.MessageCreate{
-		Content: "stub: server status",
-		Flags:   discord.MessageFlagEphemeral,
-	})
-}
-
-// serverOwnerAddHandler handles the server owner add command.
-func serverOwnerAddHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	user := fmt.Sprint(data.Options["user"])
-	return e.CreateMessage(discord.MessageCreate{
-		Content: fmt.Sprintf("stub: server owner add %s", user),
-		Flags:   discord.MessageFlagEphemeral,
-	})
-}
-
-// serverOwnerRemoveHandler handles the server owner remove command.
-func serverOwnerRemoveHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	user := fmt.Sprint(data.Options["user"])
-	return e.CreateMessage(discord.MessageCreate{
-		Content: fmt.Sprintf("stub: server owner remove %s", user),
-		Flags:   discord.MessageFlagEphemeral,
-	})
-}
-
-// serverOwnerListHandler handles the server owner list command.
-func serverOwnerListHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	return e.CreateMessage(discord.MessageCreate{
-		Content: "stub: server owner list",
-		Flags:   discord.MessageFlagEphemeral,
-	})
-}
-
-// serverAdminAddHandler handles the server admin add command.
-func serverAdminAddHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	user := fmt.Sprint(data.Options["user"])
-	return e.CreateMessage(discord.MessageCreate{
-		Content: fmt.Sprintf("stub: server admin add %s", user),
-		Flags:   discord.MessageFlagEphemeral,
-	})
-}
-
-// serverAdminRemoveHandler handles the server admin remove command.
-func serverAdminRemoveHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	user := fmt.Sprint(data.Options["user"])
-	return e.CreateMessage(discord.MessageCreate{
-		Content: fmt.Sprintf("stub: server admin remove %s", user),
-		Flags:   discord.MessageFlagEphemeral,
-	})
-}
-
-// serverAdminListHandler handles the server admin list command.
-func serverAdminListHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	return e.CreateMessage(discord.MessageCreate{
-		Content: "stub: server admin list",
-		Flags:   discord.MessageFlagEphemeral,
-	})
-}
-
-// serverLogHandler handles the server log command.
-func serverLogHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	member := e.Member()
-	slog.Info("log command handler",
-		slog.String("user", member.User.Username),
-		slog.Any("user_id", member.User.ID),
-		slog.String("name", member.EffectiveName()),
-	)
-
-	level := data.Options["level"]
-	slog.Info("set log level", slog.Any("level", level))
-	log.SetLevel(slog.LevelDebug)
-	return e.CreateMessage(discord.MessageCreate{
-		Content: fmt.Sprintf("Log level set to %s", level),
-		Flags:   discord.MessageFlagEphemeral,
-	})
-}
-
 // sendHelpMessages sends help messages in a paginated format.
 func sendHelpMessages(b *Bot, e *handler.CommandEvent, title string, helpMessages [][]string) error {
 	inline := false
@@ -397,4 +313,295 @@ func sendHelpMessages(b *Bot, e *handler.CommandEvent, title string, helpMessage
 	}
 
 	return nil
+}
+
+// ------------ Server Commands ------------ //
+
+// serverShutdownHandler handles the server shutdown command.
+func serverShutdownHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if err := canManageServer(e); err != nil {
+		return err
+	}
+
+	for _, p := range goblin.plugins {
+		p.Stop()
+	}
+
+	return e.CreateMessage(discord.MessageCreate{
+		Content: "Shutting down all bot services.",
+		Flags:   discord.MessageFlagEphemeral,
+	})
+}
+
+// serverStatusHandler handles the server status command.
+func serverStatusHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if err := canManageServer(e); err != nil {
+		return err
+	}
+	// TODO: lots to do here....
+	return e.CreateMessage(discord.MessageCreate{
+		Content: "stub: server status",
+		Flags:   discord.MessageFlagEphemeral,
+	})
+}
+
+// serverOwnerAddHandler handles the server owner add command.
+func serverOwnerAddHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if err := canManageServer(e); err != nil {
+		return err
+	}
+
+	user := fmt.Sprint(data.Options["user"])
+	userID, err := getUserID(e, user)
+	if err != nil {
+		return err
+	}
+
+	server := GetServer()
+	if err := server.AddOwner(userID); err != nil {
+		slog.Error("failed to add owner",
+			slog.Any("userID", e.Member().User.ID),
+			slog.String("userName", e.Member().EffectiveName()),
+			slog.Any("error", err),
+		)
+		return e.CreateMessage(discord.MessageCreate{
+			Content: fmt.Sprintf("Failed to add %s as a server owner", e.Member().EffectiveName()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	return e.CreateMessage(discord.MessageCreate{
+		Content: fmt.Sprintf("Added %s as a server owner", user),
+		Flags:   discord.MessageFlagEphemeral,
+	})
+}
+
+// serverOwnerRemoveHandler handles the server owner remove command.
+func serverOwnerRemoveHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if err := canManageServer(e); err != nil {
+		return err
+	}
+
+	user := fmt.Sprint(data.Options["user"])
+	userID, err := getUserID(e, user)
+	if err != nil {
+		return err
+	}
+
+	server := GetServer()
+
+	if err := server.RemoveOwner(userID); err != nil {
+		slog.Error("failed to remove owner",
+			slog.Any("userID", e.Member().User.ID),
+			slog.String("userName", e.Member().EffectiveName()),
+			slog.Any("error", err),
+		)
+		return e.CreateMessage(discord.MessageCreate{
+			Content: fmt.Sprintf("Failed to remove %s as a server owner", e.Member().EffectiveName()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	return e.CreateMessage(discord.MessageCreate{
+		Content: fmt.Sprintf("Removed %s as a server owner", user),
+		Flags:   discord.MessageFlagEphemeral,
+	})
+}
+
+// serverOwnerListHandler handles the server owner list command.
+func serverOwnerListHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if err := canManageServer(e); err != nil {
+		return err
+	}
+	server := GetServer()
+	owners := server.ListOwners()
+	if len(owners) == 0 {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "There are no owners for this server",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	ownerNames := make([]string, 0, len(owners))
+	guildID := discordid.NewSnowflakeID(e.Member().GuildID)
+	for _, ownerID := range owners {
+		owner, err := guild.GetMemberByID(guildID, ownerID)
+		if err != nil {
+			ownerNames = append(ownerNames, ownerID.String())
+		} else {
+			ownerNames = append(ownerNames, owner.Name)
+		}
+	}
+
+	err := e.CreateMessage(discord.MessageCreate{
+		Content: "Owners: " + strings.Join(ownerNames, ","),
+		Flags:   discord.MessageFlagEphemeral,
+	})
+	if err != nil {
+		slog.Error("failed to send response",
+			slog.Any("error", err),
+		)
+	}
+	return nil
+}
+
+// serverAdminAddHandler handles the server admin add command.
+func serverAdminAddHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if err := canManageServer(e); err != nil {
+		return err
+	}
+
+	user := fmt.Sprint(data.Options["user"])
+	userID, err := getUserID(e, user)
+	if err != nil {
+		return err
+	}
+
+	server := GetServer()
+	if err := server.AddOwner(userID); err != nil {
+		slog.Error("failed to add admin",
+			slog.Any("userID", e.Member().User.ID),
+			slog.String("userName", e.Member().EffectiveName()),
+			slog.Any("error", err),
+		)
+		return e.CreateMessage(discord.MessageCreate{
+			Content: fmt.Sprintf("Failed to add %s as a server admin", e.Member().EffectiveName()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	return e.CreateMessage(discord.MessageCreate{
+		Content: fmt.Sprintf("Added %s as a server admin", user),
+		Flags:   discord.MessageFlagEphemeral,
+	})
+}
+
+// serverAdminRemoveHandler handles the server admin remove command.
+func serverAdminRemoveHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if err := canManageServer(e); err != nil {
+		return err
+	}
+
+	user := fmt.Sprint(data.Options["user"])
+	userID, err := getUserID(e, user)
+	if err != nil {
+		return err
+	}
+
+	server := GetServer()
+
+	if err := server.RemoveAdmin(userID); err != nil {
+		slog.Error("failed to remove admin",
+			slog.Any("userID", e.Member().User.ID),
+			slog.String("userName", e.Member().EffectiveName()),
+			slog.Any("error", err),
+		)
+		return e.CreateMessage(discord.MessageCreate{
+			Content: fmt.Sprintf("Failed to remove %s as a server admin", e.Member().EffectiveName()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	return e.CreateMessage(discord.MessageCreate{
+		Content: fmt.Sprintf("Removed %s as a server admin", user),
+		Flags:   discord.MessageFlagEphemeral,
+	})
+}
+
+// serverAdminListHandler handles the server admin list command.
+func serverAdminListHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if err := canManageServer(e); err != nil {
+		return err
+	}
+	server := GetServer()
+	owners := server.ListOwners()
+	if len(owners) == 0 {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "There are no admins for this server",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	ownerNames := make([]string, 0, len(owners))
+	guildID := discordid.NewSnowflakeID(e.Member().GuildID)
+	for _, ownerID := range owners {
+		owner, err := guild.GetMemberByID(guildID, ownerID)
+		if err != nil {
+			ownerNames = append(ownerNames, ownerID.String())
+		} else {
+			ownerNames = append(ownerNames, owner.Name)
+		}
+	}
+
+	err := e.CreateMessage(discord.MessageCreate{
+		Content: "Admins: " + strings.Join(ownerNames, ","),
+		Flags:   discord.MessageFlagEphemeral,
+	})
+	if err != nil {
+		slog.Error("failed to send response",
+			slog.Any("error", err),
+		)
+	}
+	return nil
+}
+
+// serverLogHandler handles the server log command.
+func serverLogHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if err := canManageServer(e); err != nil {
+		return err
+	}
+
+	level := data.Options["level"]
+	slog.Info("set log level", slog.Any("level", level))
+	log.SetLevel(slog.LevelDebug)
+	return e.CreateMessage(discord.MessageCreate{
+		Content: fmt.Sprintf("Log level set to %s", level),
+		Flags:   discord.MessageFlagEphemeral,
+	})
+}
+
+// canManageServer checks if the member has permissions to manage the server.
+func canManageServer(e *handler.CommandEvent) error {
+	server := GetServer()
+	memberID := discordid.NewSnowflakeID(e.Member().User.ID)
+	if !server.CanManageOwners(memberID) {
+		slog.Warn("user does not have permission to manage server",
+			slog.String("user", e.Member().User.Username),
+			slog.Any("user_id", e.Member().User.ID),
+			slog.String("name", e.Member().EffectiveName()),
+		)
+		err := e.CreateMessage(discord.MessageCreate{
+			Content: "You do not have permission to manage this server",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+		if err != nil {
+			slog.Error("error sending permission error message",
+				slog.Any("error", err),
+			)
+		}
+		return ErrNotOwner
+	}
+
+	return nil
+}
+
+// getUserID parses a user ID from a string.
+func getUserID(e *handler.CommandEvent, id string) (discordid.SnowflakeID, error) {
+	userID, err := discordid.SnowflakeIDFromString(id)
+	if err != nil {
+		slog.Error("failed to parse user ID",
+			slog.String("userID", id),
+			slog.Any("error", err),
+		)
+		err = e.CreateMessage(discord.MessageCreate{
+			Content: fmt.Sprintf("Failed to add %s as a server owner", e.Member().EffectiveName()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+		if err != nil {
+			slog.Error("error ssending parse error message,",
+				slog.Any("error", err),
+			)
+		}
+	}
+	return userID, nil
 }

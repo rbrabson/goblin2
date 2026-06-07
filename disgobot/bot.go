@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	db *database.MongoDB
+	goblin *Bot
 )
 
 // Bot represents the main structure of the Discord Bot. It can hold any necessary state or configuration for the bot's operation.
@@ -33,11 +33,12 @@ type Bot struct {
 
 // NewBot creates a new Discord Bot instance.
 func NewBot(cfg *Config, version string) *Bot {
-	return &Bot{
+	goblin = &Bot{
 		cfg:     cfg,
 		version: version,
 		plugins: make([]plugin.Plugin, 0, 10),
 	}
+	return goblin
 }
 
 // Start starts the Discord Bot instance.
