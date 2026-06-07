@@ -56,7 +56,7 @@ func startBlackjack(_ discord.SlashCommandInteractionData, e *handler.CommandEve
 			slog.Any("error", err),
 		)
 		return e.CreateMessage(discord.MessageCreate{
-			Content: firstToUpper(err.Error()),
+			Content: format.FirstToUpper(err.Error()),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
@@ -140,7 +140,7 @@ func blackjackJoin(e *handler.ComponentEvent) error {
 	}
 
 	if err := game.joinGame(memberID); err != nil {
-		return updateComponentResponse(e, firstToUpper(err.Error()))
+		return updateComponentResponse(e, format.FirstToUpper(err.Error()))
 	}
 
 	if err := updateBlackjackMessage(game, false); err != nil {
@@ -199,7 +199,7 @@ func blackjackAction(e *handler.ComponentEvent, action Action) error {
 	}
 
 	if err := game.PlayerActionRequest(memberID, action); err != nil {
-		return updateComponentResponse(e, firstToUpper(err.Error()))
+		return updateComponentResponse(e, format.FirstToUpper(err.Error()))
 	}
 
 	return updateComponentResponse(e, fmt.Sprintf("You chose %d.", action))
@@ -468,16 +468,10 @@ func blackjackComponents(game *Game) []discord.LayoutComponent {
 	return []discord.LayoutComponent{}
 }
 
+// updateComponentResponse updates the interaction response with the given content.
 func updateComponentResponse(e *handler.ComponentEvent, content string) error {
 	_, err := e.UpdateInteractionResponse(discord.MessageUpdate{
 		Content: &content,
 	})
 	return err
-}
-
-func firstToUpper(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
 }

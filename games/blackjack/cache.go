@@ -28,6 +28,7 @@ var (
 	memberLoadMu sync.Mutex
 )
 
+// copyConfig returns a copy of the given Config.
 func copyConfig(config *Config) *Config {
 	if config == nil {
 		return nil
@@ -35,6 +36,7 @@ func copyConfig(config *Config) *Config {
 	return new(*config)
 }
 
+// copyMember returns a copy of the given Member.
 func copyMember(member *Member) *Member {
 	if member == nil {
 		return nil
@@ -42,6 +44,7 @@ func copyMember(member *Member) *Member {
 	return new(*member)
 }
 
+// CloseCaches closes the caches.
 func CloseCaches() {
 	configCache.Destroy()
 	memberCache.Destroy()
