@@ -3,7 +3,7 @@ package guild
 import (
 	"errors"
 	"fmt"
-	"goblin2/discordid"
+	"goblin2/internal/discordid"
 )
 
 var (

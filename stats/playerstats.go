@@ -3,7 +3,7 @@ package stats
 import (
 	"errors"
 	"fmt"
-	"goblin2/discordid"
+	"goblin2/internal/discordid"
 	"log/slog"
 	"strconv"
 	"sync"

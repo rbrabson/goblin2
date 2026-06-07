@@ -3,8 +3,8 @@ package heist
 import (
 	"fmt"
 	"goblin2/bank"
-	"goblin2/discordid"
 	"goblin2/guild"
+	"goblin2/internal/discordid"
 	"goblin2/internal/format"
 	"log/slog"
 	"math"

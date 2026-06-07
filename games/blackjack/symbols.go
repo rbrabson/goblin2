@@ -2,7 +2,7 @@ package blackjack
 
 import (
 	"fmt"
-	"goblin2/config"
+	"goblin2/internal/config"
 	"maps"
 	"path/filepath"
 	"strings"

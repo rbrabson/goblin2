@@ -1,9 +1,9 @@
 package heist
 
 import (
-	"goblin2/config"
-	"goblin2/discordid"
 	"goblin2/internal/cache"
+	"goblin2/internal/config"
+	"goblin2/internal/discordid"
 	"log/slog"
 	"path/filepath"
 	"time"

@@ -2,7 +2,7 @@ package blackjack
 
 import (
 	"goblin2/bank"
-	"goblin2/discordid"
+	"goblin2/internal/discordid"
 	"log/slog"
 )
 

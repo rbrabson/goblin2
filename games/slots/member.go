@@ -1,8 +1,8 @@
 package slots
 
 import (
-	"goblin2/discordid"
 	"goblin2/internal/cache"
+	"goblin2/internal/discordid"
 	"goblin2/stats"
 	"sync"
 	"time"

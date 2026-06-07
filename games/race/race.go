@@ -2,8 +2,8 @@ package race
 
 import (
 	"errors"
-	"goblin2/discordid"
 	"goblin2/internal/cache"
+	"goblin2/internal/discordid"
 	"goblin2/stats"
 	"log/slog"
 	"math/rand/v2"

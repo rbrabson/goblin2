@@ -2,8 +2,8 @@ package shop
 
 import (
 	"fmt"
-	"goblin2/discordid"
 	"goblin2/guild"
+	"goblin2/internal/discordid"
 	goblinmsg "goblin2/message"
 	"log/slog"
 	"strconv"

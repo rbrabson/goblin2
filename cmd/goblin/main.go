@@ -2,7 +2,6 @@ package main
 
 import (
 	"goblin2/bank"
-	"goblin2/config"
 	"goblin2/database"
 	"goblin2/disgobot"
 	"goblin2/games/blackjack"
@@ -10,6 +9,7 @@ import (
 	"goblin2/games/race"
 	"goblin2/games/slots"
 	"goblin2/guild"
+	"goblin2/internal/config"
 	"goblin2/internal/log"
 	"goblin2/leaderboard"
 	"goblin2/payday"

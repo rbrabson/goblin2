@@ -2,7 +2,7 @@ package slots
 
 import (
 	"fmt"
-	"goblin2/config"
+	"goblin2/internal/config"
 	"path/filepath"
 	"time"
 )

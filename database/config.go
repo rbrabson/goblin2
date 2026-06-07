@@ -1,7 +1,7 @@
 package database
 
 import (
-	"goblin2/config"
+	"goblin2/internal/config"
 	"path/filepath"
 )
 

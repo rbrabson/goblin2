@@ -3,8 +3,8 @@ package leaderboard
 import (
 	"fmt"
 	"goblin2/bank"
-	"goblin2/discordid"
 	"goblin2/guild"
+	"goblin2/internal/discordid"
 	"log/slog"
 	"strconv"
 	"strings"

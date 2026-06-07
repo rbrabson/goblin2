@@ -2,7 +2,7 @@ package shop
 
 import (
 	"fmt"
-	"goblin2/discordid"
+	"goblin2/internal/discordid"
 	"log/slog"
 
 	"github.com/disgoorg/disgo/discord"

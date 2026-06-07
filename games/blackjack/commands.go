@@ -3,7 +3,7 @@ package blackjack
 import (
 	"errors"
 	"fmt"
-	"goblin2/discordid"
+	"goblin2/internal/discordid"
 	"goblin2/internal/format"
 	"log/slog"
 	"strings"

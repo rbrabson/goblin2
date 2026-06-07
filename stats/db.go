@@ -2,7 +2,7 @@ package stats
 
 import (
 	"goblin2/database"
-	"goblin2/discordid"
+	"goblin2/internal/discordid"
 	"log/slog"
 	"time"
 

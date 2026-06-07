@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"goblin2/bank"
-	"goblin2/discordid"
+	"goblin2/internal/discordid"
 	"log/slog"
 
 	"go.mongodb.org/mongo-driver/v2/bson"

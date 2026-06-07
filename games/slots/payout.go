@@ -1,7 +1,7 @@
 package slots
 
 import (
-	"goblin2/config"
+	"goblin2/internal/config"
 	"path/filepath"
 	"slices"
 
