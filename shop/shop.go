@@ -221,7 +221,7 @@ func repairPublishedShops() {
 				slog.Any("error", err),
 			)
 		} else {
-			slog.Info("republished shop",
+			slog.Debug("republished shop",
 				slog.Any("guildID", config.GuildID),
 				slog.String("channelID", config.ChannelID),
 			)
