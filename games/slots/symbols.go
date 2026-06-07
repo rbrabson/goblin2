@@ -1,24 +1,20 @@
 package slots
 
 import (
-	"encoding/json"
-	"log/slog"
-	"os"
+	"goblin2/config"
 	"path/filepath"
 	"slices"
 	"strings"
-
-	"github.com/rbrabson/goblin/discord"
 )
 
 var (
-	symbolTable SymbolTable
+	defaultSymbols SymbolTable
 )
 
 // Symbol represents a slot symbol with a name and an emoji.
 type Symbol struct {
-	Name  string `json:"name" bson:"name"`
-	Emoji string `json:"emoji" bson:"emoji"`
+	Name  string `yaml:"name" bson:"name"`
+	Emoji string `yaml:"emoji" bson:"emoji"`
 }
 
 // String returns a string representation of the Symbol.
@@ -34,6 +30,21 @@ func (s *Symbol) String() string {
 
 // SymbolTable defines a table of symbols for a specific guild.
 type SymbolTable map[string]Symbol
+
+// GetSymbolTable retrieves the symbol table for a specific guild.
+func GetSymbolTable() SymbolTable {
+	return createNewLookupTable()
+}
+
+// createNewLookupTable creates a copy of the default symbol lookup table.
+func createNewLookupTable() SymbolTable {
+	symbolTable := make(SymbolTable, len(defaultSymbols))
+	for key, value := range defaultSymbols {
+		symbolTable[key] = value
+	}
+
+	return symbolTable
+}
 
 // String returns a string representation of the SymbolTable.
 func (st SymbolTable) String() string {
@@ -55,48 +66,22 @@ func (st SymbolTable) String() string {
 	return sb.String()
 }
 
-// GetSymbolTable retrieves the symbol table for a specific guild.
-func GetSymbolTable() SymbolTable {
-	if symbolTable == nil {
-		symbolTable = newSymbolTable()
-	}
-	return symbolTable
-}
-
-// GetSymbolNames returns a slice of symbol names in the symbol table.
-func newSymbolTable() SymbolTable {
-	symbols := readSymbolTableFromFile()
-	return symbols
-}
-
-// readSymbolTableFromFile reads the symbol table from a JSON file.
-func readSymbolTableFromFile() SymbolTable {
-	configFileName := filepath.Join(discord.ConfigDir, "slots", "symbols", slotsTheme+".json")
-	bytes, err := os.ReadFile(configFileName)
-	if err != nil {
-		slog.Error("failed to read symbols file",
-			slog.String("file", configFileName),
-			slog.Any("error", err),
-		)
-		return nil
+func LoadSymbols(path string, theme string) error {
+	var symbols map[string][]Symbol
+	filePath := filepath.Join(path, "slots/symbols.yaml")
+	if err := config.LoadConfig(filePath, &symbols); err != nil {
+		return err
 	}
 
-	symbols := make([]Symbol, 0)
-	err = json.Unmarshal(bytes, &symbols)
-	if err != nil {
-		slog.Error("failed to unmarshal symbols",
-			slog.Any("error", err),
-		)
-		return nil
+	themeSymbols, ok := symbols[theme]
+	if !ok {
+		return ErrConfigNotFound
 	}
 
-	symbolTable := make(SymbolTable)
-	for _, symbol := range symbols {
-		symbolTable[symbol.Name] = symbol
-
+	defaultSymbols = make(SymbolTable, len(themeSymbols))
+	for _, symbol := range themeSymbols {
+		defaultSymbols[symbol.Name] = symbol
 	}
 
-	slog.Debug("loaded symbols")
-
-	return symbolTable
+	return nil
 }

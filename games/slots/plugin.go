@@ -3,7 +3,6 @@ package slots
 import (
 	"goblin2/database"
 	"goblin2/plugin"
-	"os"
 
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
@@ -11,13 +10,11 @@ import (
 )
 
 const (
-	PluginName        = "slots"
-	defaultSlotsTheme = "clash"
+	pluginName = "slots"
 )
 
 var (
-	db         *database.MongoDB
-	slotsTheme string
+	db *database.MongoDB
 )
 
 // Plugin is the plugin for the slots system used by the bot
@@ -30,10 +27,20 @@ type Plugin struct {
 var _ plugin.Plugin = (*Plugin)(nil)
 
 // NewPlugin creates a new slots plugin.
-func NewPlugin(_ string) (*Plugin, error) {
+func NewPlugin(cfgPath string) (*Plugin, error) {
+	if err := LoadConfig(cfgPath); err != nil {
+		return nil, err
+	}
+	if err := LoadSymbols(cfgPath, defaultConfig.Symbols); err != nil {
+		return nil, err
+	}
+	if err := LoadPayoutTable(cfgPath); err != nil {
+		return nil, err
+	}
+
 	return &Plugin{
 		status: plugin.Running,
-		name:   PluginName,
+		name:   pluginName,
 	}, nil
 }
 
@@ -50,10 +57,6 @@ func (p *Plugin) Status() plugin.Status {
 // Initialize saves the database to be used by the slots system.
 func (p *Plugin) Initialize(mongoDB *database.MongoDB, _ *bot.Client) {
 	db = mongoDB
-	slotsTheme = os.Getenv("DISCORD_SLOTS_THEME")
-	if slotsTheme == "" {
-		slotsTheme = defaultSlotsTheme
-	}
 }
 
 // SetDB sets the database to be used by the slots system. This is used for testing.

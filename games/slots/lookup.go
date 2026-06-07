@@ -1,49 +1,40 @@
 package slots
 
 import (
-	"encoding/json"
+	"goblin2/config"
 	"log/slog"
-	"os"
 	"path/filepath"
 
-	"github.com/rbrabson/goblin/discord"
 	rslots "github.com/rbrabson/slots"
 )
 
-const (
-	LookupFileName = "lookup"
+var (
+	defaultLookupTable rslots.LookupTable
 )
 
 // GetLookupTable retrieves the lookup table for the specified guild.
 func GetLookupTable() rslots.LookupTable {
-	lookupTable := newLookupTable()
+	lookupTable := createLookupTable()
 	return lookupTable
 }
 
-// newLookupTable creates a new lookup table for the specified guild by reading from a configuration file.
-func newLookupTable() rslots.LookupTable {
-	lookupTable := readLookupTableFromFile()
+// createLookupTable creates a copy of the default lookup table.
+func createLookupTable() rslots.LookupTable {
+	lookupTable := make(rslots.LookupTable, len(defaultLookupTable))
+	for key, value := range defaultLookupTable {
+		lookupTable[key] = value
+	}
+
 	return lookupTable
 }
 
-// readLookupTableFromFile reads the lookup table from a JSON configuration file.
-// The file is expected to be located at DISCORD_CONFIG_DIR/slots/lookuptable/lookup.json
-// and contain an array of reels, where each reel is an object with a "Slots" field
-// that is an array of slot symbols.
-func readLookupTableFromFile() rslots.LookupTable {
-	configFileName := filepath.Join(discord.ConfigDir, "slots", "lookuptable", LookupFileName+".json")
-	bytes, err := os.ReadFile(configFileName)
-	if err != nil {
-		return nil
+// LoadLookupTable loads the lookup table from a YAML configuration file.
+func LoadLookupTable(path string) error {
+	filePath := filepath.Join(path, "slots/lookup.yaml")
+	if err := config.LoadConfig(filePath, &defaultConfig); err != nil {
+		slog.Error("***** Lookup Table *****")
+		return err
 	}
 
-	var lookupTable rslots.LookupTable
-	err = json.Unmarshal(bytes, &lookupTable)
-	if err != nil {
-		return nil
-	}
-
-	slog.Debug("create new lookup table")
-
-	return lookupTable
+	return nil
 }

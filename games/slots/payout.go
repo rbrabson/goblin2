@@ -1,18 +1,15 @@
 package slots
 
 import (
-	"encoding/json"
-	"log/slog"
-	"os"
+	"goblin2/config"
 	"path/filepath"
 	"slices"
 
-	"github.com/rbrabson/goblin/discord"
 	rslots "github.com/rbrabson/slots"
 )
 
-const (
-	PayoutFileName = "payout"
+var (
+	defaultPayoutTable rslots.PayoutTable
 )
 
 // GetPayoutTable retrieves the payout table for a specific guild.
@@ -35,36 +32,20 @@ func GetPayoutTable() rslots.PayoutTable {
 	return pt
 }
 
-// newPayoutTable creates a new payout table for a specific guild by reading from a file.
+// newPayoutTable creates a copy of the default payout table.
 func newPayoutTable() rslots.PayoutTable {
-	payoutTable := readPayoutTableFromFile()
+	payoutTable := make(rslots.PayoutTable, len(defaultPayoutTable))
+	copy(payoutTable, defaultPayoutTable)
+
 	return payoutTable
 }
 
-// readPayoutTableFromFile reads the payout table from a JSON file.
-func readPayoutTableFromFile() rslots.PayoutTable {
-	configFileName := filepath.Join(discord.ConfigDir, "slots", "payout", PayoutFileName+".json")
-	bytes, err := os.ReadFile(configFileName)
-	if err != nil {
-		slog.Error("failed to read default payout table",
-			slog.String("file", configFileName),
-			slog.Any("error", err),
-		)
-		return nil
+// LoadPayoutTable loads the payout table from a file.
+func LoadPayoutTable(path string) error {
+	filePath := filepath.Join(path, "slots/payout.yaml")
+	if err := config.LoadConfig(filePath, &defaultPayoutTable); err != nil {
+		return err
 	}
 
-	var payouts rslots.PayoutTable
-	err = json.Unmarshal(bytes, &payouts)
-	if err != nil {
-		slog.Error("failed to unmarshal payout table",
-			slog.String("file", configFileName),
-			slog.String("data", string(bytes)),
-			slog.Any("error", err),
-		)
-		return nil
-	}
-
-	slog.Debug("create new payout table")
-
-	return payouts
+	return nil
 }
