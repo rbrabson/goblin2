@@ -3,6 +3,7 @@ package blackjack
 import (
 	"errors"
 	"fmt"
+	"goblin2/disgobot"
 	"goblin2/internal/discordid"
 	"goblin2/internal/format"
 	"log/slog"
@@ -37,6 +38,10 @@ var (
 
 // startBlackjack starts a blackjack game that other members may join.
 func startBlackjack(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
@@ -79,6 +84,10 @@ func startBlackjack(_ discord.SlashCommandInteractionData, e *handler.CommandEve
 
 // blackjackStats returns a player's blackjack stats.
 func blackjackStats(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
 	member := e.Member()
 	if member == nil {
 		return e.CreateMessage(discord.MessageCreate{
