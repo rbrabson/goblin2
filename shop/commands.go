@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"goblin2/disgobot"
 	"goblin2/internal/discordid"
+	"goblin2/internal/format"
 	"goblin2/internal/message"
 	"log/slog"
 	"strconv"
@@ -144,7 +145,7 @@ func addRoleHandler(data discord.SlashCommandInteractionData, e *handler.Command
 
 	if err := roleExistsChecks(discordid.NewSnowflakeID(member.GuildID), roleName); err != nil {
 		return e.CreateMessage(discord.MessageCreate{
-			Content: err.Error(),
+			Content: format.FirstToUpper(err.Error()),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
@@ -160,7 +161,7 @@ func addRoleHandler(data discord.SlashCommandInteractionData, e *handler.Command
 	s := GetShop(member.GuildID.String())
 	if err := role.AddToShop(s); err != nil {
 		return e.CreateMessage(discord.MessageCreate{
-			Content: err.Error(),
+			Content: format.FirstToUpper(err.Error()),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
@@ -176,6 +177,12 @@ func addRoleHandler(data discord.SlashCommandInteractionData, e *handler.Command
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
+
+	slog.Info("removed added to shop",
+		slog.Any("guildID", member.GuildID),
+		slog.String("member", member.EffectiveName()),
+		slog.String("role", roleName),
+	)
 
 	return e.CreateMessage(discord.MessageCreate{
 		Content: fmt.Sprintf("Added role `%s` to the shop for %d credits.", roleName, price),
@@ -209,7 +216,7 @@ func removeRoleHandler(data discord.SlashCommandInteractionData, e *handler.Comm
 	s := GetShop(member.GuildID.String())
 	if err := role.RemoveFromShop(s); err != nil {
 		return e.CreateMessage(discord.MessageCreate{
-			Content: err.Error(),
+			Content: format.FirstToUpper(err.Error()),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
@@ -226,6 +233,11 @@ func removeRoleHandler(data discord.SlashCommandInteractionData, e *handler.Comm
 		})
 	}
 
+	slog.Info("removed role from shop",
+		slog.Any("guildID", member.GuildID),
+		slog.String("member", member.EffectiveName()),
+		slog.String("role", roleName),
+	)
 	return e.CreateMessage(discord.MessageCreate{
 		Content: fmt.Sprintf("Removed role `%s` from the shop.", roleName),
 		Flags:   discord.MessageFlagEphemeral,
@@ -262,6 +274,12 @@ func setChannelHandler(data discord.SlashCommandInteractionData, e *handler.Comm
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
+
+	slog.Info("shop channel set",
+		slog.Any("guildID", member.GuildID),
+		slog.String("member", member.EffectiveName()),
+		slog.String(channelID, "channelID"),
+	)
 
 	return e.CreateMessage(discord.MessageCreate{
 		Content: fmt.Sprintf("Shop channel set to %s.", channelID),
@@ -303,6 +321,11 @@ func publishShopHandler(_ discord.SlashCommandInteractionData, e *handler.Comman
 		})
 	}
 
+	slog.Info("published shop",
+		slog.Any("guildID", member.GuildID),
+		slog.String("member", member.EffectiveName()),
+		slog.Any("channelID", config.ChannelID),
+	)
 	return e.CreateMessage(discord.MessageCreate{
 		Content: "Shop published.",
 		Flags:   discord.MessageFlagEphemeral,
@@ -419,7 +442,7 @@ func buyRoleButtonHandler(e *handler.ComponentEvent) error {
 
 	if err := rolePurchaseChecks(discordid.NewSnowflakeID(member.GuildID), discordid.NewSnowflakeID(member.User.ID), roleName); err != nil {
 		return e.CreateMessage(discord.MessageCreate{
-			Content: err.Error(),
+			Content: format.FirstToUpper(err.Error()),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
@@ -435,7 +458,7 @@ func buyRoleButtonHandler(e *handler.ComponentEvent) error {
 	purchase, err := role.Purchase(discordid.NewSnowflakeID(member.User.ID), false)
 	if err != nil {
 		return e.CreateMessage(discord.MessageCreate{
-			Content: err.Error(),
+			Content: format.FirstToUpper(err.Error()),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
@@ -460,6 +483,13 @@ func buyRoleButtonHandler(e *handler.ComponentEvent) error {
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
+
+	slog.Info("purchased role",
+		slog.Any("guildID", member.GuildID),
+		slog.String("member", member.EffectiveName()),
+		slog.String("role", roleName),
+		slog.Int("price", purchase.Item.Price),
+	)
 
 	return e.CreateMessage(discord.MessageCreate{
 		Content: fmt.Sprintf("Purchased role `%s` for %d credits.", purchase.Item.Name, purchase.Item.Price),
