@@ -35,9 +35,9 @@ func (s Status) String() string {
 	switch s {
 	case Running:
 		return "Running"
-	case Stopped:
-		return "Stopping"
 	case Stopping:
+		return "Stopping"
+	case Stopped:
 		return "Stopped"
 	default:
 		return "Unknown"
