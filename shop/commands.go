@@ -84,6 +84,10 @@ var (
 					},
 				},
 				discord.ApplicationCommandOptionSubCommand{
+					Name:        "publish",
+					Description: "Publishes or repairs the shop message in the configured shop channel.",
+				},
+				discord.ApplicationCommandOptionSubCommand{
 					Name:        "info",
 					Description: "Gets the shop configuration.",
 				},
@@ -261,6 +265,46 @@ func setChannelHandler(data discord.SlashCommandInteractionData, e *handler.Comm
 
 	return e.CreateMessage(discord.MessageCreate{
 		Content: fmt.Sprintf("Shop channel set to %s.", channelID),
+		Flags:   discord.MessageFlagEphemeral,
+	})
+}
+
+// publishShopHandler handles the /shop-admin publish command.
+func publishShopHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
+	member := e.Member()
+	if member == nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "This command can only be used in a server.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	config := GetConfig(discordid.NewSnowflakeID(member.GuildID))
+	if config.ChannelID == "" {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Shop channel is not set. Use `/shop-admin channel` first.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	s := GetShop(member.GuildID.String())
+	if err := s.Publish(); err != nil {
+		slog.Error("unable to publish shop",
+			slog.Any("guildID", member.GuildID),
+			slog.Any("error", err),
+		)
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "I could not publish the shop.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	return e.CreateMessage(discord.MessageCreate{
+		Content: "Shop published.",
 		Flags:   discord.MessageFlagEphemeral,
 	})
 }

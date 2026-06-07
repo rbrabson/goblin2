@@ -87,6 +87,7 @@ func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 		"/shop-admin/remove-role": removeRoleHandler,
 		"/shop-admin/channel":     setChannelHandler,
 		"/shop-admin/mod-channel": setModChannelHandler,
+		"/shop-admin/publish":     publishShopHandler,
 		"/shop-admin/info":        getShopInfoHandler,
 	}
 }
