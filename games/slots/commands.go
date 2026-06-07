@@ -90,7 +90,7 @@ func playSlots(data discord.SlashCommandInteractionData, e *handler.CommandEvent
 	)
 
 	config := GetConfig()
-	slotsMember := GetMember(guildID.String(), memberID.String())
+	slotsMember := GetMember(guildID, memberID)
 	if slotsMember.IsInCooldown(config) {
 		remaining := slotsMember.GetCooldownRemaining(config)
 		return e.CreateMessage(discord.MessageCreate{
@@ -223,7 +223,7 @@ func showStats(data discord.SlashCommandInteractionData, e *handler.CommandEvent
 		slog.Any("memberID", memberID),
 	)
 
-	slotsMember := GetMember(guildID.String(), memberID.String())
+	slotsMember := GetMember(discordid.NewSnowflakeID(guildID), discordid.NewSnowflakeID(memberID))
 
 	inline := true
 	embed := discord.Embed{

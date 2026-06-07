@@ -1,6 +1,7 @@
 package slots
 
 import (
+	"goblin2/discordid"
 	"log/slog"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -13,14 +14,14 @@ const (
 
 // readMember loads the slots member from the database. If it does not exist, then
 // a `nil` value is returned.
-func readMember(guildID string, memberID string) *Member {
+func readMember(guildID, memberID discordid.SnowflakeID) *Member {
 	var member Member
 	filter := bson.M{"guild_id": guildID, "member_id": memberID}
 	err := db.FindOne(MemberCollection, filter, &member)
 	if err != nil {
 		slog.Debug("slots member not found in the database",
-			slog.String("guildID", guildID),
-			slog.String("memberID", memberID),
+			slog.Any("guildID", guildID),
+			slog.Any("memberID", memberID),
 			slog.Any("error", err),
 		)
 		return nil
@@ -39,8 +40,8 @@ func writeMember(member *Member) {
 	}
 	if _, err := db.ReplaceOneUpsert(MemberCollection, filter, member); err != nil {
 		slog.Error("error writing slots member to the database",
-			slog.String("guildID", member.GuildID),
-			slog.String("memberID", member.MemberID),
+			slog.Any("guildID", member.GuildID),
+			slog.Any("memberID", member.MemberID),
 			slog.Any("error", err),
 		)
 	}
