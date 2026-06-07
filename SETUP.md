@@ -4,6 +4,10 @@ This document describes how to configure the `Goblin` bot for a Discord server. 
 
 ## Configuring Discord
 
+### Setting up the Goblin bot's role
+
+In the server settings, make sure the `Goblin` bot's role is higher than any roles that it may need to manage. If it isn't, then the bot may not be able to assign and remove roles from users.
+
 ### Setting the server owners
 
 By default, a newly installed `Goblin` bot does not have any configured owners. This means that any user on the server may issue the most privlidged `/server owner` commands. Therefore, the first step in setting up the server is to set the server owner(s). Use the `/server owner add` command to add one or more server owners. It is recommended that the person installing the server start by adding themselves as a server owner and can then optionally add one or more additional owners.

@@ -302,11 +302,12 @@ func (m *Member) IsAdmin(client *bot.Client, guild *Guild) (bool, error) {
 
 // AssignRole assigns the role with the given name to the member.
 func (m *Member) AssignRole(client *bot.Client, roleName string) error {
-	if hasRole, err := m.HasRole(client, roleName); hasRole || err == nil {
-		if hasRole {
-			return ErrRoleAlreadyAssigned
-		}
+	hasRole, err := m.HasRole(client, roleName)
+	if err != nil {
 		return err
+	}
+	if hasRole {
+		return ErrRoleAlreadyAssigned
 	}
 
 	role, err := m.getGuildRole(client, roleName)
