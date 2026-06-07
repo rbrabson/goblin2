@@ -23,7 +23,7 @@ var (
 
 // Bot represents the main structure of the Discord Bot. It can hold any necessary state or configuration for the bot's operation.
 type Bot struct {
-	cfg     Config
+	cfg     *Config
 	version string
 	client  *bot.Client
 	router  *handler.Mux
@@ -32,7 +32,7 @@ type Bot struct {
 }
 
 // NewBot creates a new Discord Bot instance.
-func NewBot(cfg Config, version string) *Bot {
+func NewBot(cfg *Config, version string) *Bot {
 	return &Bot{
 		cfg:     cfg,
 		version: version,
@@ -144,12 +144,12 @@ func (b *Bot) getEventListeners() *handler.Mux {
 	h := handler.New()
 	b.router = h
 
-	// Basic help commands
+	// Basic help commands; it consolidates the help from all plugins
 	h.SlashCommand("/help", helpHandler(b))
 	h.SlashCommand("/admin-help", adminHelpHandler(b))
 	h.SlashCommand("/version", versionHandler(b))
 
-	// Server commands
+	// Server commands; intended for the bot owner, not bot admins
 	h.SlashCommand("/server/shutdown", serverShutdownHandler)
 	h.SlashCommand("/server/status", serverStatusHandler)
 	h.SlashCommand("/server/owner/add", serverOwnerAddHandler)

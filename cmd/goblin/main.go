@@ -161,14 +161,12 @@ func main() {
 		}
 	}(db)
 
-	botPath := filepath.Join(configPath, "bot/config.yaml")
-	var botConfig disgobot.Config
-	if err := config.LoadConfig(botPath, &botConfig); err != nil {
-		slog.Error("failed to load config", "error", err)
+	botCfg, err := disgobot.LoadConfig(configPath)
+	if err != nil {
+		slog.Error("failed to load bot config", "error", err)
 		os.Exit(-1)
 	}
-
-	bot := disgobot.NewBot(botConfig, version)
+	bot := disgobot.NewBot(botCfg, version)
 
 	for _, p := range getPlugins(configPath) {
 		bot.RegisterPlugin(p)
