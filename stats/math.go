@@ -1,5 +1,6 @@
 package stats
 
+// getInt is used to convert a value to an int.
 // Helper functions for type conversion
 func getInt(value interface{}) int {
 	switch v := value.(type) {
@@ -14,6 +15,7 @@ func getInt(value interface{}) int {
 	}
 }
 
+// getFloat64 is used to convert a value to a float64.
 func getFloat64(value interface{}) float64 {
 	switch v := value.(type) {
 	case float64:

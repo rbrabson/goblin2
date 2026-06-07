@@ -108,6 +108,7 @@ func createNewTheme(guildID discordid.SnowflakeID) *Theme {
 	return theme
 }
 
+// copyTheme creates a deep copy of a theme.
 func copyTheme(theme *Theme) *Theme {
 	if theme == nil {
 		return nil
@@ -121,6 +122,7 @@ func copyTheme(theme *Theme) *Theme {
 	return copied
 }
 
+// copyHeistMessages creates a deep copy of a slice of heist messages.
 func copyHeistMessages(messages []*Message) []*Message {
 	if messages == nil {
 		return nil
@@ -139,6 +141,7 @@ func copyHeistMessages(messages []*Message) []*Message {
 	return copied
 }
 
+// CloseThemeCache stops the theme cache cleanup goroutine and clears cached theme entries.
 func CloseThemeCache() {
 	themeCache.Destroy()
 }

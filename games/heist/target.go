@@ -104,6 +104,7 @@ func createNewTargets(guildID discordid.SnowflakeID) []*Target {
 	return targets
 }
 
+// copyTargets creates a deep copy of a list of targets.
 func copyTargets(targets []*Target) []*Target {
 	if targets == nil {
 		return nil
@@ -122,6 +123,7 @@ func copyTargets(targets []*Target) []*Target {
 	return copied
 }
 
+// CloseTargetsCache stops the targets cache cleanup goroutine and clears cached targets.
 func CloseTargetsCache() {
 	targetsCache.Destroy()
 }

@@ -97,6 +97,7 @@ func createNewConfig(guildID discordid.SnowflakeID) *Config {
 	return cfg
 }
 
+// copyConfig creates a deep copy of the configuration.
 func copyConfig(cfg *Config) *Config {
 	if cfg == nil {
 		return nil

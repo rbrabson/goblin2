@@ -316,7 +316,7 @@ func rank(data discord.SlashCommandInteractionData, e *handler.CommandEvent) err
 }
 
 // formatAccounts formats the leaderboard to be sent to a Discord server.
-func formatAccounts(client *bot.Client, guildID discordid.SnowflakeID, p *message.Printer, title string, accounts []*bank.Account) []discord.Embed {
+func formatAccounts(_ *bot.Client, guildID discordid.SnowflakeID, p *message.Printer, title string, accounts []*bank.Account) []discord.Embed {
 	var tableBuffer strings.Builder
 
 	table := tablewriter.NewTable(&tableBuffer,
@@ -401,6 +401,7 @@ func slashSubCommandName(data discord.SlashCommandInteractionData) string {
 	return *data.SubCommandName
 }
 
+// userIDValue returns the SnowflakeID value of the option with the given name.
 func userIDValue(data discord.SlashCommandInteractionData, name string) (discordid.SnowflakeID, bool) {
 	value, ok := data.Options[name]
 	if !ok {

@@ -83,21 +83,10 @@ func GetConfig(guildID discordid.SnowflakeID) *Config {
 	return cfg
 }
 
+// createNewConfig creates a new heist configuration with default values for the specified guild.
 func createNewConfig(guildID discordid.SnowflakeID) *Config {
-	c := &Config{
-		GuildID:            guildID,
-		BailBase:           defaultConfig.BailBase,
-		BoostPercentage:    defaultConfig.BoostPercentage,
-		BoostEnabled:       defaultConfig.BoostEnabled,
-		CrewOutput:         defaultConfig.CrewOutput,
-		DeathTimer:         defaultConfig.DeathTimer,
-		HeistCost:          defaultConfig.HeistCost,
-		PoliceAlert:        defaultConfig.PoliceAlert,
-		SentenceBase:       defaultConfig.SentenceBase,
-		BaseVaultRecovery:  defaultConfig.BaseVaultRecovery,
-		BoostVaultRecovery: defaultConfig.BoostVaultRecovery,
-		WaitTime:           defaultConfig.WaitTime,
-	}
+	c := copyConfig(&defaultConfig)
+	c.GuildID = guildID
 
 	slog.Info("Created default heist config",
 		slog.Any("guild_id", c.GuildID),
@@ -106,6 +95,7 @@ func createNewConfig(guildID discordid.SnowflakeID) *Config {
 	return c
 }
 
+// copyConfig creates a deep copy of the heist configuration.
 func copyConfig(cfg *Config) *Config {
 	if cfg == nil {
 		return nil
@@ -122,6 +112,7 @@ func copyConfig(cfg *Config) *Config {
 	return copied
 }
 
+// CloseConfigCache stops the config cache cleanup goroutine and clears cached config entries.
 func CloseConfigCache() {
 	configCache.Destroy()
 }

@@ -285,7 +285,7 @@ func runHeist(e *handler.CommandEvent, heist *Heist) {
 		writeTarget(res.Target)
 	}
 
-	heist.State = Completed
+	heist.State = completed
 
 	if err := heistMessage(heist); err != nil {
 		slog.Error("failed to update heist message", slog.Any("error", err))
@@ -765,17 +765,17 @@ func heistMessage(heist *Heist) error {
 	var status string
 	var buttonDisabled bool
 	switch heist.State {
-	case Planning:
+	case planning:
 		until := time.Until(heist.StartTime.Add(heist.config.WaitTime))
 		status = "Starts in " + format.Duration(until)
 		buttonDisabled = false
-	case InProgress:
+	case inProgress:
 		status = "Started"
 		buttonDisabled = true
-	case Cancelled:
+	case cancelled:
 		status = "Canceled"
 		buttonDisabled = true
-	case Completed:
+	case completed:
 		status = "Ended"
 		buttonDisabled = true
 	default:
@@ -1227,6 +1227,7 @@ func configInfo(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) 
 	})
 }
 
+// requireAdmin checks if the user has administrator permissions and returns an error message if they do not.
 func requireAdmin(e *handler.CommandEvent) error {
 	member := e.Member()
 	if member == nil {
@@ -1255,6 +1256,7 @@ func requireAdmin(e *handler.CommandEvent) error {
 	return nil
 }
 
+// serverOnly returns an error message indicating that the command can only be used in a server.
 func serverOnly(e *handler.CommandEvent) error {
 	return e.CreateMessage(discord.MessageCreate{
 		Content: "This command can only be used in a server.",
@@ -1262,6 +1264,7 @@ func serverOnly(e *handler.CommandEvent) error {
 	})
 }
 
+// resolvedGuildMember converts a discord.ResolvedMember to a guild.Member, handling nil values appropriately.
 func resolvedGuildMember(member *discord.ResolvedMember) *guild.Member {
 	if member == nil {
 		return nil
@@ -1287,6 +1290,7 @@ func resolvedGuildMember(member *discord.ResolvedMember) *guild.Member {
 	}
 }
 
+// guildID retrieves the guild ID from the command event, handling both member and non-member contexts.
 func guildID(e *handler.CommandEvent) discordid.SnowflakeID {
 	if member := e.Member(); member != nil {
 		return discordid.NewSnowflakeID(member.GuildID)
@@ -1298,6 +1302,7 @@ func guildID(e *handler.CommandEvent) discordid.SnowflakeID {
 	return 0
 }
 
+// resetVaultsToMaximumValue resets the vaults of all targets in the specified guild to their maximum value and marks them as at maximum.
 func resetVaultsToMaximumValue(guildID discordid.SnowflakeID) {
 	targets := GetTargets(guildID)
 	for _, target := range targets {
@@ -1307,6 +1312,7 @@ func resetVaultsToMaximumValue(guildID discordid.SnowflakeID) {
 	}
 }
 
+// criminalLevelString converts a CriminalLevel to a string representation.
 func criminalLevelString(level CriminalLevel) string {
 	switch level {
 	case Greenhorn:

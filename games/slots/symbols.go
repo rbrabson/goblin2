@@ -66,6 +66,7 @@ func (st SymbolTable) String() string {
 	return sb.String()
 }
 
+// LoadSymbols loads symbol configurations from a YAML file and updates the default symbol table.
 func LoadSymbols(path string, theme string) error {
 	var symbols map[string][]Symbol
 	filePath := filepath.Join(path, "slots/symbols.yaml")

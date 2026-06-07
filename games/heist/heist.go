@@ -28,10 +28,10 @@ var (
 type State string
 
 const (
-	Planning   State = "Planning"
-	InProgress State = "In Progress"
-	Cancelled  State = "Cancelled"
-	Completed  State = "Completed"
+	planning   State = "Planning"
+	inProgress State = "In Progress"
+	cancelled  State = "Cancelled"
+	completed  State = "Completed"
 )
 
 // Heist is a heist that is being planned, is in progress, or has completed.
@@ -94,7 +94,7 @@ func NewHeist(guildID, memberID discordid.SnowflakeID) (*Heist, error) {
 		Organizer:    GetMember(guildID, memberID),
 		Crew:         make([]*Member, 0, 10),
 		StartTime:    time.Now(),
-		State:        Planning,
+		State:        planning,
 		config:       config,
 		mutex:        sync.Mutex{},
 		goodMessages: make([]*Message, 0, len(config.Theme.EscapedMessages)),
@@ -150,11 +150,11 @@ func (h *Heist) Start() (*Result, error) {
 	defer h.mutex.Unlock()
 
 	if len(h.Crew) < 2 {
-		h.State = Cancelled
+		h.State = cancelled
 		return nil, ErrNotEnoughMembers{h.config.Theme}
 	}
 
-	h.State = InProgress
+	h.State = inProgress
 	target := selectTarget(h.config.Targets, len(h.Crew))
 
 	results := &Result{
@@ -299,10 +299,10 @@ func (h *Heist) End() {
 
 	heistCancelled := len(h.Crew) < 2
 	if heistCancelled {
-		h.State = Cancelled
+		h.State = cancelled
 		slog.Debug("heist cancelled", slog.Any("guildID", h.GuildID))
 	} else {
-		h.State = Completed
+		h.State = completed
 
 		alertTimesLock.Lock()
 		alertTimes[h.GuildID] = time.Now().Add(h.config.PoliceAlert)
@@ -327,7 +327,7 @@ func (h *Heist) Cancel() {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
-	h.State = Cancelled
+	h.State = cancelled
 	h.removeCurrentHeist()
 
 	for _, member := range h.Crew {
@@ -344,7 +344,7 @@ func (h *Heist) removeCurrentHeist() {
 
 // heistChecks returns an error, with the appropriate message if a heist cannot be started.
 func heistChecks(h *Heist, member *Member) error {
-	if h.State != Planning {
+	if h.State != planning {
 		slog.Debug("heist already started",
 			slog.Any("guildID", h.GuildID),
 			slog.String("state", string(h.State)),

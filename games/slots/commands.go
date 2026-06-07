@@ -358,6 +358,7 @@ func payTable(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) er
 	})
 }
 
+// getPayoutDisplayMessage creates a formatted string for displaying payout information.
 func getPayoutDisplayMessage(spin []string, symbolTable SymbolTable) string {
 	if len(spin) == 1 {
 		return spin[0]

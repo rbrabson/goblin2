@@ -200,6 +200,7 @@ func (m *Member) LoseBet() {
 	)
 }
 
+// String returns a string representation of the race member.
 func (m *Member) String() string {
 	return fmt.Sprintf("RaceMember{GuildID: %s, MemberID: %s, RacesLost: %d, RacesPlaced: %d, RacesShowed: %d, RacesWon: %d, TotalRaces: %d, BetsEarnings: %d, BetsMade: %d, BetsWon: %d, TotalEarnings: %d}",
 		m.GuildID,

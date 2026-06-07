@@ -17,6 +17,7 @@ type Config struct {
 	Symbols  string        `yaml:"symbols"`
 }
 
+// configFile represents the configuration file for the slots game.
 type configFile struct {
 	Cooldown string `yaml:"cooldown"`
 	Symbols  string `yaml:"symbols"`

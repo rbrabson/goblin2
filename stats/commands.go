@@ -607,6 +607,7 @@ func slashSubCommandName(data discord.SlashCommandInteractionData) string {
 	return *data.SubCommandName
 }
 
+// userIDValue returns the user ID from the interaction.
 func userIDValue(data discord.SlashCommandInteractionData, name string) (discordid.SnowflakeID, bool) {
 	value, ok := data.Options[name]
 	if !ok {
@@ -626,6 +627,7 @@ func userIDValue(data discord.SlashCommandInteractionData, name string) (discord
 	return discordid.SnowflakeID(parsed), true
 }
 
+// stringValue returns the string value from the interaction.
 func stringValue(data discord.SlashCommandInteractionData, name string) string {
 	value, ok := data.Options[name]
 	if !ok {

@@ -685,6 +685,7 @@ func getCurrentRaceParticipant(race *Race, customID string) *Participant {
 	return button.racer
 }
 
+// updateComponentResponse updates the interaction response with the provided content.
 func updateComponentResponse(e *handler.ComponentEvent, content string) error {
 	_, err := e.UpdateInteractionResponse(discord.MessageUpdate{
 		Content: &content,
@@ -692,6 +693,7 @@ func updateComponentResponse(e *handler.ComponentEvent, content string) error {
 	return err
 }
 
+// requireAdmin checks if the user has admin permissions in the guild.
 func requireAdmin(e *handler.CommandEvent) error {
 	member := e.Member()
 	if member == nil {
@@ -720,6 +722,7 @@ func requireAdmin(e *handler.CommandEvent) error {
 	return nil
 }
 
+// serverOnly checks if the command is being used in a server context.
 func serverOnly(e *handler.CommandEvent) error {
 	return e.CreateMessage(discord.MessageCreate{
 		Content: "This command can only be used in a server.",
@@ -727,6 +730,7 @@ func serverOnly(e *handler.CommandEvent) error {
 	})
 }
 
+// resolvedGuildMember creates a guild.Member from a discord.ResolvedMember.
 func resolvedGuildMember(member *discord.ResolvedMember) *guild.Member {
 	if member == nil {
 		return nil
@@ -752,6 +756,7 @@ func resolvedGuildMember(member *discord.ResolvedMember) *guild.Member {
 	}
 }
 
+// guildID extracts the guild ID from the command event, whether it's from the member or directly from the event.
 func guildID(e *handler.CommandEvent) discordid.SnowflakeID {
 	if member := e.Member(); member != nil {
 		return discordid.NewSnowflakeID(member.GuildID)
@@ -763,6 +768,7 @@ func guildID(e *handler.CommandEvent) discordid.SnowflakeID {
 	return 0
 }
 
+// splitString splits a string into two parts at the specified position.
 func splitString(s string, pos int) (string, string) {
 	runes := []rune(s)
 	if pos < 0 {

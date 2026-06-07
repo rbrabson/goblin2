@@ -135,6 +135,7 @@ func fmtDuration(d time.Duration) string {
 	return strings.Join(dateParts, " ")
 }
 
+// DaysIn returns the number of days in a given month of a given year.
 func DaysIn(year int, month time.Month) int {
 	return time.Date(year, month, 0, 0, 0, 0, 0, time.UTC).Day()
 }

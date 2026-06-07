@@ -47,6 +47,7 @@ var adminCommands = discord.SlashCommandCreate{
 	},
 }
 
+// guildAdminRoleListHandler returns the list of admin roles for the server.
 func guildAdminRoleListHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	slog.Warn("TBD: GuildAdminRoleListHandler")
 	return e.CreateMessage(discord.MessageCreate{
@@ -55,6 +56,7 @@ func guildAdminRoleListHandler(data discord.SlashCommandInteractionData, e *hand
 	})
 }
 
+// guildAdminRoleAddHandler adds an admin role for the server.
 func guildAdminRoleAddHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	slog.Warn("TBD: GuildAdminRoleAddHandler")
 	name := fmt.Sprint(data.Options["name"])
@@ -65,6 +67,7 @@ func guildAdminRoleAddHandler(data discord.SlashCommandInteractionData, e *handl
 	})
 }
 
+// guildAdminRoleRemoveHandler removes an admin role for the server.
 func guildAdminRoleRemoveHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	slog.Warn("TBD: GuildAdminRoleRemoveHandler")
 	name := fmt.Sprint(data.Options["name"])

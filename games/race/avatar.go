@@ -82,6 +82,7 @@ func createNewAvatars(guildID discordid.SnowflakeID, themeName string) []*Avatar
 	return avatars
 }
 
+// copyAvatars creates a deep copy of a list of avatars.
 func copyAvatars(avatars []*Avatar) []*Avatar {
 	if avatars == nil {
 		return nil
