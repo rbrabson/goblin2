@@ -133,7 +133,7 @@ func (b *Bank) SetDefaultBalance(balance int) {
 		}
 
 		bank.DefaultBalance = balance
-		slog.Info("set default balance",
+		slog.Info("set default balance for the bank",
 			slog.Any("guildID", bank.GuildID),
 			slog.Int("balance", bank.DefaultBalance),
 		)
@@ -154,7 +154,7 @@ func (b *Bank) SetName(name string) {
 		}
 
 		bank.Name = name
-		slog.Info("set bank name",
+		slog.Info("set the bank name",
 			slog.String("name", bank.Name),
 			slog.Any("guildID", bank.GuildID),
 		)
@@ -175,7 +175,7 @@ func (b *Bank) SetCurrency(currency string) {
 		}
 
 		bank.Currency = currency
-		slog.Info("set currency",
+		slog.Info("set the currency for the bank",
 			slog.Any("guildID", bank.GuildID),
 			slog.String("currency", bank.Currency),
 		)

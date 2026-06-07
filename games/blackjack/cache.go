@@ -3,6 +3,7 @@ package blackjack
 import (
 	"goblin2/internal/cache"
 	"goblin2/internal/discordid"
+	"sync"
 	"time"
 )
 
@@ -23,6 +24,8 @@ type memberCacheKey struct {
 var (
 	configCache = cache.New[configCacheKey, Config](blackjackCacheTTL, blackjackCacheCleanupInterval)
 	memberCache = cache.New[memberCacheKey, Member](blackjackCacheTTL, blackjackCacheCleanupInterval)
+
+	memberLoadMu sync.Mutex
 )
 
 func copyConfig(config *Config) *Config {

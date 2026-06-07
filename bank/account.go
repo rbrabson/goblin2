@@ -197,7 +197,7 @@ func (a *Account) SetBalance(amount int) error {
 		if a.MonthlyBalance < amount {
 			a.MonthlyBalance = amount
 		}
-		slog.Debug("set account balance",
+		slog.Info("admin set the account balance",
 			slog.Any("guildID", a.GuildID),
 			slog.Any("memberID", a.MemberID),
 			slog.Int("balance", a.CurrentBalance),

@@ -61,6 +61,13 @@ func GetMember(guildID, userID discordid.SnowflakeID) *Member {
 		return copyMember(&member)
 	}
 
+	memberLoadMu.Lock()
+	defer memberLoadMu.Unlock()
+
+	if member, ok := memberCache.Get(key); ok {
+		return copyMember(&member)
+	}
+
 	member := readMember(key.guildID, key.memberID)
 	if member == nil {
 		member = newMember(guildID, userID)
@@ -79,6 +86,20 @@ func newMember(guildID, userID discordid.SnowflakeID) *Member {
 	writeMember(member)
 
 	return member
+}
+
+// cacheKey returns the cache key for this member.
+func (m *Member) cacheKey() memberCacheKey {
+	return memberCacheKey{
+		guildID:  m.GuildID,
+		memberID: m.MemberID,
+	}
+}
+
+// save persists the member and updates the cache.
+func (m *Member) save() {
+	writeMember(m)
+	memberCache.Set(m.cacheKey(), *m)
 }
 
 // RoundPlayed updates the member statistics based on the results of a played round.
@@ -109,9 +130,5 @@ func (m *Member) RoundPlayed(game *Game, player *bj.Player) {
 	}
 	m.LastPlayed = time.Now()
 
-	writeMember(m)
-	memberCache.Set(memberCacheKey{
-		guildID:  m.GuildID,
-		memberID: m.MemberID,
-	}, *m)
+	m.save()
 }

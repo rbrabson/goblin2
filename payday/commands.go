@@ -67,6 +67,12 @@ func payday(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) erro
 	paydayAccount.TotalAmountPaid += paydayAmount
 	paydayAccount.setNextPayday(payday.PaydayFrequency)
 
+	slog.Info("payday",
+		slog.Any("guildID", member.GuildID),
+		slog.Any("memberID", member.User.ID),
+		slog.Int("paydayAmount", paydayAmount),
+		slog.Int("currentBalance", account.CurrentBalance),
+	)
 	return e.CreateMessage(discord.MessageCreate{
 		Content: p.Sprintf("You deposited your check of %d into your bank account. You now have %d credits.", paydayAmount, account.CurrentBalance),
 		Flags:   discord.MessageFlagEphemeral,
