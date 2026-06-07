@@ -239,6 +239,7 @@ func startHeist(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) 
 	return nil
 }
 
+// runHeist runs the heist and handles its lifecycle until completion, cancellation, or failure.
 func runHeist(e *handler.CommandEvent, heist *Heist) {
 	defer heist.End()
 
@@ -460,6 +461,7 @@ func sendMemberResults(e *handler.CommandEvent, res *Result) error {
 	return heistMessage(res.heist)
 }
 
+// sendWinningsTable sends a formatted table of winnings to the channel.
 func sendWinningsTable(e *handler.CommandEvent, res *Result) error {
 	p := message.NewPrinter(language.AmericanEnglish)
 	channelID := e.Channel().ID()
@@ -601,6 +603,7 @@ func joinHeist(e *handler.ComponentEvent) error {
 	return updateComponentResponse(e, p.Sprintf("You have joined the %s at a cost of %d credits.", heist.config.Theme.Heist, heist.config.HeistCost))
 }
 
+// updateComponentResponse updates the interaction response with the provided content.
 func updateComponentResponse(e *handler.ComponentEvent, content string) error {
 	_, err := e.UpdateInteractionResponse(discord.MessageUpdate{
 		Content: &content,
@@ -1325,6 +1328,7 @@ func criminalLevelString(level CriminalLevel) string {
 	}
 }
 
+// firstToUpper returns the input string with the first letter capitalized.
 func firstToUpper(s string) string {
 	if s == "" {
 		return s
