@@ -2,7 +2,6 @@ package slots
 
 import (
 	"goblin2/config"
-	"log/slog"
 	"path/filepath"
 
 	rslots "github.com/rbrabson/slots"
@@ -31,8 +30,7 @@ func createLookupTable() rslots.LookupTable {
 // LoadLookupTable loads the lookup table from a YAML configuration file.
 func LoadLookupTable(path string) error {
 	filePath := filepath.Join(path, "slots/lookup.yaml")
-	if err := config.LoadConfig(filePath, &defaultConfig); err != nil {
-		slog.Error("***** Lookup Table *****")
+	if err := config.LoadConfig(filePath, &defaultLookupTable); err != nil {
 		return err
 	}
 

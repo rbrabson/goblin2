@@ -34,6 +34,9 @@ func NewPlugin(cfgPath string) (*Plugin, error) {
 	if err := LoadSymbols(cfgPath, defaultConfig.Symbols); err != nil {
 		return nil, err
 	}
+	if err := LoadLookupTable(cfgPath); err != nil {
+		return nil, err
+	}
 	if err := LoadPayoutTable(cfgPath); err != nil {
 		return nil, err
 	}
