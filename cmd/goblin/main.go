@@ -173,7 +173,7 @@ func main() {
 	}
 
 	if err := bot.Start(db); err != nil {
-		slog.Error("failed to run bot", "error", err)
+		slog.Error("failed to start the bot", "error", err)
 		os.Exit(-1)
 	}
 	defer bot.Stop()
