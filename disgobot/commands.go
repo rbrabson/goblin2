@@ -691,7 +691,6 @@ func IsShuttingDown(e *handler.CommandEvent) bool {
 		return true
 	}
 	return false
-
 }
 
 // getUserID parses a user ID from a string.

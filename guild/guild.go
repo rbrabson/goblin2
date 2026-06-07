@@ -75,24 +75,34 @@ func UpdateGuild(guildID discordid.SnowflakeID, mutate func(*Guild) error) error
 
 // AddAdminRole adds the given role name to the guild's admin roles.
 func (g *Guild) AddAdminRole(roleName string) error {
-	return UpdateGuild(g.GuildID, func(latest *Guild) error {
+	var updated *Guild
+	if err := UpdateGuild(g.GuildID, func(latest *Guild) error {
 		for _, r := range latest.AdminRoles {
 			if r == roleName {
-				return ErrRoleAlreadyExists
+				return ErrAlreadyAdminRole
 			}
 		}
 		latest.AdminRoles = append(latest.AdminRoles, roleName)
+		updated = latest
 		slog.Info("added admin role",
 			slog.Any("guildID", latest.GuildID),
 			slog.String("role", roleName),
 		)
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	if updated != nil {
+		*g = *updated
+	}
+	return nil
 }
 
 // RemoveAdminRole removes the given role name from the guild's admin roles.
 func (g *Guild) RemoveAdminRole(roleName string) error {
-	return UpdateGuild(g.GuildID, func(latest *Guild) error {
+	var updated *Guild
+	if err := UpdateGuild(g.GuildID, func(latest *Guild) error {
 		roles := make([]string, 0, len(latest.AdminRoles))
 		for _, r := range latest.AdminRoles {
 			if r != roleName {
@@ -100,15 +110,30 @@ func (g *Guild) RemoveAdminRole(roleName string) error {
 			}
 		}
 		if len(roles) == len(latest.AdminRoles) {
-			return ErrRoleNotFound{guildID: latest.GuildID, roleName: roleName}
+			return ErrNotAdminRole
 		}
 		latest.AdminRoles = roles
+		updated = latest
 		slog.Info("removed admin role",
 			slog.Any("guildID", latest.GuildID),
 			slog.String("role", roleName),
 		)
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	if updated != nil {
+		*g = *updated
+	}
+	return nil
+}
+
+// GetAdminRoles returns the admin roles for the guild.
+func (g *Guild) GetAdminRoles() []string {
+	adminRoles := make([]string, len(g.AdminRoles))
+	copy(adminRoles, g.AdminRoles)
+	return adminRoles
 }
 
 // GetRoles returns all roles in the guild
@@ -135,7 +160,7 @@ func (g *Guild) GetRole(client *bot.Client, roleName string) (discord.Role, erro
 		}
 	}
 
-	return discord.Role{}, ErrRoleNotFound{guildID: g.GuildID, roleName: roleName}
+	return discord.Role{}, ErrRoleNotFound
 }
 
 // GetMember returns a member within this guild.

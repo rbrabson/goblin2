@@ -237,9 +237,14 @@ func UpdateMember(guildID, memberID discordid.SnowflakeID, discordMember *discor
 
 // GetRoles returns the list of roles for member in a given guild.
 func (m *Member) GetRoles(client *bot.Client) ([]discord.Role, error) {
-	member, ok := client.Caches.Member(m.GuildID.ID(), m.MemberID.ID())
-	if !ok {
-		return nil, fmt.Errorf("member %s not found in guild %s", m.MemberID, m.GuildID)
+	member, err := client.Rest.GetMember(m.GuildID.ID(), m.MemberID.ID())
+	if err != nil {
+		return nil, fmt.Errorf("member %s not found in guild %s: %w", m.MemberID, m.GuildID, err)
+	}
+
+	guildRoles, err := client.Rest.GetRoles(m.GuildID.ID())
+	if err != nil {
+		return nil, fmt.Errorf("unable to get roles for guild %s: %w", m.GuildID, err)
 	}
 
 	roleIDs := make(map[discordid.SnowflakeID]struct{}, len(member.RoleIDs))
@@ -248,7 +253,7 @@ func (m *Member) GetRoles(client *bot.Client) ([]discord.Role, error) {
 	}
 
 	roles := make([]discord.Role, 0, len(roleIDs))
-	for role := range client.Caches.Roles(m.GuildID.ID()) {
+	for _, role := range guildRoles {
 		if _, ok := roleIDs[discordid.NewSnowflakeID(role.ID)]; ok {
 			roles = append(roles, role)
 		}
@@ -299,6 +304,13 @@ func (m *Member) IsAdmin(client *bot.Client, guild *Guild) (bool, error) {
 
 // AssignRole assigns the role with the given name to the member.
 func (m *Member) AssignRole(client *bot.Client, roleName string) error {
+	if hasRole, err := m.HasRole(client, roleName); hasRole || err == nil {
+		if hasRole {
+			return ErrRoleAlreadyAssigned
+		}
+		return err
+	}
+
 	role, err := m.getGuildRole(client, roleName)
 	if err != nil {
 		return err
@@ -319,8 +331,18 @@ func (m *Member) UnassignRole(client *bot.Client, roleName string) error {
 
 // getGuildRole returns the role with the given name from the guild.
 func (m *Member) getGuildRole(client *bot.Client, roleName string) (discord.Role, error) {
-	guild := Guild{GuildID: m.GuildID}
-	return guild.GetRole(client, roleName)
+	roles, err := client.Rest.GetRoles(m.GuildID.ID())
+	if err != nil {
+		return discord.Role{}, fmt.Errorf("unable to get roles for guild %s: %w", m.GuildID, err)
+	}
+
+	for _, role := range roles {
+		if role.Name == roleName {
+			return role, nil
+		}
+	}
+
+	return discord.Role{}, ErrRoleNotFound
 }
 
 // String returns a string representation of the Member.

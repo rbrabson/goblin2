@@ -13,6 +13,8 @@ const (
 	pluginName = "guild"
 )
 
+var guildPlugin *Plugin
+
 // Plugin is the plugin implementation for the guild package.
 type Plugin struct {
 	status plugin.Status
@@ -27,6 +29,7 @@ func NewPlugin(_ string) (*Plugin, error) {
 		status: plugin.Running,
 		name:   pluginName,
 	}
+	guildPlugin = p
 	return p, nil
 }
 

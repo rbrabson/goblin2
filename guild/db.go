@@ -33,14 +33,22 @@ func readGuild(guildID discordid.SnowflakeID) *Guild {
 
 // writeGuild inserts a new guild into the database.
 func writeGuild(g *Guild) error {
-	_, err := db.InsertOne(guildCollection, g)
+	g.Version = 0
+
+	result, err := db.InsertOne(guildCollection, g)
 	if err != nil {
 		slog.Error("unable to create guild",
 			slog.Any("guildID", g.GuildID),
 			slog.Any("error", err),
 		)
+		return err
 	}
-	return err
+
+	if id, ok := result.InsertedID.(bson.ObjectID); ok {
+		g.ID = id
+	}
+
+	return nil
 }
 
 // updateGuild updates an existing guild using optimistic locking via the version field.
@@ -48,8 +56,17 @@ func writeGuild(g *Guild) error {
 func updateGuild(g *Guild) error {
 	filter := bson.M{
 		"guild_id": g.GuildID,
-		"version":  g.Version,
 	}
+
+	if g.Version == 0 {
+		filter["$or"] = bson.A{
+			bson.M{"version": 0},
+			bson.M{"version": bson.M{"$exists": false}},
+		}
+	} else {
+		filter["version"] = g.Version
+	}
+
 	update := bson.M{
 		"$set": bson.M{
 			"admin_roles": g.AdminRoles,
@@ -63,6 +80,7 @@ func updateGuild(g *Guild) error {
 	if err != nil {
 		slog.Error("unable to update guild",
 			slog.Any("guildID", g.GuildID),
+			slog.Any("version", g.Version),
 			slog.Any("error", err),
 		)
 		return err
@@ -70,6 +88,9 @@ func updateGuild(g *Guild) error {
 	if result.MatchedCount == 0 {
 		return ErrVersionConflict
 	}
+
+	g.Version++
+
 	return nil
 }
 

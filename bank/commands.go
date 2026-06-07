@@ -204,10 +204,6 @@ func addAccountBalanceHandler(data discord.SlashCommandInteractionData, e *handl
 		return disgobot.ErrUnableToProcessCommand
 	}
 
-	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
-		return disgobot.ErrUnableToProcessCommand
-	}
-
 	p := message.NewPrinter(language.AmericanEnglish)
 
 	member := e.Member()
