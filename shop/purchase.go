@@ -87,6 +87,7 @@ func GetAllPurchases(guildID string, memberID string) []*Purchase {
 	return purchases
 }
 
+// getPurchase retrieves a purchase from the cache or database based on the given parameters.
 func getPurchase(guildID discordid.SnowflakeID, memberID discordid.SnowflakeID, itemName string, itemType string) *Purchase {
 	key := purchaseCacheKey{
 		guildID:   guildID,
@@ -109,6 +110,7 @@ func getPurchase(guildID discordid.SnowflakeID, memberID discordid.SnowflakeID, 
 	return copyPurchase(purchase)
 }
 
+// UpdatePurchase updates a purchase in the cache and database based on the given parameters.
 func UpdatePurchase(purchase *Purchase, mutate func(*Purchase) error) error {
 	const maxRetries = 3
 
@@ -390,6 +392,7 @@ func sendShopMessage(channelID string, content string) error {
 	return err
 }
 
+// sendDirectMessage sends a message to a user in a DM channel.
 func sendDirectMessage(memberID snowflake.ID, content string) error {
 	if client == nil {
 		return fmt.Errorf("discord client is nil")

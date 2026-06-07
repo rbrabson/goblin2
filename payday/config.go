@@ -10,6 +10,7 @@ var (
 	defaultConfig Config
 )
 
+// Config holds the configuration settings for the payday system.
 type Config struct {
 	PaydayAmount               int           `yaml:"payday_amount"`
 	PaydayFrequency            time.Duration `yaml:"-"`

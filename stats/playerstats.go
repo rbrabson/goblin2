@@ -565,6 +565,7 @@ func getString(value interface{}) string {
 	return ""
 }
 
+// getSnowflakeID is used to convert a value to a snowflake ID.
 func getSnowflakeID(value interface{}) discordid.SnowflakeID {
 	switch v := value.(type) {
 	case discordid.SnowflakeID:

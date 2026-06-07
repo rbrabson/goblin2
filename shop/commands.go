@@ -125,6 +125,7 @@ var (
 	}
 )
 
+// shopAdmin handles the /shop admin command.
 func shopAdmin(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	member := e.Member()
 	if member == nil {
@@ -181,6 +182,7 @@ func shopAdmin(data discord.SlashCommandInteractionData, e *handler.CommandEvent
 	}
 }
 
+// shop handles the /shop command.
 func shop(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	switch slashSubCommandName(data) {
 	case "list":
@@ -197,6 +199,7 @@ func shop(data discord.SlashCommandInteractionData, e *handler.CommandEvent) err
 	}
 }
 
+// addRoleToShop handles the /shop add-role command.
 func addRoleToShop(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	member := e.Member()
 	if member == nil {
@@ -254,6 +257,7 @@ func addRoleToShop(data discord.SlashCommandInteractionData, e *handler.CommandE
 	})
 }
 
+// removeRoleFromShop handles the /shop remove-role command.
 func removeRoleFromShop(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	member := e.Member()
 	if member == nil {
@@ -286,6 +290,7 @@ func removeRoleFromShop(data discord.SlashCommandInteractionData, e *handler.Com
 	})
 }
 
+// setShopChannel handles the /shop set-channel command.
 func setShopChannel(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	member := e.Member()
 	if member == nil {
@@ -305,6 +310,7 @@ func setShopChannel(data discord.SlashCommandInteractionData, e *handler.Command
 	})
 }
 
+// setShopModChannel handles the /shop set-mod-channel command.
 func setShopModChannel(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	member := e.Member()
 	if member == nil {
@@ -324,6 +330,7 @@ func setShopModChannel(data discord.SlashCommandInteractionData, e *handler.Comm
 	})
 }
 
+// getShopInfo handles the /shop info command.
 func getShopInfo(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	member := e.Member()
 	if member == nil {
@@ -347,6 +354,7 @@ func getShopInfo(_ discord.SlashCommandInteractionData, e *handler.CommandEvent)
 	})
 }
 
+// listShop handles the /shop list command.
 func listShop(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	member := e.Member()
 	if member == nil {
@@ -380,6 +388,7 @@ func listShop(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) er
 	return p.CreateInteractionResponse(e, "Shop", fields, true)
 }
 
+// buyRole handles the /shop buy command.
 func buyRole(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	member := e.Member()
 	if member == nil {
@@ -442,6 +451,7 @@ func buyRole(data discord.SlashCommandInteractionData, e *handler.CommandEvent) 
 	})
 }
 
+// listPurchases handles the /shop purchases command.
 func listPurchases(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	member := e.Member()
 	if member == nil {
@@ -475,6 +485,7 @@ func listPurchases(_ discord.SlashCommandInteractionData, e *handler.CommandEven
 	return p.CreateInteractionResponse(e, "Your Shop Purchases", fields, true)
 }
 
+// formatShopItem formats a shop item into a human-readable string.
 func formatShopItem(item *Item) string {
 	var parts []string
 
@@ -492,6 +503,7 @@ func formatShopItem(item *Item) string {
 	return strings.Join(parts, "\n")
 }
 
+// formatPurchase formats a purchase into a human-readable string.
 func formatPurchase(purchase *Purchase) string {
 	var parts []string
 
@@ -512,6 +524,7 @@ func formatPurchase(purchase *Purchase) string {
 	return strings.Join(parts, "\n")
 }
 
+// slashSubCommandName returns the subcommand name from the given slash command interaction data, or an empty string if there is no subcommand.
 func slashSubCommandName(data discord.SlashCommandInteractionData) string {
 	if data.SubCommandName == nil {
 		return ""
@@ -520,6 +533,7 @@ func slashSubCommandName(data discord.SlashCommandInteractionData) string {
 	return *data.SubCommandName
 }
 
+// stringValue returns the string value of the given option name from the given slash command interaction data or an empty string if the option is not present.
 func stringValue(data discord.SlashCommandInteractionData, name string) string {
 	value, ok := data.Options[name]
 	if !ok {
@@ -529,6 +543,7 @@ func stringValue(data discord.SlashCommandInteractionData, name string) string {
 	return fmt.Sprint(value)
 }
 
+// intValue returns the integer value of the given option name from the given slash command interaction data or 0 if the option is not present or cannot be parsed.
 func intValue(data discord.SlashCommandInteractionData, name string) int {
 	value, ok := data.Options[name]
 	if !ok {
@@ -548,6 +563,7 @@ func intValue(data discord.SlashCommandInteractionData, name string) int {
 	return parsed
 }
 
+// boolValue returns the boolean value of the given option name from the given slash command interaction data or false if the option is not present or cannot be parsed.
 func boolValue(data discord.SlashCommandInteractionData, name string) bool {
 	value, ok := data.Options[name]
 	if !ok {

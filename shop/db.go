@@ -371,6 +371,7 @@ func listMembers(guildID string) ([]*Member, error) {
 	return members, nil
 }
 
+// addVersionFilter adds the version filter to the given filter.
 func addVersionFilter(filter bson.M, version int) {
 	if version == 0 {
 		filter["$or"] = bson.A{
