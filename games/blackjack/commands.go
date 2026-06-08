@@ -555,7 +555,16 @@ func waitForBlackjackPlayers(game *Game) {
 // playBlackjackPlayers processes player turns.
 func playBlackjackPlayers(game *Game) {
 	for _, player := range game.Players() {
-		for _, hand := range player.Hands() {
+		if !player.IsActive() {
+			continue
+		}
+
+		for player.HasActiveHands() && player.IsActive() {
+			hand := player.CurrentHand()
+			if hand == nil {
+				break
+			}
+
 			hand.SetActive(true)
 
 			for hand.IsActive() {
@@ -591,6 +600,11 @@ func playBlackjackPlayers(game *Game) {
 						slog.Error("failed to update blackjack message after player timeout", slog.Any("error", err))
 					}
 				}
+			}
+
+			hand.SetActive(false)
+			if !player.MoveToNextActiveHand() {
+				player.SetActive(false)
 			}
 		}
 	}
@@ -738,10 +752,21 @@ func blackjackPlayerName(game *Game, player *bj.Player) string {
 // blackjackPlayerHands returns the rendered hands for a player.
 func blackjackPlayerHands(game *Game, player *bj.Player) string {
 	hands := make([]string, 0, len(player.Hands()))
+	activePlayer := game.GetActivePlayer()
+	activeHandIndex := -1
+	if activePlayer == player {
+		activeHandIndex = player.GetCurrentHandNumber()
+	}
+
 	for idx, hand := range player.Hands() {
-		handText := fmt.Sprintf("Hand %d: %s", idx+1, game.symbols.GetHand(hand, false))
+		handName := fmt.Sprintf("Hand %d", idx+1)
+		if activePlayer == player && idx == activeHandIndex && hand.IsActive() {
+			handName = fmt.Sprintf("▶ Hand %d", idx+1)
+		}
+
+		handText := fmt.Sprintf("%s: %s", handName, game.symbols.GetHand(hand, false))
 		if !game.IsWaitingForPlayers() && !game.IsStartingRound() && !game.IsDealingHands() {
-			handText = fmt.Sprintf("%s — %s", handText, blackjackHandResult(game, hand))
+			handText = fmt.Sprintf("%s\n%s", handText, blackjackHandResult(game, hand))
 		}
 		hands = append(hands, handText)
 	}
@@ -753,19 +778,41 @@ func blackjackPlayerHands(game *Game, player *bj.Player) string {
 
 // blackjackHandResult returns a readable result for a completed hand.
 func blackjackHandResult(game *Game, hand *bj.Hand) string {
+	winnings := hand.Winnings()
+
 	switch game.EvaluateHand(hand) {
 	case bj.PlayerBlackjack:
-		return "Blackjack"
+		return blackjackCreditResult(winnings, game.config.PayoutPercent)
 	case bj.PlayerWin:
-		return "Win"
+		return blackjackCreditResult(winnings, game.config.PayoutPercent)
 	case bj.DealerBlackjack:
-		return "Dealer blackjack"
+		return blackjackCreditResult(winnings, game.config.PayoutPercent)
 	case bj.DealerWin:
-		return "Loss"
+		return blackjackCreditResult(winnings, game.config.PayoutPercent)
 	case bj.Push:
 		return "Push"
 	default:
 		return "No result"
+	}
+}
+
+// blackjackCreditResult formats the hand result with the amount won or lost.
+func blackjackCreditResult(winnings int, payoutPercent int) string {
+	switch {
+	case winnings > 0:
+		winnings = winnings * payoutPercent / 100
+		if winnings == 1 {
+			return "Won 1 credit"
+		}
+		return fmt.Sprintf("Won %d credits", winnings)
+	case winnings < 0:
+		loss := -winnings
+		if loss == 1 {
+			return "Lost 1 credit"
+		}
+		return fmt.Sprintf("Lost %d credits", loss)
+	default:
+		return ""
 	}
 }
 
@@ -786,21 +833,50 @@ func blackjackComponents(game *Game) []discord.LayoutComponent {
 		return blackjackJoinComponents(game)
 	}
 
-	if game.IsDealingHands() {
-		return []discord.LayoutComponent{
-			discord.ActionRowComponent{
-				Components: []discord.InteractiveComponent{
-					game.hitButton,
-					game.standButton,
-					game.doubleDownButton,
-					game.splitButton,
-					game.surrenderButton,
-				},
-			},
-		}
+	if !game.IsDealingHands() {
+		return []discord.LayoutComponent{}
 	}
 
-	return []discord.LayoutComponent{}
+	buttons := blackjackActionButtons(game)
+	if len(buttons) == 0 {
+		return []discord.LayoutComponent{}
+	}
+
+	return []discord.LayoutComponent{
+		discord.ActionRowComponent{
+			Components: buttons,
+		},
+	}
+}
+
+// blackjackActionButtons returns only the action buttons valid for the current active hand.
+func blackjackActionButtons(game *Game) []discord.InteractiveComponent {
+	activePlayer := game.GetActivePlayer()
+	if activePlayer == nil {
+		return nil
+	}
+
+	currentHand := activePlayer.CurrentHand()
+	if currentHand == nil || !currentHand.IsActive() || currentHand.IsBusted() || currentHand.IsBlackjack() {
+		return nil
+	}
+
+	buttons := []discord.InteractiveComponent{
+		game.hitButton,
+		game.standButton,
+	}
+
+	if currentHand.CanDoubleDown() {
+		buttons = append(buttons, game.doubleDownButton)
+	}
+	if currentHand.CanSplit() {
+		buttons = append(buttons, game.splitButton)
+	}
+	if currentHand.CanSurrender() {
+		buttons = append(buttons, game.surrenderButton)
+	}
+
+	return buttons
 }
 
 // updateComponentResponse updates the interaction response with the given content.
