@@ -54,6 +54,10 @@ func writeConfig(config *Config) {
 	if id, ok := result.UpsertedID.(bson.ObjectID); ok {
 		config.ID = id
 	}
+
+	configCache.Set(configCacheKey{
+		guildID: config.GuildID,
+	}, *config)
 }
 
 // readMember loads the blackjack member from the database. If it does not exist, then

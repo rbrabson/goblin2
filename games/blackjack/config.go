@@ -36,7 +36,7 @@ func GetConfig(guildID discordid.SnowflakeID) *Config {
 	}
 
 	if cfg, ok := configCache.Get(key); ok {
-		return copyConfig(&cfg)
+		return runtimeConfig(&cfg)
 	}
 
 	cfg := readConfig(key.guildID)
@@ -45,15 +45,26 @@ func GetConfig(guildID discordid.SnowflakeID) *Config {
 		cfg.GuildID = guildID
 		writeConfig(cfg)
 	}
-	if cfg.SinglePlayerMode {
-		cfg.MaxPlayers = 1
-		cfg.WaitForPlayers = 0
-		cfg.ShowPlayerTurn = 0
-		cfg.ShowDealerTurn = 0
-	}
 
 	configCache.Set(key, *cfg)
-	return copyConfig(cfg)
+	return runtimeConfig(cfg)
+}
+
+// runtimeConfig returns a copy of the persisted config with runtime-only adjustments applied.
+func runtimeConfig(cfg *Config) *Config {
+	cfgCopy := copyConfig(cfg)
+	if cfgCopy == nil {
+		return nil
+	}
+
+	if cfgCopy.SinglePlayerMode {
+		cfgCopy.MaxPlayers = 1
+		cfgCopy.WaitForPlayers = 0
+		cfgCopy.ShowPlayerTurn = 0
+		cfgCopy.ShowDealerTurn = 0
+	}
+
+	return cfgCopy
 }
 
 // createNewConfig creates a new configuration with default values.

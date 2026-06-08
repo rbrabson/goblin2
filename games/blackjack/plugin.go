@@ -44,7 +44,7 @@ func (p *Plugin) Initialize(mongoDB *database.MongoDB, _ *bot.Client) {
 // GetHelp returns blackjack help.
 func (p *Plugin) GetHelp() map[string]string {
 	return map[string]string{
-		"/blackjack start": "Starts a new blackjack game.",
+		"/blackjack play":  "Starts a new blackjack game.",
 		"/blackjack stats": "Shows your blackjack statistics.",
 	}
 }
@@ -56,7 +56,12 @@ func (p *Plugin) GetName() string {
 
 // GetAdminHelp returns blackjack admin help.
 func (p *Plugin) GetAdminHelp() map[string]string {
-	return map[string]string{}
+	return map[string]string{
+		"/blackjack-admin config info":          "Shows the blackjack configuration.",
+		"/blackjack-admin config bet":           "Sets the blackjack bet amount.",
+		"/blackjack-admin config payout":        "Sets the blackjack payout percentage.",
+		"/blackjack-admin config single-player": "Enables or disables single-player blackjack mode.",
+	}
 }
 
 // Stop stops the blackjack plugin.
@@ -72,8 +77,12 @@ func (p *Plugin) Status() plugin.Status {
 // GetSlashHandlers returns slash command handlers for blackjack.
 func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	return map[string]handler.SlashCommandHandler{
-		"/blackjack/play":  playBlackjackHandler,
-		"/blackjack/stats": blackjackStatsHandler,
+		"/blackjack/play":                       playBlackjackHandler,
+		"/blackjack/stats":                      blackjackStatsHandler,
+		"/blackjack-admin/config/info":          configInfoHandler,
+		"/blackjack-admin/config/bet":           configBetAmountHandler,
+		"/blackjack-admin/config/payout":        configPayoutPercentHandler,
+		"/blackjack-admin/config/single-player": configSinglePlayerHandler,
 	}
 }
 
@@ -91,5 +100,8 @@ func (p *Plugin) GetComponentHandlers() map[string]handler.ComponentHandler {
 
 // GetSlashCommands returns blackjack slash commands.
 func (p *Plugin) GetSlashCommands() []discord.ApplicationCommandCreate {
-	return memberCommands
+	commands := make([]discord.ApplicationCommandCreate, 0, len(adminCommands)+len(memberCommands))
+	commands = append(commands, adminCommands...)
+	commands = append(commands, memberCommands...)
+	return commands
 }

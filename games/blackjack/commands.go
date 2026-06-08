@@ -22,15 +22,74 @@ var (
 	memberCommands = []discord.ApplicationCommandCreate{
 		discord.SlashCommandCreate{
 			Name:        "blackjack",
-			Description: "Blackjack game commands.",
+			Description: "Interacts with the blackjack table.",
 			Options: []discord.ApplicationCommandOption{
 				discord.ApplicationCommandOptionSubCommand{
 					Name:        "play",
-					Description: "Starts a new blackjack game.",
+					Description: "Play the blackjack game.",
 				},
 				discord.ApplicationCommandOptionSubCommand{
 					Name:        "stats",
-					Description: "Returns your blackjack stats.",
+					Description: "Shows a user's stats.",
+					Options: []discord.ApplicationCommandOption{
+						discord.ApplicationCommandOptionUser{
+							Name:        "user",
+							Description: "The member or member ID.",
+							Required:    false,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	adminCommands = []discord.ApplicationCommandCreate{
+		discord.SlashCommandCreate{
+			Name:        "blackjack-admin",
+			Description: "Configures the blackjack game.",
+			Options: []discord.ApplicationCommandOption{
+				discord.ApplicationCommandOptionSubCommandGroup{
+					Name:        "config",
+					Description: "Configures the blackjack game.",
+					Options: []discord.ApplicationCommandOptionSubCommand{
+						{
+							Name:        "info",
+							Description: "Returns the configuration information for the server.",
+						},
+						{
+							Name:        "bet",
+							Description: "Sets the bet amount.",
+							Options: []discord.ApplicationCommandOption{
+								discord.ApplicationCommandOptionInt{
+									Name:        "amount",
+									Description: "The amount to set the bet to.",
+									Required:    true,
+								},
+							},
+						},
+						{
+							Name:        "payout",
+							Description: "The base payout percentage when winning a game.",
+							Options: []discord.ApplicationCommandOption{
+								discord.ApplicationCommandOptionInt{
+									Name:        "percent",
+									Description: "The amount to set the payout percentage to.",
+									Required:    true,
+								},
+							},
+						},
+						{
+							Name:        "single-player",
+							Description: "Controls whether the game is single-player only or allows multiple players to join.",
+							Options: []discord.ApplicationCommandOption{
+								discord.ApplicationCommandOptionBool{
+									Name:        "enabled",
+									Description: "Whether single-player mode is enabled.",
+									Required:    true,
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -54,8 +113,6 @@ func playBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.Comm
 	guildID := discordid.NewSnowflakeID(member.GuildID)
 	memberID := discordid.NewSnowflakeID(member.User.ID)
 
-	guildID = discordid.NewSnowflakeID(member.GuildID)
-	memberID = discordid.NewSnowflakeID(member.User.ID)
 	guild.GetGuild(guildID).GetMember(&member.Member)
 
 	game, err := StartGame(guildID, memberID)
@@ -93,7 +150,7 @@ func playBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.Comm
 }
 
 // blackjackStatsHandler returns a player's blackjack stats.
-func blackjackStatsHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+func blackjackStatsHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}
@@ -106,36 +163,223 @@ func blackjackStatsHandler(_ discord.SlashCommandInteractionData, e *handler.Com
 		})
 	}
 
-	guildID := discordid.NewSnowflakeID(member.GuildID)
-	memberID := discordid.NewSnowflakeID(member.User.ID)
-
-	stats := GetMember(guildID, memberID)
 	p := message.NewPrinter(language.AmericanEnglish)
 
-	inline := true
-	embeds := []discord.Embed{
-		{
-			Type:  discord.EmbedTypeRich,
-			Title: member.EffectiveName(),
-			Fields: []discord.EmbedField{
-				{Name: "Rounds Played", Value: p.Sprintf("%d", stats.RoundsPlayed), Inline: &inline},
-				{Name: "Hands Played", Value: p.Sprintf("%d", stats.HandsPlayed), Inline: &inline},
-				{Name: "Wins", Value: p.Sprintf("%d", stats.Wins), Inline: &inline},
-				{Name: "Losses", Value: p.Sprintf("%d", stats.Losses), Inline: &inline},
-				{Name: "Pushes", Value: p.Sprintf("%d", stats.Pushes), Inline: &inline},
-				{Name: "Blackjacks", Value: p.Sprintf("%d", stats.Blackjacks), Inline: &inline},
-				{Name: "Splits", Value: p.Sprintf("%d", stats.Splits), Inline: &inline},
-				{Name: "Surrenders", Value: p.Sprintf("%d", stats.Surrenders), Inline: &inline},
-				{Name: "Credits Bet", Value: p.Sprintf("%d", stats.CreditsBet), Inline: &inline},
-				{Name: "Credits Won", Value: p.Sprintf("%d", stats.CreditsWon), Inline: &inline},
-				{Name: "Credits Lost", Value: p.Sprintf("%d", stats.CreditsLost), Inline: &inline},
+	targetUserID := member.User.ID
+	targetUserName := member.User.Username
+
+	if user, ok := data.OptUser("user"); ok {
+		targetUserID = user.ID
+		targetUserName = user.Username
+	}
+
+	guildID := discordid.NewSnowflakeID(member.GuildID)
+	stats := GetMember(guildID, discordid.NewSnowflakeID(targetUserID))
+
+	totalGames := stats.Wins + stats.Losses + stats.Pushes
+	winRate := 0.0
+	if totalGames > 0 {
+		winRate = float64(stats.Wins) / float64(totalGames) * 100
+	}
+
+	netCredits := stats.CreditsWon - stats.CreditsLost
+
+	displayName := "Your"
+	if targetUserID != member.User.ID {
+		displayName = targetUserName + "'s"
+
+		if guildMember, err := guild.GetMemberByID(guildID, discordid.NewSnowflakeID(targetUserID)); err == nil && guildMember != nil && guildMember.Name != "" {
+			displayName = guildMember.Name + "'s"
+		}
+	}
+
+	inlineFalse := false
+	inlineTrue := true
+
+	embed := discord.Embed{
+		Type:  discord.EmbedTypeRich,
+		Title: fmt.Sprintf("🃏 %s Blackjack Statistics", displayName),
+		Color: 0x2f3136,
+		Fields: []discord.EmbedField{
+			{
+				Name: "📊 Game Summary",
+				Value: fmt.Sprintf("**Rounds Played:** %s\n**Hands Played:** %s\n**Win Rate:** %.1f%%",
+					p.Sprintf("%d", stats.RoundsPlayed),
+					p.Sprintf("%d", stats.HandsPlayed),
+					winRate,
+				),
+				Inline: &inlineFalse,
+			},
+			{
+				Name: "🎯 Hand Results",
+				Value: fmt.Sprintf("**Wins:** %s\n**Losses:** %s\n**Pushes:** %s",
+					p.Sprintf("%d", stats.Wins),
+					p.Sprintf("%d", stats.Losses),
+					p.Sprintf("%d", stats.Pushes),
+				),
+				Inline: &inlineTrue,
+			},
+			{
+				Name: "🎴 Special Hands",
+				Value: fmt.Sprintf("**Blackjacks:** %s\n**Splits:** %s\n**Surrenders:** %s",
+					p.Sprintf("%d", stats.Blackjacks),
+					p.Sprintf("%d", stats.Splits),
+					p.Sprintf("%d", stats.Surrenders),
+				),
+				Inline: &inlineTrue,
+			},
+			{
+				Name: "💰 Credits",
+				Value: fmt.Sprintf("**Total Bet:** %s\n**Credits Won:** %s\n**Credits Lost:** %s\n**Net:** %s",
+					p.Sprintf("%d", stats.CreditsBet),
+					p.Sprintf("%d", stats.CreditsWon),
+					p.Sprintf("%d", stats.CreditsLost),
+					formatNetCredits(netCredits, p),
+				),
+				Inline: &inlineFalse,
 			},
 		},
 	}
 
+	if !stats.LastPlayed.IsZero() {
+		embed.Fields = append(embed.Fields, discord.EmbedField{
+			Name:   "🕒 Last Played",
+			Value:  fmt.Sprintf("<t:%d:R>", stats.LastPlayed.Unix()),
+			Inline: &inlineFalse,
+		})
+	}
+
+	if stats.RoundsPlayed == 0 {
+		embed.Description = "*No blackjack games played yet. Join a game to start tracking statistics!*"
+	} else {
+		avgHandsPerRound := float64(stats.HandsPlayed) / float64(stats.RoundsPlayed)
+		embed.Footer = &discord.EmbedFooter{
+			Text: fmt.Sprintf("Average %.1f hands per round", avgHandsPerRound),
+		}
+	}
+
 	return e.CreateMessage(discord.MessageCreate{
-		Embeds: embeds,
+		Embeds: []discord.Embed{embed},
 		Flags:  discord.MessageFlagEphemeral,
+	})
+}
+
+// configBetAmountHandler sets the bet amount for the blackjack game on this server.
+func configBetAmountHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
+	member := e.Member()
+	if member == nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "This command can only be used in a server.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	guildID := discordid.NewSnowflakeID(member.GuildID)
+	betAmount := data.Int("amount")
+
+	config := GetConfig(guildID)
+	config.BetAmount = betAmount
+	writeConfig(config)
+
+	p := message.NewPrinter(language.AmericanEnglish)
+	slog.Info("blackjack bet amount updated", slog.Any("guildID", guildID), slog.Int("betAmount", betAmount))
+
+	return e.CreateMessage(discord.MessageCreate{
+		Content: p.Sprintf("Bet amount set to %d", betAmount),
+	})
+}
+
+// configPayoutPercentHandler sets the payout percent for the blackjack game on this server.
+func configPayoutPercentHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
+	member := e.Member()
+	if member == nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "This command can only be used in a server.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	guildID := discordid.NewSnowflakeID(member.GuildID)
+	payoutPercent := data.Int("percent")
+
+	config := GetConfig(guildID)
+	config.PayoutPercent = payoutPercent
+	writeConfig(config)
+
+	p := message.NewPrinter(language.AmericanEnglish)
+	slog.Info("blackjack payout percent updated", slog.Any("guildID", guildID), slog.Int("payoutPercent", payoutPercent))
+
+	return e.CreateMessage(discord.MessageCreate{
+		Content: p.Sprintf("Payout percent set to %d", payoutPercent),
+	})
+}
+
+// configSinglePlayerHandler sets the single-player mode for the blackjack game on this server.
+func configSinglePlayerHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
+	member := e.Member()
+	if member == nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "This command can only be used in a server.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	guildID := discordid.NewSnowflakeID(member.GuildID)
+	singlePlayer := data.Bool("enabled")
+
+	config := GetConfig(guildID)
+	config.SinglePlayerMode = singlePlayer
+	writeConfig(config)
+
+	p := message.NewPrinter(language.AmericanEnglish)
+	slog.Info("blackjack single-player mode updated", slog.Any("guildID", guildID), slog.Bool("singlePlayerMode", singlePlayer))
+
+	return e.CreateMessage(discord.MessageCreate{
+		Content: p.Sprintf("Single-player mode set to %t", singlePlayer),
+	})
+}
+
+// configInfoHandler returns the configuration for the blackjack game on this server.
+func configInfoHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
+	member := e.Member()
+	if member == nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "This command can only be used in a server.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	config := GetConfig(discordid.NewSnowflakeID(member.GuildID))
+	inline := true
+
+	return e.CreateMessage(discord.MessageCreate{
+		Content: "Blackjack Configuration",
+		Embeds: []discord.Embed{
+			{
+				Fields: []discord.EmbedField{
+					{Name: "bet amount", Value: fmt.Sprintf("%d", config.BetAmount), Inline: &inline},
+					{Name: "payout percent", Value: fmt.Sprintf("%d", config.PayoutPercent), Inline: &inline},
+					{Name: "single player", Value: fmt.Sprintf("%t", config.SinglePlayerMode), Inline: &inline},
+				},
+			},
+		},
+		Flags: discord.MessageFlagEphemeral,
 	})
 }
 
@@ -390,13 +634,17 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 		return nil
 	}
 
+	embeds := blackjackEmbeds(game, hideDealerCard)
+	components := blackjackComponents(game)
+	content := ""
+
 	_, err := game.interaction.Client().Rest.UpdateInteractionResponse(
 		game.interaction.ApplicationID(),
 		game.interaction.Token(),
 		discord.MessageUpdate{
-			Content:    new(string),
-			Embeds:     new(blackjackEmbeds(game, hideDealerCard)),
-			Components: new(blackjackComponents(game)),
+			Content:    &content,
+			Embeds:     &embeds,
+			Components: &components,
 		},
 	)
 	return err
@@ -561,4 +809,16 @@ func updateComponentResponse(e *handler.ComponentEvent, content string) error {
 		Content: &content,
 	})
 	return err
+}
+
+// formatNetCredits formats the net credits with the appropriate color coding.
+func formatNetCredits(netCredits int, p *message.Printer) string {
+	switch {
+	case netCredits > 0:
+		return fmt.Sprintf("**+%s** 📈", p.Sprintf("%d", netCredits))
+	case netCredits < 0:
+		return fmt.Sprintf("**%s** 📉", p.Sprintf("%d", netCredits))
+	default:
+		return "**0** ➖"
+	}
 }
