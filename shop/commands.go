@@ -455,6 +455,60 @@ func buyRoleButtonHandler(e *handler.ComponentEvent) error {
 		})
 	}
 
+	return e.CreateMessage(discord.MessageCreate{
+		Content: fmt.Sprintf(
+			"Please confirm that you want to purchase role `%s` for %d credits.",
+			role.Name,
+			role.Price,
+		),
+		Flags: discord.MessageFlagEphemeral,
+		Components: []discord.LayoutComponent{
+			discord.ActionRowComponent{
+				Components: []discord.InteractiveComponent{
+					discord.ButtonComponent{
+						Label:    "Confirm Purchase",
+						Style:    discord.ButtonStyleSuccess,
+						CustomID: shopConfirmBuyRoleComponentID(roleName),
+					},
+				},
+			},
+		},
+	})
+}
+
+// confirmBuyRoleButtonHandler completes the purchase of a role after the member confirms it.
+func confirmBuyRoleButtonHandler(e *handler.ComponentEvent) error {
+	member := e.Member()
+	if member == nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "This button can only be used in a server.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	roleName := strings.TrimSpace(e.Vars["roleName"])
+	if roleName == "" {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Invalid shop role confirmation button.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	if err := rolePurchaseChecks(discordid.NewSnowflakeID(member.GuildID), discordid.NewSnowflakeID(member.User.ID), roleName); err != nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: format.FirstToUpper(err.Error()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	role := GetRole(discordid.NewSnowflakeID(member.GuildID), roleName)
+	if role == nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: fmt.Sprintf("Role `%s` was not found in the shop.", roleName),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
 	purchase, err := role.Purchase(discordid.NewSnowflakeID(member.User.ID), false)
 	if err != nil {
 		return e.CreateMessage(discord.MessageCreate{

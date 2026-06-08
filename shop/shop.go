@@ -16,10 +16,17 @@ import (
 const (
 	shopBuyRoleComponentRoute = "/shop/buy-role/{roleName}"
 	shopBuyRoleComponentPath  = "/shop/buy-role"
+
+	shopConfirmBuyRoleComponentRoute = "/shop/confirm-buy-role/{roleName}"
+	shopConfirmBuyRoleComponentPath  = "/shop/confirm-buy-role"
 )
 
 func shopBuyRoleComponentID(roleName string) string {
 	return shopBuyRoleComponentPath + "/" + roleName
+}
+
+func shopConfirmBuyRoleComponentID(roleName string) string {
+	return shopConfirmBuyRoleComponentPath + "/" + roleName
 }
 
 // Shop is the shop for a guild. The shop contains all items available for purchase.

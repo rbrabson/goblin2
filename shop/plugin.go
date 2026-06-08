@@ -104,6 +104,7 @@ func (p *Plugin) GetSlashCommands() []discord.ApplicationCommandCreate {
 // GetComponentHandlers returns the component handlers for the shop plugin.
 func (p *Plugin) GetComponentHandlers() map[string]handler.ComponentHandler {
 	return map[string]handler.ComponentHandler{
-		shopBuyRoleComponentRoute: buyRoleButtonHandler,
+		shopBuyRoleComponentRoute:        buyRoleButtonHandler,
+		shopConfirmBuyRoleComponentRoute: confirmBuyRoleButtonHandler,
 	}
 }
