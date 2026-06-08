@@ -72,7 +72,7 @@ func (p *Plugin) Status() plugin.Status {
 // GetSlashHandlers returns slash command handlers for blackjack.
 func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	return map[string]handler.SlashCommandHandler{
-		"/blackjack/start": playBlackjackHandler,
+		"/blackjack/play":  playBlackjackHandler,
 		"/blackjack/stats": blackjackStatsHandler,
 	}
 }

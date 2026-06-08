@@ -200,13 +200,12 @@ func blackjackSurrenderButtonHandler(e *handler.ComponentEvent) error {
 
 // blackjackAction handles a player action button.
 func blackjackAction(e *handler.ComponentEvent, action Action) error {
-	if err := e.DeferCreateMessage(true); err != nil {
-		slog.Error("failed to defer blackjack action component response", slog.Any("error", err))
-	}
-
 	member := e.Member()
 	if member == nil {
-		return updateComponentResponse(e, "This command can only be used in a server.")
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "This command can only be used in a server.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
 	guildID := discordid.NewSnowflakeID(member.GuildID)
@@ -214,14 +213,20 @@ func blackjackAction(e *handler.ComponentEvent, action Action) error {
 
 	game := GetGame(guildID, getUIDFromComponent(e))
 	if game == nil {
-		return updateComponentResponse(e, "No blackjack game is in progress.")
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "No blackjack game is in progress.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
 	if err := game.PlayerActionRequest(memberID, action); err != nil {
-		return updateComponentResponse(e, format.FirstToUpper(err.Error()))
+		return e.CreateMessage(discord.MessageCreate{
+			Content: format.FirstToUpper(err.Error()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
-	return updateComponentResponse(e, fmt.Sprintf("You chose %d.", action))
+	return e.DeferUpdateMessage()
 }
 
 // runBlackjack runs the blackjack lifecycle after the slash command interaction has been acknowledged.
@@ -263,6 +268,7 @@ func runBlackjack(game *Game) {
 	playBlackjackDealer(game)
 
 	game.PayoutResults()
+	game.SetState(Completed)
 
 	if err := updateBlackjackMessage(game, false); err != nil {
 		slog.Error("failed to update final blackjack message", slog.Any("error", err))
@@ -318,6 +324,10 @@ func playBlackjackPlayers(game *Game) {
 						)
 					}
 
+					if err := updateBlackjackMessage(game, true); err != nil {
+						slog.Error("failed to update blackjack message after player action", slog.Any("error", err))
+					}
+
 				case <-time.After(game.config.PlayerTimeout):
 					if err := game.PlayerStand(player); err != nil {
 						slog.Warn("failed to auto-stand blackjack player",
@@ -325,6 +335,10 @@ func playBlackjackPlayers(game *Game) {
 							slog.String("player", player.Name()),
 							slog.Any("error", err),
 						)
+					}
+
+					if err := updateBlackjackMessage(game, true); err != nil {
+						slog.Error("failed to update blackjack message after player timeout", slog.Any("error", err))
 					}
 				}
 			}
@@ -431,6 +445,8 @@ func blackjackStatus(game *Game) string {
 			return fmt.Sprintf("It is <@%s>'s turn.", activePlayer.Name())
 		}
 		return "Blackjack is in progress."
+	case game.IsCompleted():
+		return "Blackjack has ended."
 	default:
 		return "Blackjack has ended."
 	}
@@ -449,12 +465,34 @@ func blackjackPlayerTitle(game *Game, player *bj.Player) string {
 func blackjackPlayerHands(game *Game, player *bj.Player) string {
 	hands := make([]string, 0, len(player.Hands()))
 	for idx, hand := range player.Hands() {
-		hands = append(hands, fmt.Sprintf("Hand %d: %s", idx+1, game.symbols.GetHand(hand, false)))
+		handText := fmt.Sprintf("Hand %d: %s", idx+1, game.symbols.GetHand(hand, false))
+		if !game.IsWaitingForPlayers() && !game.IsStartingRound() && !game.IsDealingHands() {
+			handText = fmt.Sprintf("%s — %s", handText, blackjackHandResult(game, hand))
+		}
+		hands = append(hands, handText)
 	}
 	if len(hands) == 0 {
 		return "\u200b"
 	}
 	return strings.Join(hands, "\n")
+}
+
+// blackjackHandResult returns a readable result for a completed hand.
+func blackjackHandResult(game *Game, hand *bj.Hand) string {
+	switch game.EvaluateHand(hand) {
+	case bj.PlayerBlackjack:
+		return "Blackjack"
+	case bj.PlayerWin:
+		return "Win"
+	case bj.DealerBlackjack:
+		return "Dealer blackjack"
+	case bj.DealerWin:
+		return "Loss"
+	case bj.Push:
+		return "Push"
+	default:
+		return "No result"
+	}
 }
 
 // blackjackJoinComponents returns only the join button row.

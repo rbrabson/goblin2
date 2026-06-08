@@ -54,16 +54,7 @@ func (s *Symbols) GetHand(hand *bj.Hand, hidden bool) string {
 		if hidden && idx == 0 {
 			cardsInHand = append(cardsInHand, s.Cards.Back)
 		} else {
-			switch card.Suit {
-			case cards.Clubs:
-				switch card.Rank {
-				case cards.Ace:
-					cardsInHand = append(cardsInHand, s.Clubs.Ace)
-				}
-			case cards.Diamonds:
-			case cards.Hearts:
-			case cards.Spades:
-			}
+			cardsInHand = append(cardsInHand, s.getCard(card))
 		}
 	}
 	sb.WriteString(strings.Join(cardsInHand, ""))

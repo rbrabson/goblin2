@@ -28,6 +28,7 @@ const (
 	WaitingForPlayers
 	StartingRound
 	DealingHands
+	Completed
 )
 
 type Action int
@@ -302,6 +303,11 @@ func (g *Game) IsStartingRound() bool {
 // IsDealingHands returns whether the blackjack game is currently dealing initial hands to players.
 func (g *Game) IsDealingHands() bool {
 	return g.state == DealingHands
+}
+
+// IsCompleted returns whether the blackjack game has completed.
+func (g *Game) IsCompleted() bool {
+	return g.state == Completed
 }
 
 // SecondsBeforeStart returns the number of seconds remaining to wait for players
@@ -642,9 +648,26 @@ func getUIDFromCustomID(customID string) string {
 	return parts[len(parts)-1]
 }
 
-// getUIDFromComponent extracts the unique game identifier from a Disgo component event.
 func getUIDFromComponent(e *handler.ComponentEvent) string {
 	return getUIDFromCustomID(e.Data.CustomID())
+}
+
+// String returns a string representation of the Action type.
+func (a Action) String() string {
+	switch a {
+	case Hit:
+		return "Hit"
+	case Stand:
+		return "Stand"
+	case DoubleDown:
+		return "Double Down"
+	case Split:
+		return "Split"
+	case Surrender:
+		return "Surrender"
+	default:
+		return "Unknown"
+	}
 }
 
 // String returns a string representation of the GameState type for logging and debugging purposes.
@@ -658,6 +681,8 @@ func (s GameState) String() string {
 		return "Starting Round"
 	case DealingHands:
 		return "Dealing Hands"
+	case Completed:
+		return "Completed"
 	default:
 		return "Unknown State"
 	}
