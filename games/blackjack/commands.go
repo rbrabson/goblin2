@@ -18,6 +18,19 @@ import (
 	"golang.org/x/text/message"
 )
 
+const (
+	// active and inactive hands
+	active   = "🟢"
+	inactive = "⚪"
+
+	// tree structure
+	intermediate = "├─"
+	final        = "└─"
+
+	// dash used for spacing
+	indent = "\u2003"
+)
+
 var (
 	memberCommands = []discord.ApplicationCommandCreate{
 		discord.SlashCommandCreate{
@@ -667,13 +680,13 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 // blackjackEmbeds returns the blackjack game embeds.
 func blackjackEmbeds(game *Game, hideDealerCard bool) []discord.Embed {
 	inline := false
-	fields := make([]discord.EmbedField, 0, len(game.Players())+2)
-
-	fields = append(fields, discord.EmbedField{
-		Name:   blackjackStatus(game),
-		Value:  "\u200b",
-		Inline: &inline,
-	})
+	fields := []discord.EmbedField{
+		{
+			Name:   blackjackStatus(game),
+			Value:  "\u200b",
+			Inline: &inline,
+		},
+	}
 
 	if game.Dealer() != nil && len(game.Dealer().Hand().Cards()) > 0 {
 		fields = append(fields, discord.EmbedField{
@@ -683,21 +696,23 @@ func blackjackEmbeds(game *Game, hideDealerCard bool) []discord.Embed {
 		})
 	}
 
-	for _, player := range game.Players() {
-		fields = append(fields, discord.EmbedField{
-			Name:   blackjackPlayerTitle(game, player),
-			Value:  blackjackPlayerHands(game, player),
-			Inline: &inline,
-		})
-	}
-
-	return []discord.Embed{
+	embeds := []discord.Embed{
 		{
 			Type:   discord.EmbedTypeRich,
 			Title:  "Blackjack",
 			Fields: fields,
 		},
 	}
+
+	for _, player := range game.Players() {
+		embeds = append(embeds, discord.Embed{
+			Type:        discord.EmbedTypeRich,
+			Title:       blackjackPlayerTitle(game, player),
+			Description: blackjackPlayerHands(game, player),
+		})
+	}
+
+	return embeds
 }
 
 // blackjackStatus returns a short status line for the game.
@@ -720,14 +735,13 @@ func blackjackStatus(game *Game) string {
 	}
 }
 
-// blackjackPlayerTitle returns the title for a player field.
+// blackjackPlayerTitle returns the title for a player embed.
 func blackjackPlayerTitle(game *Game, player *bj.Player) string {
 	name := blackjackPlayerName(game, player)
-	activePlayer := game.GetActivePlayer()
-	if activePlayer != nil && activePlayer == player {
-		return fmt.Sprintf("▶ %s", name)
+	if game.GetActivePlayer() == player {
+		return fmt.Sprintf("%s %s", active, name)
 	}
-	return name
+	return fmt.Sprintf("%s %s", inactive, name)
 }
 
 // blackjackPlayerName returns a readable display name for a blackjack player.
@@ -759,14 +773,22 @@ func blackjackPlayerHands(game *Game, player *bj.Player) string {
 	}
 
 	for idx, hand := range player.Hands() {
-		handName := fmt.Sprintf("Hand %d", idx+1)
-		if activePlayer == player && idx == activeHandIndex && hand.IsActive() {
-			handName = fmt.Sprintf("▶ Hand %d", idx+1)
+		treePrefix := intermediate
+		if idx == len(player.Hands())-1 {
+			treePrefix = final
 		}
 
-		handText := fmt.Sprintf("%s: %s", handName, game.symbols.GetHand(hand, false))
+		statusPrefix := inactive
+		if activePlayer == player && idx == activeHandIndex && hand.IsActive() {
+			statusPrefix = active
+		}
+
+		handText := fmt.Sprintf("%s %s Hand %d: %s", treePrefix, statusPrefix, idx+1, game.symbols.GetHand(hand, false))
 		if !game.IsWaitingForPlayers() && !game.IsStartingRound() && !game.IsDealingHands() {
-			handText = fmt.Sprintf("%s\n%s", handText, blackjackHandResult(game, hand))
+			result := blackjackHandResult(game, hand)
+			if result != "" {
+				handText = fmt.Sprintf("%s\n%s%s%s %s", handText, indent, indent, indent, result)
+			}
 		}
 		hands = append(hands, handText)
 	}
