@@ -35,7 +35,8 @@ RUN mkdir -p /licenses
 ADD LICENSE /licenses
 
 RUN mkdir -p /yaml
-ADD yaml /yaml/
+#ADD yaml /yaml/
+COPY ./yaml /yaml/
 
 WORKDIR /
 

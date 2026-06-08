@@ -121,6 +121,9 @@ func main() {
 		slog.Info("failed to load .env file", "error", err)
 	}
 	configPath := os.Getenv("GOBLIN_CONFIG_PATH")
+	if configPath == "" {
+		configPath = "./yaml"
+	}
 
 	logPath := filepath.Join(configPath, "log/config.yaml")
 	var logConfig log.Config

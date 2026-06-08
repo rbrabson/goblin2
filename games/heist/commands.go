@@ -610,7 +610,7 @@ func joinHeistButtonHandler(e *handler.ComponentEvent) error {
 
 	slog.Info("player joined heist",
 		slog.Any("guildID", heist.GuildID),
-		slog.Any("memberID", member.User.ID),
+		slog.Any("member", member.EffectiveName()),
 	)
 	p := message.NewPrinter(language.AmericanEnglish)
 	return updateComponentResponse(e, p.Sprintf("You have joined the %s at a cost of %d credits.", heist.config.Theme.Heist, heist.config.HeistCost))
