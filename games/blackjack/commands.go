@@ -664,17 +664,13 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 		return nil
 	}
 
-	embeds := blackjackEmbeds(game, hideDealerCard)
-	components := blackjackComponents(game)
-	content := ""
-
 	_, err := game.interaction.Client().Rest.UpdateInteractionResponse(
 		game.interaction.ApplicationID(),
 		game.interaction.Token(),
 		discord.MessageUpdate{
-			Content:    &content,
-			Embeds:     &embeds,
-			Components: &components,
+			Content:    new(""),
+			Embeds:     new(blackjackEmbeds(game, hideDealerCard)),
+			Components: new(blackjackComponents(game)),
 		},
 	)
 	return err
@@ -682,7 +678,27 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 
 // blackjackEmbeds returns the blackjack game embeds.
 func blackjackEmbeds(game *Game, hideDealerCard bool) []discord.Embed {
+	embeds := []discord.Embed{
+		{
+			Type:   discord.EmbedTypeRich,
+			Title:  symbols.Cards.Multiple + " Blackjack " + symbols.Cards.Multiple,
+			Fields: blackjackGameEmbedFields(game, hideDealerCard),
+		},
+	}
 
+	for _, player := range game.Players() {
+		embeds = append(embeds, discord.Embed{
+			Type:        discord.EmbedTypeRich,
+			Title:       blackjackPlayerTitle(game, player),
+			Description: blackjackPlayerHands(game, player),
+			Color:       blackjackPlayerEmbedColor(game, player),
+		})
+	}
+
+	return embeds
+}
+
+func blackjackGameEmbedFields(game *Game, hideDealerCard bool) []discord.EmbedField {
 	fields := []discord.EmbedField{
 		{
 			Name:   blackjackStatus(game),
@@ -699,24 +715,7 @@ func blackjackEmbeds(game *Game, hideDealerCard bool) []discord.Embed {
 		})
 	}
 
-	embeds := []discord.Embed{
-		{
-			Type:   discord.EmbedTypeRich,
-			Title:  symbols.Cards.Multiple + " Blackjack " + symbols.Cards.Multiple,
-			Fields: fields,
-		},
-	}
-
-	for _, player := range game.Players() {
-		embeds = append(embeds, discord.Embed{
-			Type:        discord.EmbedTypeRich,
-			Title:       blackjackPlayerTitle(game, player),
-			Description: blackjackPlayerHands(game, player),
-			Color:       blackjackPlayerEmbedColor(game, player),
-		})
-	}
-
-	return embeds
+	return fields
 }
 
 // blackjackPlayerEmbedColor returns the embed color for a player.
@@ -756,11 +755,7 @@ func blackjackStatus(game *Game) string {
 
 // blackjackPlayerTitle returns the title for a player embed.
 func blackjackPlayerTitle(game *Game, player *bj.Player) string {
-	name := blackjackPlayerName(game, player)
-	if game.GetActivePlayer() == player {
-		return fmt.Sprintf("%s %s", active, name)
-	}
-	return fmt.Sprintf("%s %s", inactive, name)
+	return blackjackPlayerName(game, player)
 }
 
 // blackjackPlayerName returns a readable display name for a blackjack player.
