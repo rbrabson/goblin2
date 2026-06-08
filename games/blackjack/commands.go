@@ -664,17 +664,13 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 		return nil
 	}
 
-	embeds := blackjackEmbeds(game, hideDealerCard)
-	components := blackjackComponents(game)
-	content := ""
-
 	_, err := game.interaction.Client().Rest.UpdateInteractionResponse(
 		game.interaction.ApplicationID(),
 		game.interaction.Token(),
 		discord.MessageUpdate{
-			Content:    &content,
-			Embeds:     &embeds,
-			Components: &components,
+			Content:    new(""),
+			Embeds:     new(blackjackEmbeds(game, hideDealerCard)),
+			Components: new(blackjackComponents(game)),
 		},
 	)
 	return err
@@ -682,41 +678,68 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 
 // blackjackEmbeds returns the blackjack game embeds.
 func blackjackEmbeds(game *Game, hideDealerCard bool) []discord.Embed {
-	inline := false
+	embeds := []discord.Embed{
+		{
+			Type:   discord.EmbedTypeRich,
+			Title:  symbols.Cards.Multiple + " Blackjack " + symbols.Cards.Multiple,
+			Fields: blackjackGameEmbedFields(game, hideDealerCard),
+		},
+	}
+
+	if !game.IsWaitingForPlayers() {
+		for _, player := range game.Players() {
+			embeds = append(embeds, discord.Embed{
+				Type:        discord.EmbedTypeRich,
+				Title:       blackjackPlayerTitle(game, player),
+				Description: blackjackPlayerHands(game, player),
+				Color:       blackjackPlayerEmbedColor(game, player),
+			})
+		}
+	}
+
+	return embeds
+}
+
+// blackjackGameEmbedFields returns the blackjack game embed fields.
+func blackjackGameEmbedFields(game *Game, hideDealerCard bool) []discord.EmbedField {
+	p := message.NewPrinter(language.AmericanEnglish)
+
 	fields := []discord.EmbedField{
 		{
 			Name:   blackjackStatus(game),
 			Value:  "\u200b",
-			Inline: &inline,
+			Inline: new(false),
 		},
+	}
+
+	if game.IsWaitingForPlayers() {
+		fields = append(fields, discord.EmbedField{
+			Name:   "Status",
+			Value:  p.Sprintf("Starts in %s", format.Duration(time.Until(game.gameStartTime))),
+			Inline: new(true),
+		})
+
+		playerNames := make([]string, 0, len(game.Players()))
+		for _, player := range game.Players() {
+			playerNames = append(playerNames, blackjackPlayerName(game, player))
+		}
+
+		fields = append(fields, discord.EmbedField{
+			Name:   "Players",
+			Value:  p.Sprintf(strings.Join(playerNames, "\n")),
+			Inline: new(true),
+		})
 	}
 
 	if game.Dealer() != nil && len(game.Dealer().Hand().Cards()) > 0 {
 		fields = append(fields, discord.EmbedField{
 			Name:   "Dealer",
 			Value:  game.symbols.GetHand(game.Dealer().Hand(), hideDealerCard),
-			Inline: &inline,
+			Inline: new(false),
 		})
 	}
 
-	embeds := []discord.Embed{
-		{
-			Type:   discord.EmbedTypeRich,
-			Title:  symbols.Cards.Multiple + " Blackjack " + symbols.Cards.Multiple,
-			Fields: fields,
-		},
-	}
-
-	for _, player := range game.Players() {
-		embeds = append(embeds, discord.Embed{
-			Type:        discord.EmbedTypeRich,
-			Title:       blackjackPlayerTitle(game, player),
-			Description: blackjackPlayerHands(game, player),
-			Color:       blackjackPlayerEmbedColor(game, player),
-		})
-	}
-
-	return embeds
+	return fields
 }
 
 // blackjackPlayerEmbedColor returns the embed color for a player.
@@ -736,31 +759,29 @@ func blackjackPlayerEmbedColor(game *Game, player *bj.Player) int {
 
 // blackjackStatus returns a short status line for the game.
 func blackjackStatus(game *Game) string {
+	p := message.NewPrinter(language.AmericanEnglish)
+
 	switch {
 	case game.IsWaitingForPlayers():
-		return fmt.Sprintf("A blackjack game is starting! Click Join Game to play. Starts in %s.", format.Duration(time.Until(game.gameStartTime)))
+		return p.Sprintf("A new blackjack game is starting. You can join the game for a cost of %d credits at any time prior to the game starting.", game.config.BetAmount)
 	case game.IsStartingRound():
-		return "Starting the blackjack round..."
+		return "Starting the round..."
 	case game.IsDealingHands():
 		activePlayer := game.GetActivePlayer()
 		if activePlayer != nil {
-			return fmt.Sprintf("It is %s's turn.", blackjackPlayerName(game, activePlayer))
+			return p.Sprintf("It is %s's turn.", blackjackPlayerName(game, activePlayer))
 		}
-		return "Blackjack is in progress."
+		return "Game is in progress."
 	case game.IsCompleted():
-		return "Blackjack has ended."
+		return "Game has ended."
 	default:
-		return "Blackjack has ended."
+		return "Game has ended."
 	}
 }
 
 // blackjackPlayerTitle returns the title for a player embed.
 func blackjackPlayerTitle(game *Game, player *bj.Player) string {
-	name := blackjackPlayerName(game, player)
-	if game.GetActivePlayer() == player {
-		return fmt.Sprintf("%s %s", active, name)
-	}
-	return fmt.Sprintf("%s %s", inactive, name)
+	return blackjackPlayerName(game, player)
 }
 
 // blackjackPlayerName returns a readable display name for a blackjack player.
