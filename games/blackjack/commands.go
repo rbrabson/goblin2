@@ -763,19 +763,19 @@ func blackjackStatus(game *Game) string {
 
 	switch {
 	case game.IsWaitingForPlayers():
-		return p.Sprintf("A new blackjack game is starting. You can join the game for a cost of %d credits at any time prior to the game starting.\nStarts in %s", game.config.BetAmount, format.Duration(time.Until(game.gameStartTime)))
+		return p.Sprintf("A new blackjack game is starting. You can join the game for a cost of %d credits at any time prior to the game starting.", game.config.BetAmount)
 	case game.IsStartingRound():
-		return "Starting the blackjack round..."
+		return "Starting the round..."
 	case game.IsDealingHands():
 		activePlayer := game.GetActivePlayer()
 		if activePlayer != nil {
 			return p.Sprintf("It is %s's turn.", blackjackPlayerName(game, activePlayer))
 		}
-		return "Blackjack is in progress."
+		return "Game is in progress."
 	case game.IsCompleted():
-		return "Blackjack has ended."
+		return "Game has ended."
 	default:
-		return "Blackjack has ended."
+		return "Game has ended."
 	}
 }
 
