@@ -36,7 +36,7 @@ ADD LICENSE /licenses
 
 RUN mkdir -p /yaml
 COPY ./yaml /yaml/
-COPY .env .env
+COPY .env-docker .env
 
 WORKDIR /
 
