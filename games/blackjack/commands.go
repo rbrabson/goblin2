@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"goblin2/disgobot"
+	"goblin2/guild"
 	"goblin2/internal/discordid"
 	"goblin2/internal/format"
 	"log/slog"
@@ -52,6 +53,10 @@ func playBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.Comm
 
 	guildID := discordid.NewSnowflakeID(member.GuildID)
 	memberID := discordid.NewSnowflakeID(member.User.ID)
+
+	guildID = discordid.NewSnowflakeID(member.GuildID)
+	memberID = discordid.NewSnowflakeID(member.User.ID)
+	guild.GetGuild(guildID).GetMember(&member.Member)
 
 	game, err := StartGame(guildID, memberID)
 	if err != nil {
@@ -147,6 +152,7 @@ func blackjackJoinButtonHandler(e *handler.ComponentEvent) error {
 
 	guildID := discordid.NewSnowflakeID(member.GuildID)
 	memberID := discordid.NewSnowflakeID(member.User.ID)
+	guild.GetGuild(guildID).GetMember(&member.Member)
 
 	game := GetGame(guildID, getUIDFromComponent(e))
 	if game == nil {
@@ -442,7 +448,7 @@ func blackjackStatus(game *Game) string {
 	case game.IsDealingHands():
 		activePlayer := game.GetActivePlayer()
 		if activePlayer != nil {
-			return fmt.Sprintf("It is <@%s>'s turn.", activePlayer.Name())
+			return fmt.Sprintf("It is %s's turn.", blackjackPlayerName(game, activePlayer))
 		}
 		return "Blackjack is in progress."
 	case game.IsCompleted():
@@ -454,11 +460,31 @@ func blackjackStatus(game *Game) string {
 
 // blackjackPlayerTitle returns the title for a player field.
 func blackjackPlayerTitle(game *Game, player *bj.Player) string {
+	name := blackjackPlayerName(game, player)
 	activePlayer := game.GetActivePlayer()
 	if activePlayer != nil && activePlayer == player {
-		return fmt.Sprintf("▶ <@%s>", player.Name())
+		return fmt.Sprintf("▶ %s", name)
 	}
-	return fmt.Sprintf("<@%s>", player.Name())
+	return name
+}
+
+// blackjackPlayerName returns a readable display name for a blackjack player.
+func blackjackPlayerName(game *Game, player *bj.Player) string {
+	if player == nil {
+		return "Unknown Player"
+	}
+
+	memberID, err := discordid.SnowflakeIDFromString(player.Name())
+	if err != nil {
+		return player.Name()
+	}
+
+	member, err := guild.GetMemberByID(game.guildID, memberID)
+	if err != nil || member == nil || member.Name == "" {
+		return player.Name()
+	}
+
+	return member.Name
 }
 
 // blackjackPlayerHands returns the rendered hands for a player.
