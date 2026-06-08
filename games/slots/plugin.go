@@ -31,7 +31,7 @@ func NewPlugin(cfgPath string) (*Plugin, error) {
 	if err := LoadConfig(cfgPath); err != nil {
 		return nil, err
 	}
-	if err := LoadSymbols(cfgPath, defaultConfig.Symbols); err != nil {
+	if err := LoadSymbols(cfgPath); err != nil {
 		return nil, err
 	}
 	if err := LoadLookupTable(cfgPath); err != nil {

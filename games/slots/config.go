@@ -14,7 +14,6 @@ var (
 // Config represents the configuration for the slots game.
 type Config struct {
 	Cooldown time.Duration `yaml:"cooldown"`
-	Symbols  string        `yaml:"symbols"`
 }
 
 // configFile represents the configuration file for the slots game.
@@ -32,7 +31,6 @@ func GetConfig() *Config {
 func createNewConfig() *Config {
 	return &Config{
 		Cooldown: defaultConfig.Cooldown,
-		Symbols:  defaultConfig.Symbols,
 	}
 }
 
@@ -52,7 +50,6 @@ func LoadConfig(path string) error {
 
 	defaultConfig = Config{
 		Cooldown: cooldown,
-		Symbols:  cfg.Symbols,
 	}
 
 	return nil

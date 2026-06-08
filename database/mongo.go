@@ -23,8 +23,8 @@ type MongoDB struct {
 }
 
 // New creates a database to load and save documents in a MongoDB database.
-func New(configPath string) (*MongoDB, error) {
-	cfg, err := LoadConfig(configPath)
+func New(dbName, dbURL string) (*MongoDB, error) {
+	cfg, err := LoadConfig(dbName, dbURL)
 	if err != nil {
 		slog.Error("unable to load database config",
 			slog.Any("error", err))

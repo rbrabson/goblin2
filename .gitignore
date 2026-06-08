@@ -36,6 +36,3 @@ yaml/
 
 github.com/rbrabson/goblin2/
 /.idea/
-yaml/slots/config.yaml
-yaml/slots/lookup.yaml
-/yaml

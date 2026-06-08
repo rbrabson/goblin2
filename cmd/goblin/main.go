@@ -20,8 +20,11 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 
+	"github.com/disgoorg/snowflake/v2"
 	"github.com/joho/godotenv"
 )
 
@@ -115,6 +118,36 @@ func getPlugins(configPath string) []plugin.Plugin {
 	return plugins
 }
 
+// getDevGuilds returns a list of guild IDs that the bot should be in for development purposes.
+func getDevGuilds() []snowflake.ID {
+	value := os.Getenv("GOBLIN_DEV_GUILDS")
+	if strings.TrimSpace(value) == "" {
+		return []snowflake.ID{}
+	}
+
+	rawGuilds := strings.Split(value, ",")
+	guilds := make([]snowflake.ID, 0, len(rawGuilds))
+	for _, g := range rawGuilds {
+		g = strings.TrimSpace(g)
+		if g == "" {
+			continue
+		}
+
+		parsed, err := strconv.ParseUint(g, 10, 64)
+		if err != nil {
+			slog.Warn("unable to parse dev guild ID",
+				slog.String("guildID", g),
+				slog.Any("error", err),
+			)
+			continue
+		}
+
+		guilds = append(guilds, snowflake.ID(parsed))
+	}
+
+	return guilds
+}
+
 func main() {
 	// Initialize the logger
 	if err := godotenv.Load(".env"); err != nil {
@@ -150,7 +183,10 @@ func main() {
 		slog.String("BotName", botName),
 	)
 
-	db, err := database.New(configPath)
+	dbName := os.Getenv("GOBLIN_MONGODB_DATABASE")
+	dbURL := os.Getenv("GOBLIN_MONGODB_URL")
+
+	db, err := database.New(dbName, dbURL)
 	if err != nil {
 		slog.Error("failed to initialize database", "error", err)
 		os.Exit(-1)
@@ -164,7 +200,10 @@ func main() {
 		}
 	}(db)
 
-	botCfg, err := disgobot.LoadConfig(configPath)
+	devGuilds := getDevGuilds()
+	botToken := os.Getenv("GOBLIN_TOKEN")
+
+	botCfg, err := disgobot.LoadConfig(botToken, devGuilds)
 	if err != nil {
 		slog.Error("failed to load bot config", "error", err)
 		os.Exit(-1)

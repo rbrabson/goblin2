@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	defaultSymbols SymbolTable
+	defaultSymbols = make(SymbolTable)
 )
 
 // Symbol represents a slot symbol with a name and an emoji.
@@ -67,20 +67,14 @@ func (st SymbolTable) String() string {
 }
 
 // LoadSymbols loads symbol configurations from a YAML file and updates the default symbol table.
-func LoadSymbols(path string, theme string) error {
-	var symbols map[string][]Symbol
+func LoadSymbols(path string) error {
+	var symbols []Symbol
 	filePath := filepath.Join(path, "slots/symbols.yaml")
 	if err := config.LoadConfig(filePath, &symbols); err != nil {
 		return err
 	}
 
-	themeSymbols, ok := symbols[theme]
-	if !ok {
-		return ErrConfigNotFound
-	}
-
-	defaultSymbols = make(SymbolTable, len(themeSymbols))
-	for _, symbol := range themeSymbols {
+	for _, symbol := range symbols {
 		defaultSymbols[symbol.Name] = symbol
 	}
 
