@@ -68,9 +68,9 @@ func createNewAccount(guildID, memberID discordid.SnowflakeID) *Account {
 		GuildID:         guildID,
 		MemberID:        memberID,
 		CreatedAt:       time.Now(),
-		CurrentBalance:  theme.DefaultBalance,
-		MonthlyBalance:  theme.DefaultBalance,
-		LifetimeBalance: theme.DefaultBalance,
+		CurrentBalance:  cfg.DefaultBalance,
+		MonthlyBalance:  cfg.DefaultBalance,
+		LifetimeBalance: cfg.DefaultBalance,
 	}
 }
 

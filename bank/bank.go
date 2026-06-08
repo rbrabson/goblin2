@@ -61,9 +61,9 @@ func GetBank(guildID discordid.SnowflakeID) *Bank {
 func createDefaultBank(guildID discordid.SnowflakeID) *Bank {
 	return &Bank{
 		GuildID:        guildID,
-		Name:           theme.BankName,
-		Currency:       theme.Currency,
-		DefaultBalance: theme.DefaultBalance,
+		Name:           cfg.BankName,
+		Currency:       cfg.Currency,
+		DefaultBalance: cfg.DefaultBalance,
 	}
 }
 
