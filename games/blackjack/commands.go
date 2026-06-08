@@ -29,6 +29,9 @@ const (
 
 	// dash used for spacing
 	indent = "\u2003"
+
+	// color for active player
+	activePlayerColor = 0x00ff00
 )
 
 var (
@@ -709,10 +712,26 @@ func blackjackEmbeds(game *Game, hideDealerCard bool) []discord.Embed {
 			Type:        discord.EmbedTypeRich,
 			Title:       blackjackPlayerTitle(game, player),
 			Description: blackjackPlayerHands(game, player),
+			Color:       blackjackPlayerEmbedColor(game, player),
 		})
 	}
 
 	return embeds
+}
+
+// blackjackPlayerEmbedColor returns the embed color for a player.
+func blackjackPlayerEmbedColor(game *Game, player *bj.Player) int {
+	if !game.IsDealingHands() {
+		return 0
+	}
+	if game.GetActivePlayer() != player {
+		return 0
+	}
+	if !player.HasActiveHands() {
+		return 0
+	}
+
+	return activePlayerColor
 }
 
 // blackjackStatus returns a short status line for the game.
