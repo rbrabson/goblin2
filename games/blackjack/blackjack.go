@@ -51,7 +51,7 @@ type Game struct {
 	turnChan         chan Action
 	interaction      *handler.CommandEvent
 	messageID        snowflake.ID
-	symbols          Symbols
+	symbols          *Symbols
 	joinButton       discord.ButtonComponent
 	hitButton        discord.ButtonComponent
 	standButton      discord.ButtonComponent

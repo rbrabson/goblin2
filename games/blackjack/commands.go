@@ -24,7 +24,7 @@ var (
 			Description: "Blackjack game commands.",
 			Options: []discord.ApplicationCommandOption{
 				discord.ApplicationCommandOptionSubCommand{
-					Name:        "start",
+					Name:        "play",
 					Description: "Starts a new blackjack game.",
 				},
 				discord.ApplicationCommandOptionSubCommand{
@@ -36,8 +36,8 @@ var (
 	}
 )
 
-// startBlackjackHandler starts a blackjack game that other members may join.
-func startBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+// playBlackjackHandler starts a blackjack game that other members may join.
+func playBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if disgobot.IsShuttingDown(e) {
 		return disgobot.ErrUnableToProcessCommand
 	}

@@ -26,7 +26,7 @@ func NewPlugin(cfgPath string) (*Plugin, error) {
 	if err := LoadConfig(cfgPath); err != nil {
 		return nil, err
 	}
-	if err := LoadCards(cfgPath, defaultConfig.Cards); err != nil {
+	if err := LoadCards(cfgPath); err != nil {
 		return nil, err
 	}
 
@@ -72,7 +72,7 @@ func (p *Plugin) Status() plugin.Status {
 // GetSlashHandlers returns slash command handlers for blackjack.
 func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	return map[string]handler.SlashCommandHandler{
-		"/blackjack/start": startBlackjackHandler,
+		"/blackjack/start": playBlackjackHandler,
 		"/blackjack/stats": blackjackStatsHandler,
 	}
 }

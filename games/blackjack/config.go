@@ -27,7 +27,6 @@ type Config struct {
 	ShowDealerTurn    time.Duration         `json:"show_dealer_turn" bson:"show_dealer_turn"`
 	PayoutPercent     int                   `json:"payout_percent" bson:"payout_percent"`
 	SinglePlayerMode  bool                  `json:"single_player_mode" bson:"single_player_mode"`
-	Cards             string                `json:"cards" bson:"-"`
 }
 
 // GetConfig retrieves the blackjack configuration, either from a file or defaults.
@@ -71,7 +70,6 @@ func createNewConfig(guildID discordid.SnowflakeID) *Config {
 		ShowDealerTurn:    defaultConfig.ShowDealerTurn,
 		PayoutPercent:     defaultConfig.PayoutPercent,
 		SinglePlayerMode:  defaultConfig.SinglePlayerMode,
-		Cards:             defaultConfig.Cards,
 	}
 }
 
