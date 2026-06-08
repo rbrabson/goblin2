@@ -682,12 +682,12 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 
 // blackjackEmbeds returns the blackjack game embeds.
 func blackjackEmbeds(game *Game, hideDealerCard bool) []discord.Embed {
-	inline := false
+
 	fields := []discord.EmbedField{
 		{
 			Name:   blackjackStatus(game),
 			Value:  "\u200b",
-			Inline: &inline,
+			Inline: new(false),
 		},
 	}
 
@@ -695,7 +695,7 @@ func blackjackEmbeds(game *Game, hideDealerCard bool) []discord.Embed {
 		fields = append(fields, discord.EmbedField{
 			Name:   "Dealer",
 			Value:  game.symbols.GetHand(game.Dealer().Hand(), hideDealerCard),
-			Inline: &inline,
+			Inline: new(false),
 		})
 	}
 
