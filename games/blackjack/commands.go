@@ -686,25 +686,49 @@ func blackjackEmbeds(game *Game, hideDealerCard bool) []discord.Embed {
 		},
 	}
 
-	for _, player := range game.Players() {
-		embeds = append(embeds, discord.Embed{
-			Type:        discord.EmbedTypeRich,
-			Title:       blackjackPlayerTitle(game, player),
-			Description: blackjackPlayerHands(game, player),
-			Color:       blackjackPlayerEmbedColor(game, player),
-		})
+	if !game.IsWaitingForPlayers() {
+		for _, player := range game.Players() {
+			embeds = append(embeds, discord.Embed{
+				Type:        discord.EmbedTypeRich,
+				Title:       blackjackPlayerTitle(game, player),
+				Description: blackjackPlayerHands(game, player),
+				Color:       blackjackPlayerEmbedColor(game, player),
+			})
+		}
 	}
 
 	return embeds
 }
 
+// blackjackGameEmbedFields returns the blackjack game embed fields.
 func blackjackGameEmbedFields(game *Game, hideDealerCard bool) []discord.EmbedField {
+	p := message.NewPrinter(language.AmericanEnglish)
+
 	fields := []discord.EmbedField{
 		{
 			Name:   blackjackStatus(game),
 			Value:  "\u200b",
 			Inline: new(false),
 		},
+	}
+
+	if game.IsWaitingForPlayers() {
+		fields = append(fields, discord.EmbedField{
+			Name:   "Status",
+			Value:  p.Sprintf("Starts in %s", format.Duration(time.Until(game.gameStartTime))),
+			Inline: new(true),
+		})
+
+		playerNames := make([]string, 0, len(game.Players()))
+		for _, player := range game.Players() {
+			playerNames = append(playerNames, blackjackPlayerName(game, player))
+		}
+
+		fields = append(fields, discord.EmbedField{
+			Name:   "Players",
+			Value:  p.Sprintf(strings.Join(playerNames, "\n")),
+			Inline: new(true),
+		})
 	}
 
 	if game.Dealer() != nil && len(game.Dealer().Hand().Cards()) > 0 {
@@ -735,15 +759,17 @@ func blackjackPlayerEmbedColor(game *Game, player *bj.Player) int {
 
 // blackjackStatus returns a short status line for the game.
 func blackjackStatus(game *Game) string {
+	p := message.NewPrinter(language.AmericanEnglish)
+
 	switch {
 	case game.IsWaitingForPlayers():
-		return fmt.Sprintf("A blackjack game is starting! Click Join Game to play. Starts in %s.", format.Duration(time.Until(game.gameStartTime)))
+		return p.Sprintf("A new blackjack game is starting. You can join the game for a cost of %d credits at any time prior to the game starting.\nStarts in %s", game.config.BetAmount, format.Duration(time.Until(game.gameStartTime)))
 	case game.IsStartingRound():
 		return "Starting the blackjack round..."
 	case game.IsDealingHands():
 		activePlayer := game.GetActivePlayer()
 		if activePlayer != nil {
-			return fmt.Sprintf("It is %s's turn.", blackjackPlayerName(game, activePlayer))
+			return p.Sprintf("It is %s's turn.", blackjackPlayerName(game, activePlayer))
 		}
 		return "Blackjack is in progress."
 	case game.IsCompleted():
