@@ -702,7 +702,7 @@ func blackjackEmbeds(game *Game, hideDealerCard bool) []discord.Embed {
 	embeds := []discord.Embed{
 		{
 			Type:   discord.EmbedTypeRich,
-			Title:  "Blackjack",
+			Title:  symbols.Cards.Multiple + " Blackjack " + symbols.Cards.Multiple,
 			Fields: fields,
 		},
 	}
