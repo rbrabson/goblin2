@@ -20,18 +20,21 @@ import (
 
 const (
 	// active and inactive hands
-	active   = "🟢"
-	inactive = "⚪"
+	//active   = "🟢"
+	//inactive = "⚪"
 
-	//active = "●"
-	//inactive = "○"
+	active   = "●"
+	inactive = "o"
 
-	teeRight         = "┣"
-	vertical         = "┃"
-	bottomLeftCorner = "┗"
+	//teeRight         = "┣━"
+	//vertical         = "┃"
+	//bottomLeftCorner = "┗━"
 
-	// dash used for spacing
-	indent = "\u2003"
+	teeRight         = "├─"
+	vertical         = "│"
+	bottomLeftCorner = "└─"
+
+	blankSpace = "⠀"
 
 	// color for active player
 	activePlayerColor   = 0x00ff00
@@ -820,7 +823,7 @@ func blackjackPlayerHands(game *Game, player *bj.Player) string {
 		}
 		resultPrefix := vertical
 		if idx == len(player.Hands())-1 {
-			resultPrefix = indent + " "
+			resultPrefix = blankSpace + blankSpace
 		}
 
 		statusPrefix := inactive
@@ -832,13 +835,13 @@ func blackjackPlayerHands(game *Game, player *bj.Player) string {
 		if !game.IsWaitingForPlayers() && !game.IsStartingRound() && !game.IsDealingHands() {
 			result := blackjackHandResult(game, hand)
 			if result != "" {
-				handText = fmt.Sprintf("%s\n%s%s%s%s", handText, resultPrefix, indent, indent, result)
+				handText = fmt.Sprintf("%s\n%s%s%s%s", handText, resultPrefix, blankSpace, blankSpace, result)
 			}
 		}
 		hands = append(hands, handText)
 	}
 	if len(hands) == 0 {
-		return "\u200b"
+		return blankSpace + blankSpace
 	}
 	return strings.Join(hands, "\n")
 }

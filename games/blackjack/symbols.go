@@ -58,7 +58,7 @@ func (s *Symbols) GetHand(hand *bj.Hand, hidden bool) string {
 		}
 	}
 	sb.WriteString(strings.Join(cardsInHand, ""))
-	sb.WriteString(fmt.Sprintf(" (value: %s)", GetHandValue(hand, hidden)))
+	sb.WriteString(fmt.Sprintf(" (%s)", GetHandValue(hand, hidden)))
 
 	return sb.String()
 }
