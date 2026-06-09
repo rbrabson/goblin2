@@ -23,14 +23,6 @@ const (
 	active   = "●"
 	inactive = "o"
 
-	teeRight         = "┣━"
-	vertical         = "┃"
-	bottomLeftCorner = "┗━"
-
-	//teeRight         = "├─"
-	//vertical         = "│"
-	//bottomLeftCorner = "└─"
-
 	blankSpace = "⠀"
 
 	// color for active player
@@ -821,25 +813,16 @@ func blackjackPlayerHands(game *Game, player *bj.Player) string {
 	}
 
 	for idx, hand := range player.Hands() {
-		treePrefix := teeRight
-		if idx == len(player.Hands())-1 {
-			treePrefix = bottomLeftCorner
-		}
-		resultPrefix := vertical
-		if idx == len(player.Hands())-1 {
-			resultPrefix = blankSpace + blankSpace
-		}
-
 		statusPrefix := inactive
 		if activePlayer == player && idx == activeHandIndex && hand.IsActive() {
 			statusPrefix = active
 		}
 
-		handText := fmt.Sprintf("%s %s Hand %d: %s", treePrefix, statusPrefix, idx+1, game.symbols.GetHand(hand, false))
+		handText := fmt.Sprintf("%s Hand %d: %s", statusPrefix, idx+1, game.symbols.GetHand(hand, false))
 		if !game.IsWaitingForPlayers() && !game.IsStartingRound() && !game.IsDealingHands() {
 			result := blackjackHandResult(game, hand)
 			if result != "" {
-				handText = fmt.Sprintf("%s\n%s%s%s%s", handText, resultPrefix, blankSpace, blankSpace, result)
+				handText = fmt.Sprintf("%s\n%s %s", handText, blankSpace, result)
 			}
 		}
 		hands = append(hands, handText)
