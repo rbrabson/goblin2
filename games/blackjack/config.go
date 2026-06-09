@@ -29,7 +29,8 @@ type Config struct {
 	SinglePlayerMode  bool                  `json:"single_player_mode" bson:"single_player_mode"`
 }
 
-// GetConfig retrieves the blackjack configuration, either from a file or defaults.
+// GetConfig retrieves the blackjack configuration, either from the cache, database, or by creating a new, default configuration.
+// The value returned is guaranteed to be non-nil.
 func GetConfig(guildID discordid.SnowflakeID) *Config {
 	key := configCacheKey{
 		guildID: guildID,
@@ -53,9 +54,6 @@ func GetConfig(guildID discordid.SnowflakeID) *Config {
 // runtimeConfig returns a copy of the persisted config with runtime-only adjustments applied.
 func runtimeConfig(cfg *Config) *Config {
 	cfgCopy := copyConfig(cfg)
-	if cfgCopy == nil {
-		return nil
-	}
 
 	if cfgCopy.SinglePlayerMode {
 		cfgCopy.MaxPlayers = 1

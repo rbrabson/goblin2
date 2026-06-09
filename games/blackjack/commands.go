@@ -23,15 +23,19 @@ const (
 	active   = "🟢"
 	inactive = "⚪"
 
-	// tree structure
-	intermediate = "├─"
-	final        = "└─"
+	//active = "●"
+	//inactive = "○"
+
+	teeRight         = "┣"
+	vertical         = "┃"
+	bottomLeftCorner = "┗"
 
 	// dash used for spacing
 	indent = "\u2003"
 
 	// color for active player
-	activePlayerColor = 0x00ff00
+	activePlayerColor   = 0x00ff00
+	inactivePlayerColor = 0x2f3136
 )
 
 var (
@@ -209,13 +213,10 @@ func blackjackStatsHandler(data discord.SlashCommandInteractionData, e *handler.
 		}
 	}
 
-	inlineFalse := false
-	inlineTrue := true
-
 	embed := discord.Embed{
 		Type:  discord.EmbedTypeRich,
 		Title: fmt.Sprintf("🃏 %s Blackjack Statistics", displayName),
-		Color: 0x2f3136,
+		Color: inactivePlayerColor,
 		Fields: []discord.EmbedField{
 			{
 				Name: "📊 Game Summary",
@@ -224,7 +225,7 @@ func blackjackStatsHandler(data discord.SlashCommandInteractionData, e *handler.
 					p.Sprintf("%d", stats.HandsPlayed),
 					winRate,
 				),
-				Inline: &inlineFalse,
+				Inline: new(false),
 			},
 			{
 				Name: "🎯 Hand Results",
@@ -233,7 +234,7 @@ func blackjackStatsHandler(data discord.SlashCommandInteractionData, e *handler.
 					p.Sprintf("%d", stats.Losses),
 					p.Sprintf("%d", stats.Pushes),
 				),
-				Inline: &inlineTrue,
+				Inline: new(true),
 			},
 			{
 				Name: "🎴 Special Hands",
@@ -242,7 +243,7 @@ func blackjackStatsHandler(data discord.SlashCommandInteractionData, e *handler.
 					p.Sprintf("%d", stats.Splits),
 					p.Sprintf("%d", stats.Surrenders),
 				),
-				Inline: &inlineTrue,
+				Inline: new(true),
 			},
 			{
 				Name: "💰 Credits",
@@ -252,7 +253,7 @@ func blackjackStatsHandler(data discord.SlashCommandInteractionData, e *handler.
 					p.Sprintf("%d", stats.CreditsLost),
 					formatNetCredits(netCredits, p),
 				),
-				Inline: &inlineFalse,
+				Inline: new(false),
 			},
 		},
 	}
@@ -261,7 +262,7 @@ func blackjackStatsHandler(data discord.SlashCommandInteractionData, e *handler.
 		embed.Fields = append(embed.Fields, discord.EmbedField{
 			Name:   "🕒 Last Played",
 			Value:  fmt.Sprintf("<t:%d:R>", stats.LastPlayed.Unix()),
-			Inline: &inlineFalse,
+			Inline: new(false),
 		})
 	}
 
@@ -813,9 +814,13 @@ func blackjackPlayerHands(game *Game, player *bj.Player) string {
 	}
 
 	for idx, hand := range player.Hands() {
-		treePrefix := intermediate
+		treePrefix := teeRight
 		if idx == len(player.Hands())-1 {
-			treePrefix = final
+			treePrefix = bottomLeftCorner
+		}
+		resultPrefix := vertical
+		if idx == len(player.Hands())-1 {
+			resultPrefix = indent + " "
 		}
 
 		statusPrefix := inactive
@@ -827,7 +832,7 @@ func blackjackPlayerHands(game *Game, player *bj.Player) string {
 		if !game.IsWaitingForPlayers() && !game.IsStartingRound() && !game.IsDealingHands() {
 			result := blackjackHandResult(game, hand)
 			if result != "" {
-				handText = fmt.Sprintf("%s\n%s%s%s %s", handText, indent, indent, indent, result)
+				handText = fmt.Sprintf("%s\n%s%s%s%s", handText, resultPrefix, indent, indent, result)
 			}
 		}
 		hands = append(hands, handText)
@@ -860,19 +865,21 @@ func blackjackHandResult(game *Game, hand *bj.Hand) string {
 
 // blackjackCreditResult formats the hand result with the amount won or lost.
 func blackjackCreditResult(winnings int, payoutPercent int) string {
+	p := message.NewPrinter(language.AmericanEnglish)
+
 	switch {
 	case winnings > 0:
 		winnings = winnings * payoutPercent / 100
 		if winnings == 1 {
 			return "Won 1 credit"
 		}
-		return fmt.Sprintf("Won %d credits", winnings)
+		return p.Sprintf("Won %d credits", winnings)
 	case winnings < 0:
 		loss := -winnings
 		if loss == 1 {
 			return "Lost 1 credit"
 		}
-		return fmt.Sprintf("Lost %d credits", loss)
+		return p.Sprintf("Lost %d credits", loss)
 	default:
 		return ""
 	}
