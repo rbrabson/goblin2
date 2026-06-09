@@ -5,6 +5,7 @@ import (
 	"goblin2/bank"
 	"goblin2/disgobot"
 	"goblin2/guild"
+	"goblin2/internal/channel"
 	"goblin2/internal/discordid"
 	"goblin2/internal/format"
 	"log/slog"
@@ -359,6 +360,30 @@ func waitForMembersToJoin(heist *Heist) {
 
 // sendHeistResults runs the heist and sends the results to the channel.
 func sendHeistResults(e *handler.CommandEvent, heist *Heist, res *Result) error {
+	permissionManager, err := channel.NewPermissionManager(e.Client(), e)
+	if err != nil {
+		slog.Error("failed to create permission manager",
+			slog.Any("guildID", heist.GuildID),
+			slog.Any("error", err))
+		return err
+	}
+
+	if err := permissionManager.MuteChannel(); err != nil {
+		slog.Error("failed to mute channel",
+			slog.Any("guildID", heist.GuildID),
+			slog.Any("error", err),
+		)
+		return err
+	}
+	defer func() {
+		if err := permissionManager.UnmuteChannel(); err != nil {
+			slog.Error("failed to unmute channel",
+				slog.Any("guildID", heist.GuildID),
+				slog.Any("error", err),
+			)
+		}
+	}()
+
 	if err := heistMessage(heist); err != nil {
 		slog.Error("failed to update heist message", slog.Any("error", err))
 	}
