@@ -23,13 +23,13 @@ const (
 	active   = "●"
 	inactive = "o"
 
-	//teeRight         = "┣━"
-	//vertical         = "┃"
-	//bottomLeftCorner = "┗━"
+	teeRight         = "┣━"
+	vertical         = "┃"
+	bottomLeftCorner = "┗━"
 
-	teeRight         = "├─"
-	vertical         = "│"
-	bottomLeftCorner = "└─"
+	//teeRight         = "├─"
+	//vertical         = "│"
+	//bottomLeftCorner = "└─"
 
 	blankSpace = "⠀"
 
@@ -536,8 +536,10 @@ func runBlackjack(game *Game) {
 		slog.Error("failed to update blackjack message after deal", slog.Any("error", err))
 	}
 
-	playBlackjackPlayers(game)
-	playBlackjackDealer(game)
+	if !game.Dealer().HasBlackjack() {
+		playBlackjackPlayers(game)
+		playBlackjackDealer(game)
+	}
 
 	game.PayoutResults()
 	game.SetState(Completed)
@@ -903,6 +905,10 @@ func blackjackJoinComponents(game *Game) []discord.LayoutComponent {
 
 // blackjackComponents returns the component rows for the current game state.
 func blackjackComponents(game *Game) []discord.LayoutComponent {
+	if game.Dealer().HasBlackjack() {
+		return []discord.LayoutComponent{}
+	}
+
 	if game.IsWaitingForPlayers() {
 		return blackjackJoinComponents(game)
 	}
