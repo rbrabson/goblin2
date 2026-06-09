@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"goblin2/bank"
 	"goblin2/internal/discordid"
+	"goblin2/plugin"
 	"goblin2/stats"
 	"log/slog"
 	"math"
@@ -79,10 +80,22 @@ func GetHeist(guildID discordid.SnowflakeID) *Heist {
 	return currentHeists[guildID]
 }
 
+// activeHeistCount returns the number of active heists.
+func activeHeistCount() int {
+	heistLock.Lock()
+	defer heistLock.Unlock()
+
+	return len(currentHeists)
+}
+
 // NewHeist creates a new heist if one is not already underway.
 func NewHeist(guildID, memberID discordid.SnowflakeID) (*Heist, error) {
 	heistLock.Lock()
 	defer heistLock.Unlock()
+
+	if currentPlugin != nil && currentPlugin.Status() != plugin.Running {
+		return nil, ErrHeistInProgress
+	}
 
 	if currentHeists[guildID] != nil {
 		return nil, ErrHeistInProgress
@@ -340,6 +353,10 @@ func (h *Heist) removeCurrentHeist() {
 	heistLock.Lock()
 	delete(currentHeists, h.GuildID)
 	heistLock.Unlock()
+
+	if currentPlugin != nil {
+		currentPlugin.stopIfIdle()
+	}
 }
 
 // heistChecks returns an error, with the appropriate message if a heist cannot be started.

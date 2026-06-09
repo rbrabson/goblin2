@@ -3,6 +3,7 @@ package blackjack
 import (
 	"goblin2/database"
 	"goblin2/plugin"
+	"sync"
 
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
@@ -13,10 +14,15 @@ const (
 	pluginName = "blackjack"
 )
 
+var (
+	currentPlugin *Plugin
+)
+
 // Plugin is the plugin implementation for the blackjack package.
 type Plugin struct {
 	status plugin.Status
 	name   string
+	mutex  sync.RWMutex
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -30,10 +36,13 @@ func NewPlugin(cfgPath string) (*Plugin, error) {
 		return nil, err
 	}
 
-	return &Plugin{
+	p := &Plugin{
 		status: plugin.Running,
 		name:   pluginName,
-	}, nil
+	}
+	currentPlugin = p
+
+	return p, nil
 }
 
 // Initialize initializes the blackjack plugin.
@@ -64,14 +73,34 @@ func (p *Plugin) GetAdminHelp() map[string]string {
 	}
 }
 
-// Stop stops the blackjack plugin.
+// Stop stops the blackjack plugin after any active games complete.
 func (p *Plugin) Stop() {
-	p.status = plugin.Stopped
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	if activeGameCount() == 0 {
+		p.status = plugin.Stopped
+		return
+	}
+
+	p.status = plugin.Stopping
 }
 
 // Status returns the plugin status.
 func (p *Plugin) Status() plugin.Status {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
+
 	return p.status
+}
+
+func (p *Plugin) stopIfIdle() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	if p.status == plugin.Stopping && activeGameCount() == 0 {
+		p.status = plugin.Stopped
+	}
 }
 
 // GetSlashHandlers returns slash command handlers for blackjack.

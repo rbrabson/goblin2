@@ -3,6 +3,7 @@ package blackjack
 import (
 	"errors"
 	"goblin2/internal/discordid"
+	"goblin2/plugin"
 	"goblin2/stats"
 	"log/slog"
 	"strings"
@@ -80,8 +81,29 @@ func GetGame(guildID discordid.SnowflakeID, uid string) *Game {
 	return game
 }
 
-// StartGame starts a new blackjack game for the specified guild and member.
+// activeGameCount returns the number of active blackjack games.
+func activeGameCount() int {
+	gamesLock.Lock()
+	defer gamesLock.Unlock()
+
+	count := 0
+	for _, game := range games {
+		game.Lock()
+		if !game.NotStarted() {
+			count++
+		}
+		game.Unlock()
+	}
+
+	return count
+}
+
+// / StartGame starts a new blackjack game for the specified guild and member.
 func StartGame(guildID discordid.SnowflakeID, memberID discordid.SnowflakeID) (*Game, error) {
+	if currentPlugin != nil && currentPlugin.Status() != plugin.Running {
+		return nil, ErrGameActive
+	}
+
 	gamesLock.Lock()
 	defer gamesLock.Unlock()
 
@@ -91,9 +113,15 @@ func StartGame(guildID discordid.SnowflakeID, memberID discordid.SnowflakeID) (*
 	if game == nil {
 		game = newGame(guildID, uid, config.Decks)
 		games[uid] = game
-		slog.Info("created new blackjack game", slog.Any("guildID", guildID), slog.String("uid", uid))
+		slog.Info("created new blackjack game",
+			slog.Any("guildID", guildID),
+			slog.String("uid", uid),
+		)
 	} else {
-		slog.Info("retrieved existing blackjack game", slog.Any("guildID", guildID), slog.String("uid", uid))
+		slog.Info("retrieved existing blackjack game",
+			slog.Any("guildID", guildID),
+			slog.String("uid", uid),
+		)
 	}
 
 	game.Lock()
@@ -295,6 +323,10 @@ func (g *Game) EndRound() {
 	} else {
 		slog.Info("clearing multiplayer blackjack game state for new round", slog.Any("guildID", g.guildID))
 		g.Dealer().ClearHand()
+	}
+
+	if currentPlugin != nil {
+		currentPlugin.stopIfIdle()
 	}
 }
 

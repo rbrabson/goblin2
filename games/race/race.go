@@ -4,6 +4,7 @@ import (
 	"errors"
 	"goblin2/internal/cache"
 	"goblin2/internal/discordid"
+	"goblin2/plugin"
 	"goblin2/stats"
 	"log/slog"
 	"math/rand/v2"
@@ -105,11 +106,26 @@ func GetCurrentRace(guildID discordid.SnowflakeID) *Race {
 	return race
 }
 
+// activeRaceCount returns the number of active races.
+func activeRaceCount() int {
+	count := 0
+	currentRaces.Range(func(_ raceCacheKey, _ *Race) bool {
+		count++
+		return true
+	})
+
+	return count
+}
+
 // CreateNewRace creates a new race for the guild. If a race is already in progress or the racers are resting,
 // then an error is returned.
 func CreateNewRace(guildID discordid.SnowflakeID) (*Race, error) {
 	raceLock.Lock()
 	defer raceLock.Unlock()
+
+	if currentPlugin != nil && currentPlugin.Status() != plugin.Running {
+		return nil, ErrRaceAlreadyInProgress
+	}
 
 	if err := raceStartChecks(guildID); err != nil {
 		return nil, err
@@ -309,6 +325,10 @@ func (r *Race) End() {
 	currentRaces.Delete(key)
 	raceLock.Unlock()
 
+	if currentPlugin != nil {
+		currentPlugin.stopIfIdle()
+	}
+
 	if r.RaceResult != nil && len(r.Racers) >= r.config.MinNumRacers {
 		slog.Debug("processing race results",
 			slog.Any("guildID", r.GuildID),
@@ -353,7 +373,6 @@ func (r *Race) End() {
 // ResetRace resets a hung race for a given guild.
 func ResetRace(guildID discordid.SnowflakeID) {
 	raceLock.Lock()
-	defer raceLock.Unlock()
 
 	key := raceCacheKey{
 		guildID: guildID,
@@ -361,6 +380,12 @@ func ResetRace(guildID discordid.SnowflakeID) {
 
 	currentRaces.Delete(key)
 	lastRaceTimes.Delete(key)
+	raceLock.Unlock()
+
+	if currentPlugin != nil {
+		currentPlugin.stopIfIdle()
+	}
+
 	slog.Info("reset race",
 		slog.Any("guildID", guildID),
 	)

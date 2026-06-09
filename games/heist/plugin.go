@@ -3,6 +3,7 @@ package heist
 import (
 	"goblin2/database"
 	"goblin2/plugin"
+	"sync"
 
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
@@ -13,10 +14,15 @@ const (
 	pluginName = "heist"
 )
 
+var (
+	currentPlugin *Plugin
+)
+
 // Plugin is the plugin implementation for the heist package.
 type Plugin struct {
 	status plugin.Status
 	name   string
+	mutex  sync.RWMutex
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -37,6 +43,7 @@ func NewPlugin(cfgPath string) (*Plugin, error) {
 		status: plugin.Running,
 		name:   pluginName,
 	}
+	currentPlugin = p
 	return p, nil
 }
 
@@ -79,14 +86,34 @@ func (p *Plugin) GetAdminHelp() map[string]string {
 	}
 }
 
-// Stop stops the heist plugin.
+// Stop stops the heist plugin after any active heists complete.
 func (p *Plugin) Stop() {
-	p.status = plugin.Stopped
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	if activeHeistCount() == 0 {
+		p.status = plugin.Stopped
+		return
+	}
+
+	p.status = plugin.Stopping
 }
 
 // Status returns the status of the heist plugin.
 func (p *Plugin) Status() plugin.Status {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
+
 	return p.status
+}
+
+func (p *Plugin) stopIfIdle() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	if p.status == plugin.Stopping && activeHeistCount() == 0 {
+		p.status = plugin.Stopped
+	}
 }
 
 // GetSlashHandlers returns the slash command handlers for the heist plugin.
