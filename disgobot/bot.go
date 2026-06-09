@@ -21,7 +21,7 @@ var (
 	goblin *Bot
 )
 
-// Bot represents the main structure of the Discord Bot. It can hold any necessary state or configuration for the bot's operation.
+// Bot represents the main structure of the Goblin Discord Bot. It can hold any necessary state or configuration for the bot's operation.
 type Bot struct {
 	cfg     *Config
 	version string
@@ -31,7 +31,7 @@ type Bot struct {
 	mutex   sync.RWMutex
 }
 
-// NewBot creates a new Discord Bot instance.
+// NewBot creates a new Goblin Bot instance.
 func NewBot(cfg *Config, version string) *Bot {
 	goblin = &Bot{
 		cfg:     cfg,
@@ -41,6 +41,7 @@ func NewBot(cfg *Config, version string) *Bot {
 	return goblin
 }
 
+// Start starts the Goblin Bot.
 func (b *Bot) Start(mongoDB *database.MongoDB) error {
 	slog.Info("starting bot", slog.String("disgo version", disgo.Version))
 	if b.cfg.Token == "" {
@@ -92,12 +93,6 @@ func (b *Bot) IsStopping() bool {
 	shuttingDown := status != plugin.Running
 
 	return shuttingDown
-}
-
-// NotifyUserBotIsShuttingDown notifies the user that the bot is shutting down.
-func (b *Bot) NotifyUserBotIsShuttingDown() {
-	// TODO: send an ephemeral message to the user that the bot is shutting down
-	slog.Info("bot is shutting down")
 }
 
 // GetPlugins returns the plugins that are registered to the bot.

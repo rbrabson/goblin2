@@ -20,9 +20,6 @@ import (
 
 const (
 	// active and inactive hands
-	//active   = "🟢"
-	//inactive = "⚪"
-
 	active   = "●"
 	inactive = "o"
 
@@ -405,13 +402,12 @@ func configInfoHandler(_ discord.SlashCommandInteractionData, e *handler.Command
 
 // blackjackJoinButtonHandler handles the join button.
 func blackjackJoinButtonHandler(e *handler.ComponentEvent) error {
-	if err := e.DeferCreateMessage(true); err != nil {
-		slog.Error("failed to defer blackjack join component response", slog.Any("error", err))
-	}
-
 	member := e.Member()
 	if member == nil {
-		return updateComponentResponse(e, "This command can only be used in a server.")
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "This command can only be used in a server.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
 	guildID := discordid.NewSnowflakeID(member.GuildID)
@@ -424,7 +420,10 @@ func blackjackJoinButtonHandler(e *handler.ComponentEvent) error {
 	}
 
 	if err := game.joinGame(memberID); err != nil {
-		return updateComponentResponse(e, format.FirstToUpper(err.Error()))
+		return e.CreateMessage(discord.MessageCreate{
+			Content: format.FirstToUpper(err.Error()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
 	if err := updateBlackjackMessage(game, false); err != nil {
@@ -440,7 +439,10 @@ func blackjackJoinButtonHandler(e *handler.ComponentEvent) error {
 		slog.Any("memberID", memberID),
 	)
 
-	return updateComponentResponse(e, "You joined the blackjack game.")
+	return e.CreateMessage(discord.MessageCreate{
+		Content: format.FirstToUpper("You joined the blackjack game."),
+		Flags:   discord.MessageFlagEphemeral,
+	})
 }
 
 // blackjackHitButtonHandler handles the hit button.
