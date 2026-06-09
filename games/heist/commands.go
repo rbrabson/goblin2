@@ -559,13 +559,12 @@ func sendWinningsTable(e *handler.CommandEvent, res *Result) error {
 
 // joinHeistButtonHandler attempts to join a heist that is being planned.
 func joinHeistButtonHandler(e *handler.ComponentEvent) error {
-	if err := e.DeferCreateMessage(true); err != nil {
-		slog.Error("failed to defer join heist component response", slog.Any("error", err))
-	}
-
 	member := e.Member()
 	if member == nil {
-		return updateComponentResponse(e, "This command can only be used in a server.")
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "This command can only be used in a server.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
 	heist := GetHeist(discordid.NewSnowflakeID(member.GuildID))
@@ -575,7 +574,10 @@ func joinHeistButtonHandler(e *handler.ComponentEvent) error {
 		if theme != nil {
 			content = fmt.Sprintf("No %s is being planned", theme.Heist)
 		}
-		return updateComponentResponse(e, content)
+		return e.CreateMessage(discord.MessageCreate{
+			Content: content,
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
 	guildMember := resolvedGuildMember(member)
@@ -588,8 +590,10 @@ func joinHeistButtonHandler(e *handler.ComponentEvent) error {
 			slog.Any("guildID", member.GuildID),
 			slog.Any("error", err),
 		)
-
-		return updateComponentResponse(e, fmt.Sprintf("Unable to join the heist. Error: %s", err.Error()))
+		return e.CreateMessage(discord.MessageCreate{
+			Content: fmt.Sprintf("Unable to join the heist. Error: %s", err.Error()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
 	if err := heist.AddCrewMember(heistMember); err != nil {
@@ -600,8 +604,10 @@ func joinHeistButtonHandler(e *handler.ComponentEvent) error {
 				slog.Any("error", depositErr),
 			)
 		}
-
-		return updateComponentResponse(e, format.FirstToUpper(err.Error()))
+		return e.CreateMessage(discord.MessageCreate{
+			Content: format.FirstToUpper(err.Error()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
 	if err := heistMessage(heist); err != nil {
@@ -612,16 +618,10 @@ func joinHeistButtonHandler(e *handler.ComponentEvent) error {
 		slog.Any("guildID", heist.GuildID),
 		slog.Any("member", member.EffectiveName()),
 	)
-	p := message.NewPrinter(language.AmericanEnglish)
-	return updateComponentResponse(e, p.Sprintf("You have joined the %s at a cost of %d credits.", heist.config.Theme.Heist, heist.config.HeistCost))
-}
 
-// updateComponentResponse updates the interaction response with the provided content.
-func updateComponentResponse(e *handler.ComponentEvent, content string) error {
-	_, err := e.UpdateInteractionResponse(discord.MessageUpdate{
-		Content: &content,
-	})
-	return err
+	return e.DeferUpdateMessage()
+	//p := message.NewPrinter(language.AmericanEnglish)
+	//return updateComponentResponse(e, p.Sprintf("You have joined the %s at a cost of %d credits.", heist.config.Theme.Heist, heist.config.HeistCost))
 }
 
 // playerStatsHandler shows a player's heist stats.

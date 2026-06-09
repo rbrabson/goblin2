@@ -246,15 +246,14 @@ func waitForBetsToBePlaced(race *Race) {
 	}
 }
 
-// joinRaceButtonHandler attempts to join a race that is getting ready to start.
+// joinRaceButtonHandler attempts to join a race getting ready to start.
 func joinRaceButtonHandler(e *handler.ComponentEvent) error {
-	if err := e.DeferCreateMessage(true); err != nil {
-		slog.Error("failed to defer race join component response", slog.Any("error", err))
-	}
-
 	member := e.Member()
 	if member == nil {
-		return updateComponentResponse(e, "This command can only be used in a server.")
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "This command can only be used in a server.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
 	gID := discordid.NewSnowflakeID(member.GuildID)
@@ -266,14 +265,20 @@ func joinRaceButtonHandler(e *handler.ComponentEvent) error {
 			slog.Any("guildID", gID),
 			slog.Any("memberID", memberID),
 		)
-		return updateComponentResponse(e, "No race is planned")
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "No race is planned.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
 	guildMember := resolvedGuildMember(member)
 	raceMember := getMember(gID, guildMember)
 
 	if _, err := race.addRaceParticipant(raceMember); err != nil {
-		return updateComponentResponse(e, format.FirstToUpper(err.Error()))
+		return e.CreateMessage(discord.MessageCreate{
+			Content: format.FirstToUpper(err.Error()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
 	slog.Debug("joined the race",
@@ -289,7 +294,10 @@ func joinRaceButtonHandler(e *handler.ComponentEvent) error {
 		slog.Any("guildID", gID),
 		slog.Any("racer", guildMember.Name),
 	)
-	return updateComponentResponse(e, "You have joined the race")
+
+	return e.DeferUpdateMessage()
+
+	//return updateComponentResponse(e, "You have joined the race")
 }
 
 // raceStatsHandler returns a player's race stats.
@@ -535,7 +543,7 @@ func raceMessage(race *Race, action string) error {
 		},
 	}
 
-	components := []discord.LayoutComponent{}
+	components := make([]discord.LayoutComponent, 0)
 	switch action {
 	case "start", "join", "update":
 		components = []discord.LayoutComponent{
@@ -587,9 +595,8 @@ func sendRaceLegs(race *Race) {
 		time.Sleep(2 * time.Second)
 		track = getCurrentTrack(raceLeg, race.config)
 
-		content := fmt.Sprintf("%s\n", track)
 		if _, err = race.interaction.Client().Rest.UpdateMessage(channelID, m.ID, discord.MessageUpdate{
-			Content: &content,
+			Content: new(fmt.Sprintf("%s\n", track)),
 		}); err != nil {
 			slog.Error("failed to update race message",
 				slog.Any("guildID", race.GuildID),
@@ -670,12 +677,11 @@ func sendRaceResults(race *Race) error {
 		winners = strings.Join(betWinners, "\n")
 	}
 
-	block := false
 	betEarnings := race.config.BetAmount * len(racers)
 	raceResults = append(raceResults, discord.EmbedField{
 		Name:   p.Sprintf("Bet earnings of %d", betEarnings),
 		Value:  winners,
-		Inline: &block,
+		Inline: new(false),
 	})
 
 	_, err := race.interaction.Client().Rest.CreateMessage(race.interaction.Channel().ID(), discord.MessageCreate{
