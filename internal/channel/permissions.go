@@ -1,7 +1,6 @@
 package channel
 
 import (
-	"errors"
 	"log/slog"
 
 	"github.com/disgoorg/disgo/bot"
@@ -10,6 +9,8 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 )
 
+// permissionSnapshot is used to store the current permission overwrites of a channel before muting it, so that they
+// can be restored when unmuting the channel.
 type permissionSnapshot struct {
 	channelID  snowflake.ID
 	overwrites []discord.PermissionOverwrite
@@ -28,7 +29,7 @@ type PermissionManager struct {
 func NewPermissionManager(client *bot.Client, e *handler.CommandEvent) (*PermissionManager, error) {
 	guild, ok := e.Guild()
 	if !ok {
-		return nil, errors.New("command must be used in a guild")
+		return nil, ErrNotInGuild
 	}
 
 	channel, err := e.Client().Rest.GetChannel(e.Channel().ID())
@@ -38,7 +39,7 @@ func NewPermissionManager(client *bot.Client, e *handler.CommandEvent) (*Permiss
 
 	guildChannel, ok := channel.(discord.GuildChannel)
 	if !ok {
-		return nil, errors.New("channel must be a guild channel")
+		return nil, ErrChannelNotInGuild
 	}
 
 	existingOverwrites := guildChannel.PermissionOverwrites()
