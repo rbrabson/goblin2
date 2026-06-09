@@ -1,6 +1,7 @@
 package blackjack
 
 import (
+	"errors"
 	"goblin2/internal/discordid"
 	"goblin2/stats"
 	"log/slog"
@@ -177,11 +178,12 @@ func (g *Game) addPlayer(memberID discordid.SnowflakeID) error {
 // clearPendingActions clears any pending player actions from the turn channel, ensuring that
 // no stale actions are processed when a new round starts or when a player takes an action.
 func (g *Game) clearPendingActions() {
-	g.Lock()
-	defer g.Unlock()
-
-	for len(g.turnChan) > 0 {
-		<-g.turnChan
+	for {
+		select {
+		case <-g.turnChan:
+		default:
+			return
+		}
 	}
 }
 
@@ -262,9 +264,21 @@ func (g *Game) EndRound() {
 	stats.UpdateGameStats(g.guildID, "blackjack", memberIDs)
 
 	for _, player := range g.game.Players() {
-		slog.Debug("removing player from blackjack game", slog.Any("guildID", g.guildID), slog.String("playerName", player.Name()))
+		slog.Debug("removing player from blackjack game",
+			slog.Any("guildID", g.guildID),
+			slog.String("playerName", player.Name()),
+		)
 		g.game.RemovePlayer(player.Name())
 	}
+
+	g.clearPendingActions()
+	slog.Debug("cleared pending blackjack player actions for new round",
+		slog.Any("guildID", g.guildID),
+	)
+
+	g.interaction = nil
+	g.messageID = 0
+	g.SetState(NotStarted)
 
 	for len(g.turnChan) > 0 {
 		<-g.turnChan
@@ -490,20 +504,27 @@ func (g *Game) PlayerSurrender(player *bj.Player) error {
 // PlayerActionRequest processes a request from a player to take an action, ensuring that the player is active and the game is in progress.
 func (g *Game) PlayerActionRequest(memberID discordid.SnowflakeID, action Action) error {
 	g.Lock()
-	defer g.Unlock()
 
 	if !g.IsDealingHands() {
+		g.Unlock()
 		return ErrGameNotStarted
 	}
 
 	player := g.GetPlayer(memberID)
 	activePlayer := g.GetActivePlayer()
 	if player == nil || player != activePlayer {
+		g.Unlock()
 		return ErrNotActivePlayer
 	}
 
-	g.turnChan <- action
-	return nil
+	g.Unlock()
+
+	select {
+	case g.turnChan <- action:
+		return nil
+	default:
+		return errors.New("too many pending blackjack actions")
+	}
 }
 
 // DealerPlay processes the dealer's play according to blackjack rules.

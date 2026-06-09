@@ -585,6 +585,11 @@ func playBlackjackPlayers(game *Game) {
 
 			hand.SetActive(true)
 
+			hand.SetActive(true)
+
+			hand.SetActive(true)
+			game.clearPendingActions()
+
 			for hand.IsActive() {
 				if err := updateBlackjackMessage(game, true); err != nil {
 					slog.Error("failed to update blackjack active player message", slog.Any("error", err))
