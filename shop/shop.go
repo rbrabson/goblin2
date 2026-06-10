@@ -21,10 +21,12 @@ const (
 	shopConfirmBuyRoleComponentPath  = "/shop/confirm-buy-role"
 )
 
+// shopBuyRoleComponentID returns the component ID for the buy role component.
 func shopBuyRoleComponentID(roleName string) string {
 	return shopBuyRoleComponentPath + "/" + roleName
 }
 
+// shopConfirmBuyRoleComponentID returns the component ID for the confirm buy role component.
 func shopConfirmBuyRoleComponentID(roleName string) string {
 	return shopConfirmBuyRoleComponentPath + "/" + roleName
 }
