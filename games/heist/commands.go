@@ -415,13 +415,6 @@ func sendMemberResults(e *handler.CommandEvent, res *Result) error {
 	channelID := e.Channel().ID()
 
 	theme := GetTheme(gID)
-	if theme == nil {
-		slog.Error("failed to get heist theme", slog.Any("guildID", gID))
-		_, err := e.Client().Rest.CreateMessage(channelID, discord.MessageCreate{
-			Content: "Internal error: failed to get the heist theme",
-		})
-		return err
-	}
 
 	if res.Target == nil {
 		_, err := e.Client().Rest.CreateMessage(channelID, discord.MessageCreate{

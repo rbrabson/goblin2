@@ -57,6 +57,7 @@ func LoadTheme(path string) error {
 	if err := config.LoadConfig(filePath, &defaultTheme); err != nil {
 		return err
 	}
+	defaultTheme.Name = "clash"
 
 	return nil
 }

@@ -28,15 +28,15 @@ var (
 
 // Target is a target of a heist.
 type Target struct {
-	ID       bson.ObjectID         `bson:"_id,omitempty"`
-	GuildID  discordid.SnowflakeID `bson:"guild_id"`
-	Theme    string                `bson:"theme"`
-	Name     string                `bson:"target_id"`
-	CrewSize int                   `bson:"crew"`
-	Success  float64               `bson:"success"`
-	Vault    int                   `bson:"vault"`
-	VaultMax int                   `bson:"vault_max"`
-	IsAtMax  bool                  `bson:"is_at_max"`
+	ID       bson.ObjectID         `yaml:"-" bson:"_id,omitempty"`
+	GuildID  discordid.SnowflakeID `yaml:"-" bson:"guild_id"`
+	Theme    string                `yaml:"theme" bson:"theme"`
+	Name     string                `yaml:"target_id" bson:"target_id"`
+	CrewSize int                   `yaml:"crew" bson:"crew"`
+	Success  float64               `yaml:"success" bson:"success"`
+	Vault    int                   `yaml:"vault" bson:"vault"`
+	VaultMax int                   `yaml:"vault_max" bson:"vault_max"`
+	IsAtMax  bool                  `yaml:"is_at_max" bson:"is_at_max"`
 }
 
 // LoadTargets loads the default heist targets from the specified YAML file path.
@@ -44,6 +44,9 @@ func LoadTargets(path string) error {
 	filePath := filepath.Join(path, "heist/targets.yaml")
 	if err := config.LoadConfig(filePath, &defaultTargets); err != nil {
 		return err
+	}
+	for _, target := range defaultTargets {
+		target.Theme = "clash"
 	}
 
 	return nil
