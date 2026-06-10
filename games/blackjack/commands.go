@@ -431,7 +431,7 @@ func blackjackJoinButtonHandler(e *handler.ComponentEvent) error {
 		slog.Any("memberID", memberID),
 	)
 
-	return e.DeferUpdateMessage()
+	//return e.DeferUpdateMessage()
 
 	return e.CreateMessage(discord.MessageCreate{
 		Content: format.FirstToUpper("You joined the blackjack game."),
@@ -884,6 +884,9 @@ func blackjackCreditResult(winnings int, payoutPercent int) string {
 
 // blackjackJoinComponents returns only the join button row.
 func blackjackJoinComponents(game *Game) []discord.LayoutComponent {
+	if game.config.SinglePlayerMode {
+		return []discord.LayoutComponent{}
+	}
 	return []discord.LayoutComponent{
 		discord.ActionRowComponent{
 			Components: []discord.InteractiveComponent{
