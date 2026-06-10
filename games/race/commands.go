@@ -295,8 +295,11 @@ func joinRaceButtonHandler(e *handler.ComponentEvent) error {
 		slog.Any("racer", guildMember.Name),
 	)
 
-	//return e.DeferUpdateMessage()
-	return updateComponentResponse(e, "You have joined the race")
+	//return updateComponentResponse(e, "You have joined the race")
+	return e.CreateMessage(discord.MessageCreate{
+		Content: "You have joined the race",
+		Flags:   discord.MessageFlagEphemeral,
+	})
 }
 
 // raceStatsHandler returns a player's race stats.
@@ -354,13 +357,12 @@ func raceStatsHandler(_ discord.SlashCommandInteractionData, e *handler.CommandE
 
 // betOnRaceButtonHandler processes a bet placed by a member on the race.
 func betOnRaceButtonHandler(e *handler.ComponentEvent) error {
-	if err := e.DeferCreateMessage(true); err != nil {
-		slog.Error("failed to defer race bet component response", slog.Any("error", err))
-	}
-
 	member := e.Member()
 	if member == nil {
-		return updateComponentResponse(e, "This command can only be used in a server.")
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "This command can only be used in a server.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
 	gID := discordid.NewSnowflakeID(member.GuildID)
@@ -372,7 +374,10 @@ func betOnRaceButtonHandler(e *handler.ComponentEvent) error {
 			slog.Any("guildID", gID),
 			slog.Any("memberID", memberID),
 		)
-		return updateComponentResponse(e, "No race is planned")
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "No race is planned.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
 	if err := raceBetChecks(race, memberID); err != nil {
@@ -381,7 +386,10 @@ func betOnRaceButtonHandler(e *handler.ComponentEvent) error {
 			slog.Any("memberID", memberID),
 			slog.Any("error", err),
 		)
-		return updateComponentResponse(e, format.FirstToUpper(err.Error()))
+		return e.CreateMessage(discord.MessageCreate{
+			Content: format.FirstToUpper(err.Error()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
 	participant := race.getRaceParticipant(memberID)
@@ -401,7 +409,10 @@ func betOnRaceButtonHandler(e *handler.ComponentEvent) error {
 			slog.Any("memberID", memberID),
 			slog.String("customID", customID),
 		)
-		return updateComponentResponse(e, "Race participant not found")
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Race participant not found",
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
 	better := getRaceBetter(betMember, raceParticipant)
@@ -411,7 +422,10 @@ func betOnRaceButtonHandler(e *handler.ComponentEvent) error {
 			slog.Any("memberID", memberID),
 			slog.Any("error", err),
 		)
-		return updateComponentResponse(e, fmt.Sprintf("Unable to place a bet. Error: %s", err.Error()))
+		return e.CreateMessage(discord.MessageCreate{
+			Content: fmt.Sprintf("Unable to place a bet. Error: %s", err.Error()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
 	}
 
 	slog.Info("bet placed on race",
@@ -419,8 +433,12 @@ func betOnRaceButtonHandler(e *handler.ComponentEvent) error {
 		slog.Any("better", better.Member.guildMember.Name),
 		slog.Any("raceParticipant", raceParticipant.Member.guildMember.Name),
 	)
-	p := message.NewPrinter(language.AmericanEnglish)
-	return updateComponentResponse(e, p.Sprintf("You have placed a %d credit bet on %s", race.config.BetAmount, raceParticipant.Member.guildMember.Name))
+	//p := message.NewPrinter(language.AmericanEnglish)
+	//return updateComponentResponse(e, p.Sprintf("You have placed a %d credit bet on %s", race.config.BetAmount, raceParticipant.Member.guildMember.Name))
+	return e.CreateMessage(discord.MessageCreate{
+		Content: fmt.Sprintf("You have placed a %d credit bet on %s", race.config.BetAmount, raceParticipant.Member.guildMember.Name),
+		Flags:   discord.MessageFlagEphemeral,
+	})
 }
 
 // createBetButtons returns the buttons for the racers.
