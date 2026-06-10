@@ -50,6 +50,7 @@ func NewPlugin(cfgPath string) (*Plugin, error) {
 // Initialize initializes the heist plugin.
 func (p *Plugin) Initialize(mongoDB *database.MongoDB, _ *bot.Client) {
 	db = mongoDB
+	go vaultUpdater()
 }
 
 // GetHelp returns the help text for the heist plugin.

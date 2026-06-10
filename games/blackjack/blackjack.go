@@ -98,7 +98,7 @@ func activeGameCount() int {
 	return count
 }
 
-// / StartGame starts a new blackjack game for the specified guild and member.
+// StartGame starts a new blackjack game for the specified guild and member.
 func StartGame(guildID discordid.SnowflakeID, memberID discordid.SnowflakeID) (*Game, error) {
 	if currentPlugin != nil && currentPlugin.Status() != plugin.Running {
 		return nil, ErrGameActive

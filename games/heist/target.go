@@ -107,6 +107,13 @@ func createNewTargets(guildID discordid.SnowflakeID) []*Target {
 	return targets
 }
 
+// getAllTargets returns all targets that match the filter.
+func getAllTargets(filter bson.M) []*Target {
+	allTargets, _ := readAllTargets(filter)
+
+	return allTargets
+}
+
 // copyTargets creates a deep copy of a list of targets.
 func copyTargets(targets []*Target) []*Target {
 	if targets == nil {
@@ -126,7 +133,46 @@ func copyTargets(targets []*Target) []*Target {
 	return copied
 }
 
-// CloseTargetsCache stops the targets cache cleanup goroutine and clears cached targets.
+// vaultUpdater updates the vault balance for any target whose vault is not at the maximum value
+func vaultUpdater() {
+	// Get all vaults not at the max value
+	filter := bson.M{"is_at_max": false}
+
+	// Update the vaults once a minute forever
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	var cfg *Config
+	for range ticker.C {
+		for _, target := range getAllTargets(filter) {
+			if cfg == nil || cfg.GuildID != target.GuildID {
+				cfg = GetConfig(target.GuildID)
+			}
+			var recoverPercent float64
+			if cfg.BoostEnabled {
+				recoverPercent = cfg.BoostVaultRecovery
+			} else {
+				recoverPercent = cfg.BaseVaultRecovery
+			}
+			recoverAmount := int(float64(target.VaultMax) * recoverPercent)
+			newVaultAmount := min(target.Vault+recoverAmount, target.VaultMax)
+			slog.Debug("vault updater",
+				slog.Any("guildID", target.GuildID),
+				slog.String("target", target.Name),
+				slog.Int("old", target.Vault),
+				slog.Int("new", newVaultAmount),
+				slog.Int("max", target.VaultMax),
+			)
+			target.Vault = newVaultAmount
+			if target.Vault == target.VaultMax {
+				target.IsAtMax = true
+			}
+			writeTarget(target)
+		}
+	}
+}
+
+// CloseTargetsCache stops the target cache cleanup goroutine and clears cached targets.
 func CloseTargetsCache() {
 	targetsCache.Destroy()
 }

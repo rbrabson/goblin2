@@ -4,7 +4,6 @@ import (
 	"goblin2/internal/cache"
 	"goblin2/internal/config"
 	"goblin2/internal/discordid"
-	"log/slog"
 	"math/rand/v2"
 	"path/filepath"
 	"time"
@@ -54,25 +53,6 @@ func getRaceAvatars(guildID discordid.SnowflakeID, themeName string) []*Avatar {
 	rand.Shuffle(len(avatars), func(i, j int) {
 		avatars[i], avatars[j] = avatars[j], avatars[i]
 	})
-
-	return avatars
-}
-
-// createNewAvatars reads the list of avatars for the theme and guild from the database. If the list
-// does not exist, then an error is returned.
-func createNewAvatars(guildID discordid.SnowflakeID, themeName string) []*Avatar {
-	avatars := copyAvatars(defaultAvatars)
-	for _, avatar := range avatars {
-		avatar.GuildID = guildID
-		avatar.Theme = themeName
-		writeRacer(avatar)
-	}
-
-	slog.Debug("create new race avatars",
-		slog.Any("guildID", guildID),
-		slog.String("theme", themeName),
-		slog.Int("count", len(defaultAvatars)),
-	)
 
 	return avatars
 }

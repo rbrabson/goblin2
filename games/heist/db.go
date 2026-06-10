@@ -12,7 +12,6 @@ const (
 	configCollection = "heist_configs"
 	memberCollection = "heist_members"
 	targetCollection = "heist_targets"
-	themeCollection  = "heist_themes"
 )
 
 var (
@@ -143,57 +142,4 @@ func writeTarget(target *Target) {
 	}
 
 	targetsCache.Delete(targetsCacheKey{guildID: target.GuildID, theme: target.Theme})
-}
-
-// readAllThemes loads all available themes for a guild
-func readAllThemes(guildID discordid.SnowflakeID) ([]*Theme, error) {
-	var themes []*Theme
-	filter := bson.M{"guild_id": guildID}
-	err := db.FindMany(themeCollection, filter, &themes, bson.M{}, 0)
-	if err != nil {
-		slog.Error("unable to read themes",
-			slog.Any("guildID", guildID),
-			slog.Any("error", err),
-		)
-		return nil, err
-	}
-
-	return themes, nil
-}
-
-// readTheme loads the requested theme for a guild
-func readTheme(guildID discordid.SnowflakeID) (*Theme, error) {
-	var theme Theme
-	filter := bson.M{"guild_id": guildID}
-	err := db.FindOne(themeCollection, filter, &theme)
-	if err != nil {
-		slog.Error("unable to read theme",
-			slog.Any("guildID", guildID),
-			slog.Any("error", err),
-		)
-		return nil, err
-	}
-
-	return &theme, nil
-}
-
-// write creates or updates the theme in the database
-func writeTheme(theme *Theme) {
-	var filter bson.M
-	if theme.ID != bson.NilObjectID {
-		filter = bson.M{"_id": theme.ID}
-	} else {
-		filter = bson.M{"guild_id": theme.GuildID, "name": theme.Name}
-	}
-	if _, err := db.ReplaceOneUpsert(themeCollection, filter, theme); err != nil {
-		slog.Error("error writing theme to the database",
-			slog.Any("guildID", theme.GuildID),
-			slog.String("name", theme.Name),
-			slog.Any("error", err),
-		)
-		return
-	}
-
-	themeCache.Set(themeCacheKey{guildID: theme.GuildID}, *theme)
-	targetsCache.Delete(targetsCacheKey{guildID: theme.GuildID, theme: theme.Name})
 }

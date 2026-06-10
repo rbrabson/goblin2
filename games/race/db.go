@@ -11,7 +11,6 @@ import (
 const (
 	configCollection = "race_configs"
 	memberCollection = "race_members"
-	avatarCollection = "race_avatars"
 )
 
 var (
@@ -77,35 +76,5 @@ func writeRaceMember(member *Member) {
 			slog.Any("memberID", member.MemberID),
 			slog.Any("error", err),
 		)
-	}
-}
-
-// readAllRaces loads the racers that may be used in racers that match the filter criteria.
-func readAllRacers(filter bson.D) ([]*Avatar, error) {
-	var racers []*Avatar
-	sort := bson.D{{Key: "crew_size", Value: 1}}
-	err := db.FindMany(avatarCollection, filter, &racers, sort, 0)
-	if err != nil || len(racers) == 0 {
-		slog.Warn("unable to read racers", slog.Any("error", err), slog.Any("filter", filter))
-		if err != nil {
-			return nil, err
-		}
-		return nil, ErrNoRacersFound
-	}
-
-	return racers, nil
-}
-
-// writeRacer creates or updates the target in the database.
-func writeRacer(racer *Avatar) {
-	var filter bson.D
-	if racer.ID != bson.NilObjectID {
-		filter = bson.D{{Key: "_id", Value: racer.ID}}
-	} else {
-		filter = bson.D{{Key: "guild_id", Value: racer.GuildID}, {Key: "theme", Value: racer.Theme}, {Key: "emoji", Value: racer.Emoji}, {Key: "movement_speed", Value: racer.MovementSpeed}}
-	}
-
-	if _, err := db.ReplaceOneUpsert(avatarCollection, filter, racer); err != nil {
-		slog.Error("failed to write the racer to the database", slog.Any("guildID", racer.GuildID), slog.Any("error", err))
 	}
 }
