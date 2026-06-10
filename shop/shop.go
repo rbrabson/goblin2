@@ -223,7 +223,7 @@ func repairPublishedShops() {
 
 		s := GetShop(config.GuildID.String())
 		if err := s.Publish(); err != nil {
-			slog.Warn("unable to repair published shop",
+			slog.Debug("unable to repair published shop",
 				slog.Any("guildID", config.GuildID),
 				slog.Any("error", err),
 			)
