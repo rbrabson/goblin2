@@ -241,6 +241,19 @@ func readPurchase(guildID discordid.SnowflakeID, memberID discordid.SnowflakeID,
 	return &item, nil
 }
 
+// readPurchaseByID reads the purchase with the given ID.
+func readPurchaseByID(id bson.ObjectID) (*Purchase, error) {
+	filter := bson.D{{Key: "_id", Value: id}}
+
+	var item Purchase
+	if err := db.FindOne(purchaseCollection, filter, &item); err != nil {
+		slog.Debug("unable to read purchase from the database by ID", "id", id.Hex(), "filter", filter, "error", err)
+		return nil, err
+	}
+
+	return &item, nil
+}
+
 // writePurchase inserts the purchase into the database.
 func writePurchase(item *Purchase) error {
 	item.Version = 0

@@ -122,9 +122,19 @@ func UpdatePurchase(purchase *Purchase, mutate func(*Purchase) error) error {
 	key := purchaseKey(purchase)
 
 	for range maxRetries {
-		latest := getPurchase(purchase.GuildID, purchase.MemberID, purchase.Item.Name, purchase.Item.Type)
-		if latest == nil {
-			latest = copyPurchase(purchase)
+		var latest *Purchase
+		var err error
+
+		if !purchase.ID.IsZero() {
+			latest, err = readPurchaseByID(purchase.ID)
+			if err != nil {
+				latest = copyPurchase(purchase)
+			}
+		} else {
+			latest = getPurchase(purchase.GuildID, purchase.MemberID, purchase.Item.Name, purchase.Item.Type)
+			if latest == nil {
+				latest = copyPurchase(purchase)
+			}
 		}
 
 		oldKey := purchaseKey(latest)
@@ -133,7 +143,6 @@ func UpdatePurchase(purchase *Purchase, mutate func(*Purchase) error) error {
 			return err
 		}
 
-		var err error
 		if latest.ID.IsZero() {
 			err = writePurchase(latest)
 		} else {
@@ -143,6 +152,8 @@ func UpdatePurchase(purchase *Purchase, mutate func(*Purchase) error) error {
 		if err == nil {
 			purchaseCache.Delete(oldKey)
 			purchaseCache.Set(purchaseKey(latest), *latest)
+
+			*purchase = *copyPurchase(latest)
 			return nil
 		}
 		if !errors.Is(err, bank.ErrVersionConflict) {
@@ -226,7 +237,7 @@ func (p *Purchase) HasExpired() bool {
 	if p.IsExpired {
 		err := p.notifyExpirationIfNeeded()
 		if err != nil {
-			slog.Error("unable to send expiration notification for expired purchase",
+			slog.Debug("unable to send expiration notification for expired purchase",
 				slog.Any("guildID", p.GuildID),
 				slog.Any("memberID", p.MemberID),
 				slog.String("itemName", p.Item.Name),
@@ -309,7 +320,7 @@ func (p *Purchase) notifyExpirationIfNeeded() error {
 
 	discordMember, err := client.Rest.GetMember(p.GuildID.ID(), p.MemberID.ID())
 	if err != nil {
-		slog.Error("unable to verify guild member before sending expiration DM",
+		slog.Debug("unable to verify guild member before sending expiration DM",
 			slog.Any("guildID", p.GuildID),
 			slog.Any("memberID", p.MemberID),
 			slog.String("itemName", p.Item.Name),
@@ -334,7 +345,7 @@ func (p *Purchase) notifyExpirationIfNeeded() error {
 	}
 
 	if err := sendDirectMessage(p.MemberID.ID(), msg); err != nil {
-		slog.Error("unable to send direct message about expired purchase",
+		slog.Debug("unable to send direct message about expired purchase",
 			slog.Any("guildID", p.GuildID),
 			slog.Any("memberID", p.MemberID),
 			slog.String("itemName", p.Item.Name),
