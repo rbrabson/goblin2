@@ -1,0 +1,14 @@
+bet_amount: 100
+currency: credit
+ending_line: "<:Gems:1514128282411339826>"
+max_num_racers: 10
+max_prize_amount: 1250
+min_num_racers: 2
+min_price_amount: 750
+starting_line: ":checkered_flag:"
+theme: clash
+track: "•   •   •   •   •   •   •   •   •   •   •   •   •   •   •   •   •   •   •   •   "
+wait_between_races: 1m
+wait_for_bets: 30s
+wait_to_start: 45s
+babydragon_buff_percent: 50

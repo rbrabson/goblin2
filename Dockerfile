@@ -34,8 +34,8 @@ LABEL org.label-schema.vendor="rbrabson" \
 RUN mkdir -p /licenses
 ADD LICENSE /licenses
 
-RUN mkdir -p /yaml
-COPY ./yaml /yaml/
+RUN mkdir -p /yaml-prod
+COPY ./yaml-dev /yaml/
 COPY .env-docker .env
 
 WORKDIR /
