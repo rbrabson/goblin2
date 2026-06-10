@@ -644,9 +644,12 @@ func joinHeistButtonHandler(e *handler.ComponentEvent) error {
 		slog.Any("member", member.EffectiveName()),
 	)
 
-	return e.DeferUpdateMessage()
-	//p := message.NewPrinter(language.AmericanEnglish)
-	//return updateComponentResponse(e, p.Sprintf("You have joined the %s at a cost of %d credits.", heist.config.Theme.Heist, heist.config.HeistCost))
+	//return e.DeferUpdateMessage()
+	p := message.NewPrinter(language.AmericanEnglish)
+	_, err := e.UpdateInteractionResponse(discord.MessageUpdate{
+		Content: new(p.Sprintf("You have joined the %s at a cost of %d credits.", heist.config.Theme.Heist, heist.config.HeistCost)),
+	})
+	return err
 }
 
 // playerStatsHandler shows a player's heist stats.

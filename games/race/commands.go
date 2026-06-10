@@ -295,9 +295,8 @@ func joinRaceButtonHandler(e *handler.ComponentEvent) error {
 		slog.Any("racer", guildMember.Name),
 	)
 
-	return e.DeferUpdateMessage()
-
-	//return updateComponentResponse(e, "You have joined the race")
+	//return e.DeferUpdateMessage()
+	return updateComponentResponse(e, "You have joined the race")
 }
 
 // raceStatsHandler returns a player's race stats.

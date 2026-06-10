@@ -433,10 +433,10 @@ func blackjackJoinButtonHandler(e *handler.ComponentEvent) error {
 
 	return e.DeferUpdateMessage()
 
-	//return e.CreateMessage(discord.MessageCreate{
-	//	Content: format.FirstToUpper("You joined the blackjack game."),
-	//	Flags:   discord.MessageFlagEphemeral,
-	//})
+	return e.CreateMessage(discord.MessageCreate{
+		Content: format.FirstToUpper("You joined the blackjack game."),
+		Flags:   discord.MessageFlagEphemeral,
+	})
 }
 
 // blackjackHitButtonHandler handles the hit button.

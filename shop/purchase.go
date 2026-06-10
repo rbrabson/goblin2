@@ -25,17 +25,19 @@ const (
 )
 
 // Purchase is a purchase made from the shop.
+// Purchase is a purchase made from the shop.
 type Purchase struct {
-	ID          bson.ObjectID         `json:"_id,omitempty" bson:"_id,omitempty"`
-	GuildID     discordid.SnowflakeID `json:"guild_id" bson:"guild_id"`
-	MemberID    discordid.SnowflakeID `json:"member_id" bson:"member_id"`
-	Item        *Item                 `json:"item" bson:"item,inline"`
-	Status      string                `json:"status" bson:"status"`
-	PurchasedOn time.Time             `json:"purchased_on" bson:"purchased_on"`
-	ExpiresOn   time.Time             `json:"expires_on" bson:"expires_on"`
-	AutoRenew   bool                  `json:"auto_renew" bson:"auto_renew"`
-	IsExpired   bool                  `json:"is_expired" bson:"is_expired"`
-	Version     int                   `json:"version" bson:"version"`
+	ID                 bson.ObjectID         `json:"_id,omitempty" bson:"_id,omitempty"`
+	GuildID            discordid.SnowflakeID `json:"guild_id" bson:"guild_id"`
+	MemberID           discordid.SnowflakeID `json:"member_id" bson:"member_id"`
+	Item               *Item                 `json:"item" bson:"item,inline"`
+	Status             string                `json:"status" bson:"status"`
+	PurchasedOn        time.Time             `json:"purchased_on" bson:"purchased_on"`
+	ExpiresOn          time.Time             `json:"expires_on" bson:"expires_on"`
+	AutoRenew          bool                  `json:"auto_renew" bson:"auto_renew"`
+	IsExpired          bool                  `json:"is_expired" bson:"is_expired"`
+	ExpirationNotified bool                  `json:"expiration_notified" bson:"expiration_notified"`
+	Version            int                   `json:"version" bson:"version"`
 }
 
 // GetAllPurchases returns all the purchases made by a member in the guild.
@@ -222,6 +224,7 @@ func PurchaseItem(guildID, memberID discordid.SnowflakeID, item *Item, status st
 // if it has expired.
 func (p *Purchase) HasExpired() bool {
 	if p.IsExpired {
+		p.notifyExpirationIfNeeded()
 		return true
 	}
 
@@ -260,24 +263,7 @@ func (p *Purchase) HasExpired() bool {
 			slog.Error("unable to write purchase to the database", "guildID", p.GuildID, "memberID", p.MemberID, "itemName", p.Item.Name, "itemType", p.Item.Type, "error", err)
 		}
 
-		g, err := client.Rest.GetGuild(p.GuildID.ID(), false)
-
-		var msg string
-		if err == nil && g.Name != "" {
-			msg = fmt.Sprintf("Your purchase of %s `%s` on `%s` has expired", p.Item.Type, p.Item.Name, g.Name)
-		} else {
-			msg = fmt.Sprintf("Your purchase of %s `%s` has expired", p.Item.Type, p.Item.Name)
-		}
-
-		if err := sendDirectMessage(p.MemberID.ID(), msg); err != nil {
-			slog.Error("unable to send direct message about expired purchase",
-				slog.Any("guildID", p.GuildID),
-				slog.Any("memberID", p.MemberID),
-				slog.String("itemName", p.Item.Name),
-				slog.String("itemType", p.Item.Type),
-				slog.Any("error", err),
-			)
-		}
+		dmErr := p.notifyExpirationIfNeeded()
 
 		config := GetConfig(p.GuildID)
 		if config.ModChannelID != "" {
@@ -288,7 +274,12 @@ func (p *Purchase) HasExpired() bool {
 			}
 
 			printer := message.NewPrinter(language.AmericanEnglish)
-			if err := sendShopMessage(config.ModChannelID, printer.Sprintf("`%s` (id=%s) had their purchase of %s `%s` expire", memberName, p.MemberID, p.Item.Type, p.Item.Name)); err != nil {
+			modMessage := printer.Sprintf("`%s` (id=%s) had their purchase of %s `%s` expire", memberName, p.MemberID, p.Item.Type, p.Item.Name)
+			if dmErr != nil {
+				modMessage += printer.Sprintf("\nUnable to send expiration DM to the member: `%s`", dmErr.Error())
+			}
+
+			if err := sendShopMessage(config.ModChannelID, modMessage); err != nil {
 				slog.Error("unable to send message to mod channel", "guildID", p.GuildID, "memberID", p.MemberID, "itemName", p.Item.Name, "itemType", p.Item.Type, "error", err)
 			}
 			slog.Info("purchase has expired", "guildID", p.GuildID, "memberID", p.MemberID, "itemName", p.Item.Name, "itemType", p.Item.Type)
@@ -298,6 +289,49 @@ func (p *Purchase) HasExpired() bool {
 	}
 
 	return p.IsExpired
+}
+
+func (p *Purchase) notifyExpirationIfNeeded() error {
+	if p.ExpirationNotified {
+		return nil
+	}
+
+	g, err := client.Rest.GetGuild(p.GuildID.ID(), false)
+
+	var msg string
+	if err == nil && g.Name != "" {
+		msg = fmt.Sprintf("Your purchase of %s `%s` on `%s` has expired", p.Item.Type, p.Item.Name, g.Name)
+	} else {
+		msg = fmt.Sprintf("Your purchase of %s `%s` has expired", p.Item.Type, p.Item.Name)
+	}
+
+	if err := sendDirectMessage(p.MemberID.ID(), msg); err != nil {
+		slog.Error("unable to send direct message about expired purchase",
+			slog.Any("guildID", p.GuildID),
+			slog.Any("memberID", p.MemberID),
+			slog.String("itemName", p.Item.Name),
+			slog.String("itemType", p.Item.Type),
+			slog.Any("error", err),
+		)
+		return err
+	}
+
+	if err := UpdatePurchase(p, func(latest *Purchase) error {
+		latest.ExpirationNotified = true
+		return nil
+	}); err != nil {
+		slog.Error("unable to mark expired purchase notification as sent",
+			slog.Any("guildID", p.GuildID),
+			slog.Any("memberID", p.MemberID),
+			slog.String("itemName", p.Item.Name),
+			slog.String("itemType", p.Item.Type),
+			slog.Any("error", err),
+		)
+		return err
+	}
+
+	p.ExpirationNotified = true
+	return nil
 }
 
 // Return the purchase to the shop.
@@ -357,10 +391,19 @@ func checkForExpiredPurchases() {
 	for {
 		now := time.Now().UTC()
 		filter := bson.D{
-			{Key: "is_expired", Value: false},
-			{Key: "$and", Value: bson.A{
-				bson.D{{Key: "expires_on", Value: bson.D{{Key: "$ne", Value: time.Time{}}}}},
-				bson.D{{Key: "expires_on", Value: bson.D{{Key: "$lte", Value: now}}}},
+			{Key: "$or", Value: bson.A{
+				bson.D{
+					{Key: "is_expired", Value: false},
+					{Key: "expires_on", Value: bson.D{{Key: "$ne", Value: time.Time{}}}},
+					{Key: "expires_on", Value: bson.D{{Key: "$lte", Value: now}}},
+				},
+				bson.D{
+					{Key: "is_expired", Value: true},
+					{Key: "$or", Value: bson.A{
+						bson.D{{Key: "expiration_notified", Value: false}},
+						bson.D{{Key: "expiration_notified", Value: bson.D{{Key: "$exists", Value: false}}}},
+					}},
+				},
 			}},
 		}
 		purchases, _ := readAllPurchases(filter)
