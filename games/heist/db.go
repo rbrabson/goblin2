@@ -141,5 +141,5 @@ func writeTarget(target *Target) {
 		return
 	}
 
-	targetsCache.Delete(targetsCacheKey{guildID: target.GuildID, theme: target.Theme})
+	updateTargetCache(target)
 }

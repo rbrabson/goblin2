@@ -292,6 +292,7 @@ func runHeist(e *handler.CommandEvent, heist *Heist) {
 		if res.Target.Vault < 0 {
 			res.Target.Vault = 0
 		}
+		res.Target.IsAtMax = res.Target.Vault >= res.Target.VaultMax
 		writeTarget(res.Target)
 	}
 

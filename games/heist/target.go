@@ -133,42 +133,91 @@ func copyTargets(targets []*Target) []*Target {
 	return copied
 }
 
+// updateTargetCache updates the cached target list for a target's guild/theme if it is currently cached.
+func updateTargetCache(target *Target) {
+	if target == nil {
+		return
+	}
+
+	key := targetsCacheKey{
+		guildID: target.GuildID,
+		theme:   target.Theme,
+	}
+
+	targets, ok := targetsCache.Get(key)
+	if !ok {
+		return
+	}
+
+	updated := copyTargets(targets)
+	for i, cachedTarget := range updated {
+		if cachedTarget == nil {
+			continue
+		}
+
+		if cachedTarget.ID == target.ID || cachedTarget.Name == target.Name {
+			updated[i] = new(*target)
+			targetsCache.Set(key, updated)
+			return
+		}
+	}
+
+	updated = append(updated, new(*target))
+	targetsCache.Set(key, updated)
+}
+
 // vaultUpdater updates the vault balance for any target whose vault is not at the maximum value
 func vaultUpdater() {
-	// Get all vaults not at the max value
-	filter := bson.M{"is_at_max": false}
-
-	// Update the vaults once a minute forever
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
-	var cfg *Config
+	updateVaults()
+
 	for range ticker.C {
-		for _, target := range getAllTargets(filter) {
-			if cfg == nil || cfg.GuildID != target.GuildID {
-				cfg = GetConfig(target.GuildID)
-			}
-			var recoverPercent float64
-			if cfg.BoostEnabled {
-				recoverPercent = cfg.BoostVaultRecovery
-			} else {
-				recoverPercent = cfg.BaseVaultRecovery
-			}
-			recoverAmount := int(float64(target.VaultMax) * recoverPercent)
-			newVaultAmount := min(target.Vault+recoverAmount, target.VaultMax)
-			slog.Debug("vault updater",
+		updateVaults()
+	}
+}
+
+// updateVaults updates the vault balance for any target whose vault is not at the maximum value
+func updateVaults() {
+	filter := bson.M{"is_at_max": false}
+
+	var cfg *Config
+	for _, target := range getAllTargets(filter) {
+		if target == nil {
+			continue
+		}
+
+		if cfg == nil || cfg.GuildID != target.GuildID {
+			cfg = GetConfig(target.GuildID)
+		}
+		if cfg == nil {
+			slog.Error("unable to update vault without heist config",
 				slog.Any("guildID", target.GuildID),
 				slog.String("target", target.Name),
-				slog.Int("old", target.Vault),
-				slog.Int("new", newVaultAmount),
-				slog.Int("max", target.VaultMax),
 			)
-			target.Vault = newVaultAmount
-			if target.Vault == target.VaultMax {
-				target.IsAtMax = true
-			}
-			writeTarget(target)
+			continue
 		}
+
+		recoverPercent := cfg.BaseVaultRecovery
+		if cfg.BoostEnabled {
+			recoverPercent = cfg.BoostVaultRecovery
+		}
+
+		recoverAmount := int(float64(target.VaultMax) * recoverPercent)
+		newVaultAmount := min(target.Vault+recoverAmount, target.VaultMax)
+
+		slog.Info("vault updater",
+			slog.Any("guildID", target.GuildID),
+			slog.String("target", target.Name),
+			slog.Int("old", target.Vault),
+			slog.Int("new", newVaultAmount),
+			slog.Int("max", target.VaultMax),
+		)
+
+		target.Vault = newVaultAmount
+		target.IsAtMax = target.Vault >= target.VaultMax
+		writeTarget(target)
 	}
 }
 
