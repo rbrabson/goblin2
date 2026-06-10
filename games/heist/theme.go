@@ -4,7 +4,6 @@ import (
 	"goblin2/internal/cache"
 	"goblin2/internal/config"
 	"goblin2/internal/discordid"
-	"goblin2/internal/gameassets"
 	"log/slog"
 	"path/filepath"
 	"time"
@@ -71,22 +70,9 @@ func GetTheme(guildID discordid.SnowflakeID) *Theme {
 	if theme, ok := themeCache.Get(key); ok {
 		return copyTheme(&theme)
 	}
-
-	if gameassets.UseYAMLGameAssets() {
-		theme := createNewTheme(guildID)
-		themeCache.Set(key, *theme)
-		return copyTheme(theme)
-	}
-
-	theme, err := readTheme(key.guildID)
-	if err == nil && theme != nil {
-		themeCache.Set(key, *theme)
-		return copyTheme(theme)
-	}
-
-	theme = createNewTheme(guildID)
-	writeTheme(theme)
-
+	
+	theme := createNewTheme(guildID)
+	themeCache.Set(key, *theme)
 	return copyTheme(theme)
 }
 

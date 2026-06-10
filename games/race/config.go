@@ -4,7 +4,6 @@ import (
 	"goblin2/internal/cache"
 	"goblin2/internal/config"
 	"goblin2/internal/discordid"
-	"goblin2/internal/gameassets"
 	"log/slog"
 	"path/filepath"
 	"time"
@@ -70,10 +69,8 @@ func GetConfig(guildID discordid.SnowflakeID) *Config {
 		)
 	}
 
-	if gameassets.UseYAMLGameAssets() {
-		cfg.StartingLine = defaultConfig.StartingLine
-		cfg.EndingLine = defaultConfig.EndingLine
-	}
+	cfg.StartingLine = defaultConfig.StartingLine
+	cfg.EndingLine = defaultConfig.EndingLine
 
 	configCache.Set(key, *cfg)
 
