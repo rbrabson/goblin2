@@ -58,15 +58,14 @@ func (p *Plugin) GetName() string {
 // GetAdminHelp returns the admin help text for the shop plugin.
 func (p *Plugin) GetAdminHelp() map[string]string {
 	return map[string]string{
-		"/shop-admin add":             "Adds an item to the shop that may be purchased by a member.",
-		"/shop-admin ban":             "Bans a member from the shop.",
-		"/shop-admin channel":         "Sets the channel to which to publish the shop items.",
-		"/shop-admin delete":          "Removes a purchasable item from the shop.",
-		"/shop-admin list-bans":       "Lists the users banned from the shop.",
-		"/shop-admin mod-channel":     "Sets the channel to which to publish notices.",
-		"/shop-admin notification-id": "Sets the member to which to notify.",
-		"/shop-admin publish":         "Publishes the shop items in the shop channel.",
-		"/shop-admin unban":           "Removes the ban of a member from the shop.",
+		"/shop-admin add":         "Adds an item to the shop that may be purchased by a member.",
+		"/shop-admin ban":         "Bans a member from the shop.",
+		"/shop-admin channel":     "Sets the channel to which to publish the shop items.",
+		"/shop-admin delete":      "Removes a purchasable item from the shop.",
+		"/shop-admin list-bans":   "Lists the users banned from the shop.",
+		"/shop-admin mod-channel": "Sets the channel to which to publish notices.",
+		"/shop-admin publish":     "Publishes the shop items in the shop channel.",
+		"/shop-admin unban":       "Removes the ban of a member from the shop.",
 	}
 }
 
