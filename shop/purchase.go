@@ -224,7 +224,16 @@ func PurchaseItem(guildID, memberID discordid.SnowflakeID, item *Item, status st
 // if it has expired.
 func (p *Purchase) HasExpired() bool {
 	if p.IsExpired {
-		p.notifyExpirationIfNeeded()
+		err := p.notifyExpirationIfNeeded()
+		if err != nil {
+			slog.Error("unable to send expiration notification for expired purchase",
+				slog.Any("guildID", p.GuildID),
+				slog.Any("memberID", p.MemberID),
+				slog.String("itemName", p.Item.Name),
+				slog.String("itemType", p.Item.Type),
+				slog.Any("error", err),
+			)
+		}
 		return true
 	}
 
@@ -291,9 +300,28 @@ func (p *Purchase) HasExpired() bool {
 	return p.IsExpired
 }
 
+// notifyExpirationIfNeeded sends a DM to the member if the purchase has expired and the member has not already been notified.
+// It also marks the purchase as notified.
 func (p *Purchase) notifyExpirationIfNeeded() error {
 	if p.ExpirationNotified {
 		return nil
+	}
+
+	discordMember, err := client.Rest.GetMember(p.GuildID.ID(), p.MemberID.ID())
+	if err != nil {
+		slog.Error("unable to verify guild member before sending expiration DM",
+			slog.Any("guildID", p.GuildID),
+			slog.Any("memberID", p.MemberID),
+			slog.String("itemName", p.Item.Name),
+			slog.String("itemType", p.Item.Type),
+			slog.Any("error", err),
+		)
+	} else {
+		slog.Debug("verified guild member before sending expiration DM",
+			slog.Any("guildID", p.GuildID),
+			slog.Any("memberID", p.MemberID),
+			slog.String("username", discordMember.User.Username),
+		)
 	}
 
 	g, err := client.Rest.GetGuild(p.GuildID.ID(), false)
