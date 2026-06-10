@@ -23,9 +23,6 @@ vendor/
 go.work
 go.work.sum
 
-# Configuration files
-yaml/
-
 # env file
 .env
 .env_mongo
