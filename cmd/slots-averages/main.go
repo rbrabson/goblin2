@@ -24,14 +24,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	if _, err := slots.NewPlugin(configPath); err != nil {
-		slog.Error("failed to load config", "error", err)
-		os.Exit(-1)
-	}
+	dbName := os.Getenv("GOBLIN_MONGODB_DATABASE")
+	dbURL := os.Getenv("GOBLIN_MONGODB_URL")
 
-	db, err := database.New(configPath)
+	db, err := database.New(dbName, dbURL)
 	if err != nil {
-		slog.Error("failed to connect to database", "error", err)
+		slog.Error("failed to initialize database", "error", err)
 		os.Exit(-1)
 	}
 	defer func(db *database.MongoDB) {
