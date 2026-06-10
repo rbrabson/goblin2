@@ -4,6 +4,7 @@ import (
 	"goblin2/internal/cache"
 	"goblin2/internal/config"
 	"goblin2/internal/discordid"
+	"goblin2/internal/gameassets"
 	"log/slog"
 	"path/filepath"
 	"time"
@@ -27,22 +28,22 @@ var (
 
 // Config represents the configuration for the race game.
 type Config struct {
-	ID                    bson.ObjectID         `json:"_id,omitempty" bson:"_id,omitempty"`
-	GuildID               discordid.SnowflakeID `json:"guild_id" bson:"guild_id"`
-	BetAmount             int                   `json:"bet_amount" bson:"bet_amount"`
-	Currency              string                `json:"currency" bson:"currency"`
-	MaxPrizeAmount        int                   `json:"max_prize_amount" bson:"max_prize_amount"`
-	MaxNumRacers          int                   `json:"max_num_racers" bson:"max_num_racers"`
-	MinNumRacers          int                   `json:"min_num_racers" bson:"min_num_racers"`
-	MinPrizeAmount        int                   `json:"min_price_amount" bson:"min_price_amount"`
-	Theme                 string                `json:"theme" bson:"theme"`
-	WaitBetweenRaces      time.Duration         `json:"wait_beween_races" bson:"wait_between_races"`
-	WaitForBets           time.Duration         `json:"wait_for_bets" bson:"wait_for_bets"`
-	WaitToStart           time.Duration         `json:"wait_to_start" bson:"wait_to_start"`
-	StartingLine          string                `json:"starting_line" bson:"starting_line"`
-	Track                 string                `json:"track" bson:"track"`
-	EndingLine            string                `json:"ending_line" bson:"ending_line"`
-	BabyDragonBuffPercent int                   `json:"babydragon_buff_percent" bson:"babydragon_buff_percent"`
+	ID                    bson.ObjectID         `yaml:"-" bson:"_id,omitempty"`
+	GuildID               discordid.SnowflakeID `yaml:"-" bson:"guild_id,omitempty"`
+	BetAmount             int                   `yaml:"bet_amount" bson:"bet_amount"`
+	Currency              string                `yaml:"currency" bson:"currency"`
+	MaxPrizeAmount        int                   `yaml:"max_prize_amount" bson:"max_prize_amount"`
+	MaxNumRacers          int                   `yaml:"max_num_racers" bson:"max_num_racers"`
+	MinNumRacers          int                   `yaml:"min_num_racers" bson:"min_num_racers"`
+	MinPrizeAmount        int                   `yaml:"min_price_amount" bson:"min_price_amount"`
+	Theme                 string                `yaml:"theme" bson:"theme"`
+	WaitBetweenRaces      time.Duration         `yaml:"wait_between_races" bson:"wait_between_races"`
+	WaitForBets           time.Duration         `yaml:"wait_for_bets" bson:"wait_for_bets"`
+	WaitToStart           time.Duration         `yaml:"wait_to_start" bson:"wait_to_start"`
+	StartingLine          string                `yaml:"starting_line" bson:"starting_line"`
+	Track                 string                `yaml:"track" bson:"track"`
+	EndingLine            string                `yaml:"ending_line" bson:"ending_line"`
+	BabyDragonBuffPercent int                   `yaml:"babydragon_buff_percent" bson:"babydragon_buff_percent"`
 }
 
 // GetConfig gets the race configuration for the guild. If the configuration does not
@@ -67,6 +68,11 @@ func GetConfig(guildID discordid.SnowflakeID) *Config {
 			slog.Any("guildID", guildID),
 			slog.Int("babydragon_buff_percent", cfg.BabyDragonBuffPercent),
 		)
+	}
+
+	if gameassets.UseYAMLGameAssets() {
+		cfg.StartingLine = defaultConfig.StartingLine
+		cfg.EndingLine = defaultConfig.EndingLine
 	}
 
 	configCache.Set(key, *cfg)
@@ -117,6 +123,10 @@ func LoadConfig(path string) error {
 	if err := config.LoadConfig(filePath, &defaultConfig); err != nil {
 		return err
 	}
+
+	slog.Error("GEMS:",
+		slog.Any("gems", defaultConfig.EndingLine),
+	)
 
 	return nil
 }

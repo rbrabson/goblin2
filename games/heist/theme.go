@@ -4,6 +4,7 @@ import (
 	"goblin2/internal/cache"
 	"goblin2/internal/config"
 	"goblin2/internal/discordid"
+	"goblin2/internal/gameassets"
 	"log/slog"
 	"path/filepath"
 	"time"
@@ -27,27 +28,27 @@ var (
 
 // A Theme is a set of messages that provide a "flavor" for a heist
 type Theme struct {
-	ID                  bson.ObjectID         `bson:"_id,omitempty"`
-	GuildID             discordid.SnowflakeID `bson:"guild_id"`
-	Name                string                `bson:"name"`
-	EscapedMessages     []*Message            `bson:"escaped_messages"`
-	ApprehendedMessages []*Message            `bson:"apprehended_messages"`
-	DiedMessages        []*Message            `bson:"died_messages"`
-	Jail                string                `bson:"jail"`
-	OOB                 string                `bson:"oob"`
-	Police              string                `bson:"police"`
-	Bail                string                `bson:"bail"`
-	Crew                string                `bson:"crew"`
-	Sentence            string                `bson:"sentence"`
-	Heist               string                `bson:"heist"`
-	Vault               string                `bson:"vault"`
+	ID                  bson.ObjectID         `yaml:"-" bson:"_id,omitempty"`
+	GuildID             discordid.SnowflakeID `yaml:"-" bson:"guild_id"`
+	Name                string                `yaml:"name" bson:"name"`
+	EscapedMessages     []*Message            `yaml:"escaped_messages" bson:"escaped_messages"`
+	ApprehendedMessages []*Message            `yaml:"apprehended_messages" bson:"apprehended_messages"`
+	DiedMessages        []*Message            `yaml:"died_messages" bson:"died_messages"`
+	Jail                string                `yaml:"jail" bson:"jail"`
+	OOB                 string                `yaml:"oob" bson:"oob"`
+	Police              string                `yaml:"police" bson:"police"`
+	Bail                string                `yaml:"bail" bson:"bail"`
+	Crew                string                `yaml:"crew" bson:"crew"`
+	Sentence            string                `yaml:"sentence" bson:"sentence"`
+	Heist               string                `yaml:"heist" bson:"heist"`
+	Vault               string                `yaml:"vault" bson:"vault"`
 }
 
 // A Message is a message for a successful heist outcome
 type Message struct {
-	Message     string       `bson:"message"`
-	BonusAmount int          `bson:"bonus_amount,omitempty"`
-	Result      MemberStatus `bson:"result"`
+	Message     string       `yaml:"message" bson:"message"`
+	BonusAmount int          `yaml:"bonus_amount" bson:"bonus_amount,omitempty"`
+	Result      MemberStatus `yaml:"result" bson:"result"`
 }
 
 // LoadTheme loads the default heist theme from the configuration file
@@ -68,6 +69,12 @@ func GetTheme(guildID discordid.SnowflakeID) *Theme {
 
 	if theme, ok := themeCache.Get(key); ok {
 		return copyTheme(&theme)
+	}
+
+	if gameassets.UseYAMLGameAssets() {
+		theme := createNewTheme(guildID)
+		themeCache.Set(key, *theme)
+		return copyTheme(theme)
 	}
 
 	theme, err := readTheme(key.guildID)

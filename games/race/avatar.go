@@ -4,6 +4,7 @@ import (
 	"goblin2/internal/cache"
 	"goblin2/internal/config"
 	"goblin2/internal/discordid"
+	"goblin2/internal/gameassets"
 	"log/slog"
 	"math/rand/v2"
 	"path/filepath"
@@ -45,6 +46,15 @@ func getRaceAvatars(guildID discordid.SnowflakeID, themeName string) []*Avatar {
 
 	avatars, ok := avatarsCache.Get(key)
 	if !ok {
+		if gameassets.UseYAMLGameAssets() {
+			avatars := createYAMLAvatars(guildID, themeName)
+			rand.Shuffle(len(avatars), func(i, j int) {
+				avatars[i], avatars[j] = avatars[j], avatars[i]
+			})
+			avatarsCache.Set(key, copyAvatars(avatars))
+			return avatars
+		}
+
 		filter := bson.D{{Key: "guild_id", Value: guildID}, {Key: "theme", Value: themeName}}
 		var err error
 		avatars, err = readAllRacers(filter)
@@ -142,6 +152,16 @@ func (avatar *Avatar) calculateMovement(currentTurn int) int {
 			return movement
 		}
 	}
+}
+
+func createYAMLAvatars(guildID discordid.SnowflakeID, themeName string) []*Avatar {
+	avatars := copyAvatars(defaultAvatars)
+	for _, avatar := range avatars {
+		avatar.GuildID = guildID
+		avatar.Theme = themeName
+	}
+
+	return avatars
 }
 
 // String returns a string representation of the race avatar.
