@@ -4,7 +4,6 @@ import (
 	"goblin2/internal/cache"
 	"goblin2/internal/config"
 	"goblin2/internal/discordid"
-	"log/slog"
 	"path/filepath"
 	"time"
 
@@ -70,7 +69,7 @@ func GetTheme(guildID discordid.SnowflakeID) *Theme {
 	if theme, ok := themeCache.Get(key); ok {
 		return copyTheme(&theme)
 	}
-	
+
 	theme := createNewTheme(guildID)
 	themeCache.Set(key, *theme)
 	return copyTheme(theme)
@@ -93,11 +92,6 @@ func createNewTheme(guildID discordid.SnowflakeID) *Theme {
 		Heist:               defaultTheme.Heist,
 		Vault:               defaultTheme.Vault,
 	}
-
-	slog.Info("created default heist theme",
-		slog.Any("guildID", guildID),
-		slog.String("theme", theme.Name),
-	)
 
 	return theme
 }
