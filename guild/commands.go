@@ -10,6 +10,7 @@ import (
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
+	"github.com/disgoorg/snowflake/v2"
 )
 
 var adminCommands = discord.SlashCommandCreate{
@@ -28,7 +29,7 @@ var adminCommands = discord.SlashCommandCreate{
 					Name:        "add",
 					Description: "Adds an admin role for this server.",
 					Options: []discord.ApplicationCommandOption{
-						discord.ApplicationCommandOptionString{
+						discord.ApplicationCommandOptionRole{
 							Name:        "name",
 							Description: "The name of the role to add.",
 							Required:    true,
@@ -39,7 +40,7 @@ var adminCommands = discord.SlashCommandCreate{
 					Name:        "remove",
 					Description: "Removes an admin role for this server.",
 					Options: []discord.ApplicationCommandOption{
-						discord.ApplicationCommandOptionString{
+						discord.ApplicationCommandOptionRole{
 							Name:        "name",
 							Description: "The name of the role to remove.",
 							Required:    true,
@@ -75,12 +76,24 @@ func guildAdminRoleAddHandler(data discord.SlashCommandInteractionData, e *handl
 	}
 
 	guild := GetGuild(discordid.NewSnowflakeID(e.Member().GuildID))
-	role := data.Options["name"].String()
-	err := guild.AddAdminRole(role)
+	role := data.Role("role")
+	if role.ID == snowflake.ID(0) {
+		slog.Error("invalid role",
+			slog.Any("guildID", guild.GuildID),
+			slog.Any("role", role.Name),
+			slog.Any("roleID", role.ID),
+		)
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Please provide a valid role",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+	err := guild.AddAdminRole(role.Name)
 	if err != nil {
 		slog.Error("failed to add the admin role",
 			slog.Any("guildID", guild.GuildID),
-			slog.Any("role", role),
+			slog.Any("role", role.Name),
+			slog.Any("roleID", role.ID),
 			slog.Any("error", err),
 		)
 		return e.CreateMessage(discord.MessageCreate{
@@ -91,7 +104,7 @@ func guildAdminRoleAddHandler(data discord.SlashCommandInteractionData, e *handl
 
 	slog.Info("admin role added to guild",
 		slog.Any("guildID", guild.GuildID),
-		slog.Any("role", role),
+		slog.Any("role", role.Name),
 	)
 	return e.CreateMessage(discord.MessageCreate{
 		Content: fmt.Sprintf("Admin role `%s` has been added", role),
@@ -105,12 +118,24 @@ func guildAdminRoleRemoveHandler(data discord.SlashCommandInteractionData, e *ha
 	}
 
 	guild := GetGuild(discordid.NewSnowflakeID(e.Member().GuildID))
-	role := data.Options["name"].String()
-	err := guild.RemoveAdminRole(role)
+	role := data.Role("role")
+	if role.ID == snowflake.ID(0) {
+		slog.Error("invalid role",
+			slog.Any("guildID", guild.GuildID),
+			slog.Any("role", role.Name),
+			slog.Any("roleID", role.ID),
+		)
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Please provide a valid role",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+	err := guild.RemoveAdminRole(role.Name)
 	if err != nil {
 		slog.Error("failed to remove the admin role",
 			slog.Any("guildID", guild.GuildID),
-			slog.Any("role", role),
+			slog.Any("role", role.Name),
+			slog.Any("roleID", role.ID),
 			slog.Any("error", err),
 		)
 		return e.CreateMessage(discord.MessageCreate{
@@ -121,7 +146,7 @@ func guildAdminRoleRemoveHandler(data discord.SlashCommandInteractionData, e *ha
 
 	slog.Info("admin role removed from guild",
 		slog.Any("guildID", guild.GuildID),
-		slog.Any("role", role),
+		slog.Any("role", role.Name),
 	)
 	return e.CreateMessage(discord.MessageCreate{
 		Content: fmt.Sprintf("Admin role `%s` has been removed", role),

@@ -121,9 +121,5 @@ func LoadConfig(path string) error {
 		return err
 	}
 
-	slog.Error("GEMS:",
-		slog.Any("gems", defaultConfig.EndingLine),
-	)
-
 	return nil
 }
