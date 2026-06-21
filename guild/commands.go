@@ -190,6 +190,20 @@ func isAdmin(e *handler.CommandEvent) bool {
 	guildID := discordid.NewSnowflakeID(e.Member().GuildID)
 	guild := GetGuild(guildID)
 
+	discordGuild, err := e.Client().Rest.GetGuild(guildID.ID(), false)
+	if err != nil {
+		slog.Error("unable to get guild for admin check",
+			slog.Any("guildID", guildID),
+			slog.Any("userID", e.Member().User.ID),
+			slog.Any("error", err),
+		)
+		return sendPermissionDeniedMessage(e)
+	}
+
+	if discordGuild.OwnerID == e.Member().User.ID {
+		return true
+	}
+
 	memberRoleIDs := make(map[discordid.SnowflakeID]struct{}, len(e.Member().RoleIDs))
 	for _, roleID := range e.Member().RoleIDs {
 		memberRoleIDs[discordid.NewSnowflakeID(roleID)] = struct{}{}
@@ -243,7 +257,6 @@ func isAdmin(e *handler.CommandEvent) bool {
 	return sendPermissionDeniedMessage(e)
 }
 
-// sendPermissionDeniedMessage sends an ephemeral message to the user indicating that they do not have permission to manage the server.
 func sendPermissionDeniedMessage(e *handler.CommandEvent) bool {
 	err := e.CreateMessage(discord.MessageCreate{
 		Content: "You do not have permission to manage this server",
