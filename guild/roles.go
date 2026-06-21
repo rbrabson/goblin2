@@ -91,6 +91,8 @@ func startRoleSync(client *bot.Client) {
 		return
 	}
 
+	slog.Info("starting guild role sync")
+
 	go func() {
 		for guild := range client.Caches.Guilds() {
 			guildID := discordid.NewSnowflakeID(guild.ID)
@@ -114,8 +116,9 @@ func startRoleSync(client *bot.Client) {
 	}()
 }
 
-// syncGuildRoles stores the current Discord roles, removes deleted roles from admin_roles,
-// and migrates any admin_roles entries that still use role names to role IDs.
+// syncGuildRoles stores the current Discord roles and safely migrates any admin_roles entries
+// that still use role names to role IDs. This function is intentionally non-destructive for
+// admin_roles because startup role data can be incomplete or legacy data can decode differently.
 func syncGuildRoles(guildID discordid.SnowflakeID, discordRoles []discord.Role) error {
 	currentRoles := NewRoles(guildID, discordRoles)
 
@@ -123,36 +126,39 @@ func syncGuildRoles(guildID discordid.SnowflakeID, discordRoles []discord.Role) 
 		return err
 	}
 
-	currentRoleIDs := make(map[discordid.SnowflakeID]struct{}, len(currentRoles.Roles))
-	currentRoleIDsByName := make(map[string]discordid.SnowflakeID, len(currentRoles.Roles))
+	roleIDsByName := make(map[string]discordid.SnowflakeID, len(currentRoles.Roles))
 	for _, role := range currentRoles.Roles {
-		currentRoleIDs[role.RoleID] = struct{}{}
-		currentRoleIDsByName[role.RoleName] = role.RoleID
+		roleIDsByName[role.RoleName] = role.RoleID
 	}
 
 	rawAdminRoles, err := readGuildAdminRolesRaw(guildID)
 	if err != nil {
-		slog.Error("unable to read admin roles",
-			slog.Any("guildID", guildID),
-			slog.Any("error", err),
-		)
 		return err
+	}
+	if len(rawAdminRoles) == 0 {
+		return nil
 	}
 
 	adminRoles := make([]discordid.SnowflakeID, 0, len(rawAdminRoles))
 	seenAdminRoles := make(map[discordid.SnowflakeID]struct{}, len(rawAdminRoles))
+	changed := false
 
 	for _, rawAdminRole := range rawAdminRoles {
-		roleID, ok := adminRoleIDFromRaw(rawAdminRole, currentRoleIDsByName)
+		roleID, convertedFromName, ok := adminRoleIDFromRaw(rawAdminRole, roleIDsByName)
 		if !ok {
+			slog.Warn("preserving unknown admin role value during role sync",
+				slog.Any("guildID", guildID),
+				slog.Any("adminRole", rawAdminRole),
+			)
 			continue
 		}
 
-		if _, exists := currentRoleIDs[roleID]; !exists {
-			continue
+		if convertedFromName {
+			changed = true
 		}
 
 		if _, seen := seenAdminRoles[roleID]; seen {
+			changed = true
 			continue
 		}
 
@@ -160,11 +166,11 @@ func syncGuildRoles(guildID discordid.SnowflakeID, discordRoles []discord.Role) 
 		seenAdminRoles[roleID] = struct{}{}
 	}
 
+	if !changed {
+		return nil
+	}
+
 	if err := replaceGuildAdminRoles(guildID, adminRoles); err != nil {
-		slog.Error("unable to replace admin roles",
-			slog.Any("guildID", guildID),
-			slog.Any("error", err),
-		)
 		return err
 	}
 
@@ -172,26 +178,32 @@ func syncGuildRoles(guildID discordid.SnowflakeID, discordRoles []discord.Role) 
 }
 
 // adminRoleIDFromRaw converts a legacy admin role entry into a role ID.
-// Existing role IDs are kept, and legacy role names are resolved against current Discord roles.
-func adminRoleIDFromRaw(rawAdminRole any, roleIDsByName map[string]discordid.SnowflakeID) (discordid.SnowflakeID, bool) {
+// It returns convertedFromName=true only when a legacy role name was resolved to a current role ID.
+func adminRoleIDFromRaw(rawAdminRole any, roleIDsByName map[string]discordid.SnowflakeID) (roleID discordid.SnowflakeID, convertedFromName bool, ok bool) {
 	switch role := rawAdminRole.(type) {
 	case discordid.SnowflakeID:
-		return role, true
+		return role, false, true
 	case snowflake.ID:
-		return discordid.NewSnowflakeID(role), true
+		return discordid.NewSnowflakeID(role), false, true
+	case int64:
+		return discordid.NewSnowflakeID(snowflake.ID(role)), false, true
+	case int32:
+		return discordid.NewSnowflakeID(snowflake.ID(role)), false, true
+	case int:
+		return discordid.NewSnowflakeID(snowflake.ID(role)), false, true
 	case string:
 		if roleID, ok := roleIDsByName[role]; ok {
-			return roleID, true
+			return roleID, true, true
 		}
 
 		parsedRoleID, err := snowflake.Parse(role)
 		if err != nil {
-			return discordid.NewSnowflakeID(0), false
+			return discordid.NewSnowflakeID(0), false, false
 		}
 
-		return discordid.NewSnowflakeID(parsedRoleID), true
+		return discordid.NewSnowflakeID(parsedRoleID), false, true
 	default:
-		return discordid.NewSnowflakeID(0), false
+		return discordid.NewSnowflakeID(0), false, false
 	}
 }
 
@@ -203,6 +215,42 @@ func guildRoleCreateListener(e *events.RoleCreate) {
 		e.Client().Logger.Error("unable to persist created guild role",
 			slog.Any("guildID", guildID),
 			slog.Any("roleID", e.Role.ID),
+			slog.Any("error", err),
+		)
+	}
+}
+
+// guildReadyListener syncs roles when a guild becomes ready after gateway startup.
+func guildReadyListener(e *events.GuildReady) {
+	syncGuildRolesFromDiscord(e.Client(), discordid.NewSnowflakeID(e.GuildID))
+}
+
+// guildJoinListener syncs roles when the bot joins a new guild.
+func guildJoinListener(e *events.GuildJoin) {
+	syncGuildRolesFromDiscord(e.Client(), discordid.NewSnowflakeID(e.GuildID))
+}
+
+// syncGuildRolesFromDiscord retrieves all roles for a guild from Discord and syncs them to MongoDB.
+func syncGuildRolesFromDiscord(client *bot.Client, guildID discordid.SnowflakeID) {
+	if client == nil {
+		slog.Error("unable to sync guild roles: discord client is nil",
+			slog.Any("guildID", guildID),
+		)
+		return
+	}
+
+	roles, err := client.Rest.GetRoles(guildID.ID())
+	if err != nil {
+		slog.Error("unable to retrieve guild roles during sync",
+			slog.Any("guildID", guildID),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	if err := syncGuildRoles(guildID, roles); err != nil {
+		slog.Error("unable to sync guild roles",
+			slog.Any("guildID", guildID),
 			slog.Any("error", err),
 		)
 	}

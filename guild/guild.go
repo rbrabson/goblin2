@@ -12,7 +12,8 @@ import (
 )
 
 var (
-	defaultAdminRoles = []discordid.SnowflakeID{}
+	defaultAdminRoleNames = []string{"Admin", "Admins", "Administrator", "Mod", "Mods", "Moderator"}
+	defaultAdminRoles     = []discordid.SnowflakeID{}
 )
 
 // Guild represents a Discord guild

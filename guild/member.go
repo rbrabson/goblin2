@@ -275,15 +275,29 @@ func (m *Member) HasRole(client *bot.Client, roleID discordid.SnowflakeID) (bool
 	return false, nil
 }
 
-// isAdmin checks if the member has any of the guild's configured admin roles.
+// IsAdmin checks if the member has any of the guild's configured admin roles.
 func (m *Member) IsAdmin(client *bot.Client, guild *Guild) (bool, error) {
 	if guild == nil {
 		return false, nil
 	}
 
-	adminRoles := make(map[discordid.SnowflakeID]struct{}, len(guild.AdminRoles))
+	adminRoleIDs := make(map[discordid.SnowflakeID]struct{}, len(guild.AdminRoles))
 	for _, roleID := range guild.AdminRoles {
-		adminRoles[roleID] = struct{}{}
+		adminRoleIDs[roleID] = struct{}{}
+	}
+
+	defaultAdminRoleNameSet := make(map[string]struct{}, len(defaultAdminRoleNames))
+	for _, roleName := range defaultAdminRoleNames {
+		defaultAdminRoleNameSet[roleName] = struct{}{}
+	}
+
+	storedRoles := readRoles(guild.GuildID)
+	if storedRoles != nil {
+		for _, role := range storedRoles.Roles {
+			if _, ok := defaultAdminRoleNameSet[role.RoleName]; ok {
+				adminRoleIDs[role.RoleID] = struct{}{}
+			}
+		}
 	}
 
 	roles, err := m.GetRoles(client)
@@ -292,7 +306,16 @@ func (m *Member) IsAdmin(client *bot.Client, guild *Guild) (bool, error) {
 	}
 
 	for _, role := range roles {
-		if _, ok := adminRoles[discordid.NewSnowflakeID(role.ID)]; ok {
+		roleID := discordid.NewSnowflakeID(role.ID)
+		if _, ok := adminRoleIDs[roleID]; ok {
+			return true, nil
+		}
+
+		if role.Permissions.Has(discord.PermissionAdministrator) {
+			return true, nil
+		}
+
+		if _, ok := defaultAdminRoleNameSet[role.Name]; ok {
 			return true, nil
 		}
 	}
