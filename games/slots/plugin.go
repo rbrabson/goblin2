@@ -95,6 +95,11 @@ func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	}
 }
 
+// GetEventListeners returns the gateway event listeners for the slots plugin.
+func (p *Plugin) GetEventListeners() []bot.EventListener {
+	return nil
+}
+
 // GetComponentHandlers returns the component handlers for the slots plugin.
 func (p *Plugin) GetComponentHandlers() map[string]handler.ComponentHandler {
 	return nil

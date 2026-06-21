@@ -5,9 +5,9 @@ import (
 	"goblin2/internal/discordid"
 	"goblin2/plugin"
 	"log/slog"
-	"slices"
 	"strings"
 
+	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
 	"github.com/disgoorg/snowflake/v2"
@@ -52,7 +52,6 @@ var adminCommands = discord.SlashCommandCreate{
 	},
 }
 
-// guildAdminRoleListHandler returns the list of admin roles for the server.
 func guildAdminRoleListHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	if !isAdmin(e) || isShuttingDown(e) {
 		return ErrUnableToProcessCommand
@@ -60,13 +59,41 @@ func guildAdminRoleListHandler(_ discord.SlashCommandInteractionData, e *handler
 
 	guild := GetGuild(discordid.NewSnowflakeID(e.Member().GuildID))
 	adminRoleNames := guild.GetAdminRoles()
-	slices.Sort(adminRoleNames)
 	adminRoles := strings.Join(adminRoleNames, "\n")
 
 	return e.CreateMessage(discord.MessageCreate{
 		Content: "**Admin Roles**:\n" + adminRoles,
 		Flags:   discord.MessageFlagEphemeral,
 	})
+}
+
+func roleFromOption(data discord.SlashCommandInteractionData, optionName string, guildID discordid.SnowflakeID, client *bot.Client) (discord.Role, error) {
+	option, ok := data.Options[optionName]
+	if !ok {
+		return discord.Role{}, ErrRoleNotFound
+	}
+
+	roleIDText := strings.TrimSpace(option.String())
+	roleIDText = strings.TrimPrefix(roleIDText, "<@&")
+	roleIDText = strings.TrimSuffix(roleIDText, ">")
+
+	roleID, err := snowflake.Parse(roleIDText)
+	if err != nil {
+		return discord.Role{}, fmt.Errorf("invalid role option %q: %w", option.String(), err)
+	}
+
+	roles, err := client.Rest.GetRoles(guildID.ID())
+	if err != nil {
+		return discord.Role{}, fmt.Errorf("unable to get roles for guild %s: %w", guildID, err)
+	}
+
+	for _, role := range roles {
+		if role.ID == roleID {
+			return role, nil
+		}
+	}
+
+	return discord.Role{}, ErrRoleNotFound
 }
 
 // guildAdminRoleAddHandler adds an admin role for the server.
@@ -76,19 +103,20 @@ func guildAdminRoleAddHandler(data discord.SlashCommandInteractionData, e *handl
 	}
 
 	guild := GetGuild(discordid.NewSnowflakeID(e.Member().GuildID))
-	role := data.Role("role")
-	if role.ID == snowflake.ID(0) {
+	role, err := roleFromOption(data, "name", guild.GuildID, e.Client())
+	if err != nil {
 		slog.Error("invalid role",
 			slog.Any("guildID", guild.GuildID),
-			slog.Any("role", role.Name),
-			slog.Any("roleID", role.ID),
+			slog.Any("error", err),
 		)
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "Please provide a valid role",
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
-	err := guild.AddAdminRole(role.Name)
+
+	roleID := discordid.NewSnowflakeID(role.ID)
+	err = guild.AddAdminRole(roleID)
 	if err != nil {
 		slog.Error("failed to add the admin role",
 			slog.Any("guildID", guild.GuildID),
@@ -97,7 +125,7 @@ func guildAdminRoleAddHandler(data discord.SlashCommandInteractionData, e *handl
 			slog.Any("error", err),
 		)
 		return e.CreateMessage(discord.MessageCreate{
-			Content: fmt.Sprintf("Unable to add the admin role `%s`: %s", role, err.Error()),
+			Content: fmt.Sprintf("Unable to add the admin role `%s`: %s", role.Name, err.Error()),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
@@ -105,9 +133,10 @@ func guildAdminRoleAddHandler(data discord.SlashCommandInteractionData, e *handl
 	slog.Info("admin role added to guild",
 		slog.Any("guildID", guild.GuildID),
 		slog.Any("role", role.Name),
+		slog.Any("roleID", role.ID),
 	)
 	return e.CreateMessage(discord.MessageCreate{
-		Content: fmt.Sprintf("Admin role `%s` has been added", role),
+		Content: fmt.Sprintf("Admin role `%s` has been added", role.Name),
 	})
 }
 
@@ -118,19 +147,20 @@ func guildAdminRoleRemoveHandler(data discord.SlashCommandInteractionData, e *ha
 	}
 
 	guild := GetGuild(discordid.NewSnowflakeID(e.Member().GuildID))
-	role := data.Role("role")
-	if role.ID == snowflake.ID(0) {
+	role, err := roleFromOption(data, "name", guild.GuildID, e.Client())
+	if err != nil {
 		slog.Error("invalid role",
 			slog.Any("guildID", guild.GuildID),
-			slog.Any("role", role.Name),
-			slog.Any("roleID", role.ID),
+			slog.Any("error", err),
 		)
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "Please provide a valid role",
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
-	err := guild.RemoveAdminRole(role.Name)
+
+	roleID := discordid.NewSnowflakeID(role.ID)
+	err = guild.RemoveAdminRole(roleID)
 	if err != nil {
 		slog.Error("failed to remove the admin role",
 			slog.Any("guildID", guild.GuildID),
@@ -139,7 +169,7 @@ func guildAdminRoleRemoveHandler(data discord.SlashCommandInteractionData, e *ha
 			slog.Any("error", err),
 		)
 		return e.CreateMessage(discord.MessageCreate{
-			Content: fmt.Sprintf("Unable to remove the admin role `%s`: %s", role, err.Error()),
+			Content: fmt.Sprintf("Unable to remove the admin role `%s`: %s", role.Name, err.Error()),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
@@ -147,38 +177,85 @@ func guildAdminRoleRemoveHandler(data discord.SlashCommandInteractionData, e *ha
 	slog.Info("admin role removed from guild",
 		slog.Any("guildID", guild.GuildID),
 		slog.Any("role", role.Name),
+		slog.Any("roleID", role.ID),
 	)
 	return e.CreateMessage(discord.MessageCreate{
-		Content: fmt.Sprintf("Admin role `%s` has been removed", role),
+		Content: fmt.Sprintf("Admin role `%s` has been removed", role.Name),
 	})
 }
 
 // isAdmin checks if the member has permissions to manage the server. If not, it sends an ephemeral message to the user
 // and returns false. Otherwise, it returns true.
 func isAdmin(e *handler.CommandEvent) bool {
-	guild := GetGuild(discordid.NewSnowflakeID(e.Member().GuildID))
-	member := GetMember(guild.GuildID, &e.Member().Member)
-	isAdmin, _ := member.IsAdmin(e.Client(), guild)
+	guildID := discordid.NewSnowflakeID(e.Member().GuildID)
+	guild := GetGuild(guildID)
 
-	if !isAdmin {
-		slog.Warn("user is not a guild admin",
-			slog.String("user", e.Member().User.Username),
-			slog.Any("user_id", e.Member().User.ID),
-			slog.String("name", e.Member().EffectiveName()),
-		)
-		err := e.CreateMessage(discord.MessageCreate{
-			Content: "You do not have permission to manage this server",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-		if err != nil {
-			slog.Error("error sending permission error message",
-				slog.Any("error", err),
-			)
-		}
-		return false
+	memberRoleIDs := make(map[discordid.SnowflakeID]struct{}, len(e.Member().RoleIDs))
+	for _, roleID := range e.Member().RoleIDs {
+		memberRoleIDs[discordid.NewSnowflakeID(roleID)] = struct{}{}
 	}
 
-	return true
+	for _, adminRoleID := range guild.AdminRoles {
+		if _, ok := memberRoleIDs[adminRoleID]; ok {
+			return true
+		}
+	}
+
+	defaultAdminRoleNameSet := make(map[string]struct{}, len(defaultAdminRoleNames))
+	for _, roleName := range defaultAdminRoleNames {
+		defaultAdminRoleNameSet[roleName] = struct{}{}
+	}
+
+	guildRoles, err := e.Client().Rest.GetRoles(guildID.ID())
+	if err != nil {
+		slog.Error("unable to get guild roles for admin check",
+			slog.Any("guildID", guildID),
+			slog.Any("userID", e.Member().User.ID),
+			slog.Any("error", err),
+		)
+		return sendPermissionDeniedMessage(e)
+	}
+
+	for _, role := range guildRoles {
+		roleID := discordid.NewSnowflakeID(role.ID)
+		if _, memberHasRole := memberRoleIDs[roleID]; !memberHasRole {
+			continue
+		}
+
+		if role.Permissions.Has(discord.PermissionAdministrator) {
+			return true
+		}
+
+		if _, isDefaultAdminRole := defaultAdminRoleNameSet[role.Name]; isDefaultAdminRole {
+			return true
+		}
+	}
+
+	slog.Warn("user is not a guild admin",
+		slog.String("user", e.Member().User.Username),
+		slog.Any("user_id", e.Member().User.ID),
+		slog.Any("guild_id", guildID),
+		slog.String("name", e.Member().EffectiveName()),
+		slog.Any("member_role_ids", e.Member().RoleIDs),
+		slog.Any("configured_admin_role_ids", guild.AdminRoles),
+	)
+
+	return sendPermissionDeniedMessage(e)
+}
+
+// sendPermissionDeniedMessage sends an ephemeral message to the user indicating that they do not have permission to manage the server.
+func sendPermissionDeniedMessage(e *handler.CommandEvent) bool {
+	err := e.CreateMessage(discord.MessageCreate{
+		Content: "You do not have permission to manage this server",
+		Flags:   discord.MessageFlagEphemeral,
+	})
+	if err != nil {
+		slog.Error("error sending permission error message",
+			slog.Any("error", err),
+		)
+	}
+
+	return false
 }
 
 // isShuttingDown checks if the plugin is shutting down. If it is, it sends an ephemeral message to the user and returns

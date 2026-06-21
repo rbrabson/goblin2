@@ -75,6 +75,11 @@ func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	}
 }
 
+// GetEventListeners returns the gateway event listeners for the payday plugin.
+func (p *Plugin) GetEventListeners() []bot.EventListener {
+	return nil
+}
+
 // GetSlashCommands returns the slash commands for the payday plugin.
 func (p *Plugin) GetSlashCommands() []discord.ApplicationCommandCreate {
 	return memberCommands

@@ -4,6 +4,7 @@ import (
 	"goblin2/database"
 	"goblin2/internal/discordid"
 	"log/slog"
+	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -11,6 +12,7 @@ import (
 const (
 	guildCollection  = "guilds"
 	memberCollection = "guild_members"
+	rolesCollection  = "guild_roles"
 )
 
 var (
@@ -20,6 +22,7 @@ var (
 // readGuild reads a guild from the database, returning nil if not found.
 func readGuild(guildID discordid.SnowflakeID) *Guild {
 	filter := bson.M{"guild_id": guildID}
+
 	var g Guild
 	if err := db.FindOne(guildCollection, filter, &g); err != nil {
 		slog.Debug("guild not found in database",
@@ -28,6 +31,7 @@ func readGuild(guildID discordid.SnowflakeID) *Guild {
 		)
 		return nil
 	}
+
 	return &g
 }
 
@@ -90,6 +94,160 @@ func updateGuild(g *Guild) error {
 	}
 
 	g.Version++
+
+	return nil
+}
+
+// readRoles reads the stored roles for a guild, returning nil if not found.
+func readRoles(guildID discordid.SnowflakeID) *Roles {
+	filter := bson.M{"guild_id": guildID}
+
+	var roles Roles
+	if err := db.FindOne(rolesCollection, filter, &roles); err != nil {
+		slog.Debug("guild roles not found in database",
+			slog.Any("guildID", guildID),
+			slog.Any("error", err),
+		)
+		return nil
+	}
+
+	sortRolesByPosition(roles.Roles)
+
+	return &roles
+}
+
+// writeRoles upserts the roles for a guild.
+func writeRoles(roles *Roles) error {
+	sortRolesByPosition(roles.Roles)
+	roles.SyncedAt = time.Now().UTC()
+
+	filter := bson.M{"guild_id": roles.GuildID}
+	update := bson.M{
+		"$set": bson.M{
+			"guild_id":  roles.GuildID,
+			"roles":     roles.Roles,
+			"synced_at": roles.SyncedAt,
+		},
+		"$inc": bson.M{
+			"version": 1,
+		},
+	}
+
+	if _, err := db.UpdateOneUpsert(rolesCollection, filter, update); err != nil {
+		slog.Error("unable to write guild roles",
+			slog.Any("guildID", roles.GuildID),
+			slog.Any("error", err),
+		)
+		return err
+	}
+
+	return nil
+}
+
+// upsertRole creates or updates a role in guild_roles.
+func upsertRole(guildID discordid.SnowflakeID, role Role) error {
+	roles := readRoles(guildID)
+	if roles == nil {
+		roles = &Roles{
+			GuildID: guildID,
+			Roles:   make([]Role, 0, 1),
+		}
+	}
+
+	updated := false
+	for i := range roles.Roles {
+		if roles.Roles[i].RoleID == role.RoleID {
+			roles.Roles[i] = role
+			updated = true
+			break
+		}
+	}
+
+	if !updated {
+		roles.Roles = append(roles.Roles, role)
+	}
+
+	return writeRoles(roles)
+}
+
+// deleteRole removes a role from guild_roles and from guilds.admin_roles.
+func deleteRole(guildID, roleID discordid.SnowflakeID) error {
+	roles := readRoles(guildID)
+	if roles != nil {
+		remaining := make([]Role, 0, len(roles.Roles))
+		for _, role := range roles.Roles {
+			if role.RoleID != roleID {
+				remaining = append(remaining, role)
+			}
+		}
+
+		roles.Roles = remaining
+		if err := writeRoles(roles); err != nil {
+			return err
+		}
+	}
+
+	if err := removeDeletedAdminRole(guildID, roleID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// removeDeletedAdminRole removes a deleted role ID from guilds.admin_roles.
+func removeDeletedAdminRole(guildID, roleID discordid.SnowflakeID) error {
+	update := bson.M{
+		"$pull": bson.M{
+			"admin_roles": roleID,
+		},
+	}
+
+	if _, err := db.UpdateOne(guildCollection, bson.M{"guild_id": guildID}, update); err != nil {
+		slog.Error("unable to remove deleted role from guild admin roles",
+			slog.Any("guildID", guildID),
+			slog.Any("roleID", roleID),
+			slog.Any("error", err),
+		)
+		return err
+	}
+
+	return nil
+}
+
+// readGuildAdminRolesRaw reads admin_roles without assuming whether legacy values are names or IDs.
+func readGuildAdminRolesRaw(guildID discordid.SnowflakeID) ([]any, error) {
+	filter := bson.M{"guild_id": guildID}
+
+	var rawGuild struct {
+		AdminRoles []any `bson:"admin_roles"`
+	}
+
+	if err := db.FindOne(guildCollection, filter, &rawGuild); err != nil {
+		slog.Debug("guild not found while reading raw admin roles",
+			slog.Any("guildID", guildID),
+			slog.Any("error", err),
+		)
+		return nil, nil
+	}
+
+	return rawGuild.AdminRoles, nil
+}
+
+// replaceGuildAdminRoles replaces guilds.admin_roles with role IDs only.
+func replaceGuildAdminRoles(guildID discordid.SnowflakeID, adminRoles []discordid.SnowflakeID) error {
+	update := bson.M{
+		"$set": bson.M{
+			"admin_roles": adminRoles,
+		},
+	}
+
+	if _, err := db.UpdateOne(guildCollection, bson.M{"guild_id": guildID}, update); err != nil {
+		slog.Error("unable to replace guild admin roles",
+			slog.Any("guildID", guildID),
+			slog.Any("error", err),
+		)
+		return err
+	}
 
 	return nil
 }

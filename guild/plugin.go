@@ -34,7 +34,7 @@ func NewPlugin(_ string) (*Plugin, error) {
 }
 
 // Initialize initializes the guild plugin.
-func (p *Plugin) Initialize(mongoDB *database.MongoDB, _ *bot.Client) {
+func (p *Plugin) Initialize(mongoDB *database.MongoDB, client *bot.Client) {
 	db = mongoDB
 }
 
@@ -64,10 +64,20 @@ func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	}
 }
 
-// GetSlashCommands returns the slash commands for the guild plugin.
 func (p *Plugin) GetSlashCommands() []discord.ApplicationCommandCreate {
 	return []discord.ApplicationCommandCreate{
 		adminCommands,
+	}
+}
+
+// GetEventListeners returns the gateway event listeners for the guild plugin.
+func (p *Plugin) GetEventListeners() []bot.EventListener {
+	return []bot.EventListener{
+		bot.NewListenerFunc(guildReadyListener),
+		bot.NewListenerFunc(guildJoinListener),
+		bot.NewListenerFunc(guildRoleCreateListener),
+		bot.NewListenerFunc(guildRoleUpdateListener),
+		bot.NewListenerFunc(guildRoleDeleteListener),
 	}
 }
 

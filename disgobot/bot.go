@@ -65,6 +65,7 @@ func (b *Bot) Start(mongoDB *database.MongoDB) error {
 			slog.Info("bot is connected as " + e.User.Username)
 		}),
 		bot.WithEventListeners(b.getEventListeners()),
+		bot.WithEventListeners(b.getPluginEventListeners()...),
 	)
 	if err != nil {
 		slog.Error("error while building disgo", slog.Any("err", err))
@@ -135,7 +136,6 @@ func (b *Bot) connectToGateway() error {
 	return nil
 }
 
-// getEventListeners returns the event listener handler for the bot.
 func (b *Bot) getEventListeners() *handler.Mux {
 	h := handler.New()
 	b.router = h
@@ -166,6 +166,17 @@ func (b *Bot) getEventListeners() *handler.Mux {
 	}
 
 	return h
+}
+
+// getPluginEventListeners returns the gateway event listeners registered by plugins.
+func (b *Bot) getPluginEventListeners() []bot.EventListener {
+	listeners := make([]bot.EventListener, 0)
+
+	for _, p := range b.plugins {
+		listeners = append(listeners, p.GetEventListeners()...)
+	}
+
+	return listeners
 }
 
 // syncCommands syncs the commands with the Discord API.

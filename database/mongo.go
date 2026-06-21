@@ -299,8 +299,7 @@ func (m *MongoDB) UpdateOne(collectionName string, filter any, update any) (*mon
 	return res, nil
 }
 
-// UpdateOneUpsert updates a single document in the collection that matches the filter
-// or inserts one if no document matches.
+// UpdateOneUpsert updates a single document in the collection that matches the filter, inserting it if it does not exist.
 func (m *MongoDB) UpdateOneUpsert(collectionName string, filter any, update any) (*mongo.UpdateResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
@@ -311,7 +310,6 @@ func (m *MongoDB) UpdateOneUpsert(collectionName string, filter any, update any)
 	}
 
 	opts := options.UpdateOne().SetUpsert(true)
-
 	res, err := collection.UpdateOne(ctx, filter, update, opts)
 	if err != nil {
 		slog.Debug("unable to upsert the document",
@@ -319,6 +317,30 @@ func (m *MongoDB) UpdateOneUpsert(collectionName string, filter any, update any)
 			slog.String("collection", collectionName),
 			slog.Any("filter", filter),
 			slog.Any("update", update),
+			slog.Any("error", err),
+		)
+		return nil, err
+	}
+
+	return res, nil
+}
+
+// DeleteOne deletes a single document in the collection that matches the filter.
+func (m *MongoDB) DeleteOne(collectionName string, filter any) (*mongo.DeleteResult, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	collection, err := m.getCollection(collectionName)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := collection.DeleteOne(ctx, filter)
+	if err != nil {
+		slog.Debug("unable to delete the document",
+			slog.String("database", m.dbname),
+			slog.String("collection", collectionName),
+			slog.Any("filter", filter),
 			slog.Any("error", err),
 		)
 		return nil, err
@@ -397,30 +419,6 @@ func (m *MongoDB) UpdateMany(collectionName string, filter any, update any) (*mo
 			slog.String("collection", collectionName),
 			slog.Any("filter", filter),
 			slog.Any("update", update),
-			slog.Any("error", err),
-		)
-		return nil, err
-	}
-
-	return res, nil
-}
-
-// DeleteOne deletes a single document in the collection that matches the filter.
-func (m *MongoDB) DeleteOne(collectionName string, filter any) (*mongo.DeleteResult, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
-	defer cancel()
-
-	collection, err := m.getCollection(collectionName)
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := collection.DeleteOne(ctx, filter)
-	if err != nil {
-		slog.Debug("unable to delete the document",
-			slog.String("database", m.dbname),
-			slog.String("collection", collectionName),
-			slog.Any("filter", filter),
 			slog.Any("error", err),
 		)
 		return nil, err
