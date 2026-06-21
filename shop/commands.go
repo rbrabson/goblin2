@@ -12,6 +12,7 @@ import (
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
+	"github.com/disgoorg/snowflake/v2"
 )
 
 var (
@@ -61,6 +62,32 @@ var (
 							Required:    true,
 						},
 					},
+				},
+				discord.ApplicationCommandOptionSubCommand{
+					Name:        "ban",
+					Description: "Bans a user from using the shop.",
+					Options: []discord.ApplicationCommandOption{
+						discord.ApplicationCommandOptionUser{
+							Name:        "user",
+							Description: "The user to ban from the shop.",
+							Required:    true,
+						},
+					},
+				},
+				discord.ApplicationCommandOptionSubCommand{
+					Name:        "un-ban",
+					Description: "Removes a user's shop ban.",
+					Options: []discord.ApplicationCommandOption{
+						discord.ApplicationCommandOptionUser{
+							Name:        "user",
+							Description: "The user to un-ban from the shop.",
+							Required:    true,
+						},
+					},
+				},
+				discord.ApplicationCommandOptionSubCommand{
+					Name:        "list-bans",
+					Description: "Lists users banned from using the shop.",
 				},
 				discord.ApplicationCommandOptionSubCommand{
 					Name:        "channel",
@@ -240,6 +267,136 @@ func removeRoleHandler(data discord.SlashCommandInteractionData, e *handler.Comm
 	)
 	return e.CreateMessage(discord.MessageCreate{
 		Content: fmt.Sprintf("Removed role `%s` from the shop.", roleName),
+		Flags:   discord.MessageFlagEphemeral,
+	})
+}
+
+// banHandler handles the /shop-admin ban command.
+func banHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
+	member := e.Member()
+	if member == nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "This command can only be used in a server.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	user := data.User("user")
+	if user.ID == snowflake.ID(0) {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Please provide a valid user.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	shopMember := GetMember(discordid.NewSnowflakeID(member.GuildID), discordid.NewSnowflakeID(user.ID))
+	if err := shopMember.AddRestriction(showBan); err != nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: format.FirstToUpper(err.Error()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	slog.Info("user banned from shop",
+		slog.Any("guildID", member.GuildID),
+		slog.Any("memberID", user.ID),
+		slog.String("user", user.Username),
+		slog.String("admin", member.EffectiveName()),
+	)
+
+	return e.CreateMessage(discord.MessageCreate{
+		Content: fmt.Sprintf("%s has been banned from using the shop.", user.Mention()),
+		Flags:   discord.MessageFlagEphemeral,
+	})
+}
+
+// unBanHandler handles the /shop-admin un-ban command.
+func unBanHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
+	member := e.Member()
+	if member == nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "This command can only be used in a server.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	user := data.User("user")
+	if user.ID == snowflake.ID(0) {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Please provide a valid user.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	shopMember := GetMember(discordid.NewSnowflakeID(member.GuildID), discordid.NewSnowflakeID(user.ID))
+	if err := shopMember.RemoveRestriction(showBan); err != nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: format.FirstToUpper(err.Error()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	slog.Info("user un-banned from shop",
+		slog.Any("guildID", member.GuildID),
+		slog.Any("memberID", user.ID),
+		slog.String("user", user.Username),
+		slog.String("admin", member.EffectiveName()),
+	)
+
+	return e.CreateMessage(discord.MessageCreate{
+		Content: fmt.Sprintf("%s has been un-banned from using the shop.", user.Mention()),
+		Flags:   discord.MessageFlagEphemeral,
+	})
+}
+
+// listBansHandler handles the /shop-admin list-bans command.
+func listBansHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
+	member := e.Member()
+	if member == nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "This command can only be used in a server.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	bannedMembers, err := readMembersWithRestriction(discordid.NewSnowflakeID(member.GuildID), showBan)
+	if err != nil {
+		slog.Error("unable to read shop bans",
+			slog.Any("guildID", member.GuildID),
+			slog.Any("error", err),
+		)
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Unable to list shop bans.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	if len(bannedMembers) == 0 {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "No users are banned from using the shop.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	lines := make([]string, 0, len(bannedMembers))
+	for _, bannedMember := range bannedMembers {
+		lines = append(lines, fmt.Sprintf("<@%s> (`%s`)", bannedMember.MemberID, bannedMember.MemberID))
+	}
+
+	return e.CreateMessage(discord.MessageCreate{
+		Content: "**Shop Bans**:\n" + strings.Join(lines, "\n"),
 		Flags:   discord.MessageFlagEphemeral,
 	})
 }

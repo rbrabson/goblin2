@@ -337,6 +337,37 @@ func readMember(guildID discordid.SnowflakeID, memberID discordid.SnowflakeID) (
 	return &member, nil
 }
 
+// readMembersWithRestriction reads all shop members in a guild with the given restriction.
+func readMembersWithRestriction(guildID discordid.SnowflakeID, restriction string) ([]*Member, error) {
+	filter := bson.M{
+		"guild_id":     guildID,
+		"restrictions": restriction,
+	}
+
+	var members []*Member
+	if err := db.FindMany(memberCollection, filter, &members, bson.M{"member_id": 1}, 0); err != nil {
+		slog.Error("unable to read shop members with restriction",
+			slog.Any("guildID", guildID),
+			slog.String("restriction", restriction),
+			slog.Any("error", err),
+		)
+		return nil, err
+	}
+
+	for _, member := range members {
+		if member == nil {
+			continue
+		}
+
+		memberCache.Set(memberCacheKey{
+			guildID:  member.GuildID,
+			memberID: member.MemberID,
+		}, *member)
+	}
+
+	return members, nil
+}
+
 // writeMember inserts the member into the database.
 func writeMember(member *Member) error {
 	member.Version = 0

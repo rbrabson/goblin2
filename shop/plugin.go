@@ -56,16 +56,18 @@ func (p *Plugin) GetName() string {
 }
 
 // GetAdminHelp returns the admin help text for the shop plugin.
+// GetAdminHelp returns the admin help text for the shop plugin.
 func (p *Plugin) GetAdminHelp() map[string]string {
 	return map[string]string{
-		"/shop-admin add":         "Adds an item to the shop that may be purchased by a member.",
+		"/shop-admin add-role":    "Adds an item to the shop that may be purchased by a member.",
 		"/shop-admin ban":         "Bans a member from the shop.",
 		"/shop-admin channel":     "Sets the channel to which to publish the shop items.",
-		"/shop-admin delete":      "Removes a purchasable item from the shop.",
+		"/shop-admin info":        "Gets the shop configuration.",
 		"/shop-admin list-bans":   "Lists the users banned from the shop.",
 		"/shop-admin mod-channel": "Sets the channel to which to publish notices.",
 		"/shop-admin publish":     "Publishes the shop items in the shop channel.",
-		"/shop-admin unban":       "Removes the ban of a member from the shop.",
+		"/shop-admin remove-role": "Removes a purchasable item from the shop.",
+		"/shop-admin un-ban":      "Removes the ban of a member from the shop.",
 	}
 }
 
@@ -80,11 +82,15 @@ func (p *Plugin) Status() plugin.Status {
 }
 
 // GetSlashHandlers returns the slash command handlers for the shop plugin.
+// GetSlashHandlers returns the slash command handlers for the shop plugin.
 func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	return map[string]handler.SlashCommandHandler{
 		"/shop/purchases":         purchasesHandler,
 		"/shop-admin/add-role":    addRoleHandler,
 		"/shop-admin/remove-role": removeRoleHandler,
+		"/shop-admin/ban":         banHandler,
+		"/shop-admin/un-ban":      unBanHandler,
+		"/shop-admin/list-bans":   listBansHandler,
 		"/shop-admin/channel":     setChannelHandler,
 		"/shop-admin/mod-channel": setModChannelHandler,
 		"/shop-admin/publish":     publishShopHandler,
