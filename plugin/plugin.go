@@ -28,6 +28,7 @@ type Plugin interface {
 	GetSlashHandlers() map[string]handler.SlashCommandHandler
 	GetComponentHandlers() map[string]handler.ComponentHandler
 	GetSlashCommands() []discord.ApplicationCommandCreate
+	GetEventListeners() []bot.EventListener
 }
 
 // String gets the string representation of the plugin status.

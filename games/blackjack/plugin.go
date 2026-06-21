@@ -115,6 +115,11 @@ func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	}
 }
 
+// GetEventListeners returns the gateway event listeners for the blackjack plugin.
+func (p *Plugin) GetEventListeners() []bot.EventListener {
+	return nil
+}
+
 // GetComponentHandlers returns component handlers for blackjack.
 func (p *Plugin) GetComponentHandlers() map[string]handler.ComponentHandler {
 	return map[string]handler.ComponentHandler{

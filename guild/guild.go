@@ -12,15 +12,15 @@ import (
 )
 
 var (
-	defaultAdminRoles = []string{"Admin", "Admins", "Administrator", "Mod", "Mods", "Moderator"}
+	defaultAdminRoles = []discordid.SnowflakeID{}
 )
 
 // Guild represents a Discord guild
 type Guild struct {
-	ID         bson.ObjectID         `bson:"_id,omitempty"`
-	GuildID    discordid.SnowflakeID `bson:"guild_id"`
-	AdminRoles []string              `bson:"admin_roles"`
-	Version    int                   `bson:"version"`
+	ID         bson.ObjectID           `bson:"_id,omitempty"`
+	GuildID    discordid.SnowflakeID   `bson:"guild_id"`
+	AdminRoles []discordid.SnowflakeID `bson:"admin_roles"`
+	Version    int                     `bson:"version"`
 }
 
 // GetGuild returns the guild with the given guild ID, creating a default one if not found.
@@ -32,11 +32,10 @@ func GetGuild(guildID discordid.SnowflakeID) *Guild {
 	return createDefaultGuild(guildID)
 }
 
-// createDefaultGuild creates a new guild with the given guild ID and default admin roles.
 func createDefaultGuild(guildID discordid.SnowflakeID) *Guild {
 	return &Guild{
 		GuildID:    guildID,
-		AdminRoles: append([]string(nil), defaultAdminRoles...),
+		AdminRoles: append([]discordid.SnowflakeID(nil), defaultAdminRoles...),
 	}
 }
 
@@ -73,20 +72,20 @@ func UpdateGuild(guildID discordid.SnowflakeID, mutate func(*Guild) error) error
 	return fmt.Errorf("failed to update guild after %d retries: %w", maxRetries, ErrVersionConflict)
 }
 
-// AddAdminRole adds the given role name to the guild's admin roles.
-func (g *Guild) AddAdminRole(roleName string) error {
+// AddAdminRole adds the given role ID to the guild's admin roles.
+func (g *Guild) AddAdminRole(roleID discordid.SnowflakeID) error {
 	var updated *Guild
 	if err := UpdateGuild(g.GuildID, func(latest *Guild) error {
 		for _, r := range latest.AdminRoles {
-			if r == roleName {
+			if r == roleID {
 				return ErrAlreadyAdminRole
 			}
 		}
-		latest.AdminRoles = append(latest.AdminRoles, roleName)
+		latest.AdminRoles = append(latest.AdminRoles, roleID)
 		updated = latest
 		slog.Info("added admin role",
 			slog.Any("guildID", latest.GuildID),
-			slog.String("role", roleName),
+			slog.Any("roleID", roleID),
 		)
 		return nil
 	}); err != nil {
@@ -99,13 +98,13 @@ func (g *Guild) AddAdminRole(roleName string) error {
 	return nil
 }
 
-// RemoveAdminRole removes the given role name from the guild's admin roles.
-func (g *Guild) RemoveAdminRole(roleName string) error {
+// RemoveAdminRole removes the given role ID from the guild's admin roles.
+func (g *Guild) RemoveAdminRole(roleID discordid.SnowflakeID) error {
 	var updated *Guild
 	if err := UpdateGuild(g.GuildID, func(latest *Guild) error {
-		roles := make([]string, 0, len(latest.AdminRoles))
+		roles := make([]discordid.SnowflakeID, 0, len(latest.AdminRoles))
 		for _, r := range latest.AdminRoles {
-			if r != roleName {
+			if r != roleID {
 				roles = append(roles, r)
 			}
 		}
@@ -116,7 +115,7 @@ func (g *Guild) RemoveAdminRole(roleName string) error {
 		updated = latest
 		slog.Info("removed admin role",
 			slog.Any("guildID", latest.GuildID),
-			slog.String("role", roleName),
+			slog.Any("roleID", roleID),
 		)
 		return nil
 	}); err != nil {
@@ -129,10 +128,26 @@ func (g *Guild) RemoveAdminRole(roleName string) error {
 	return nil
 }
 
-// GetAdminRoles returns the admin roles for the guild.
+// GetAdminRoles returns the admin role names for the guild.
 func (g *Guild) GetAdminRoles() []string {
-	adminRoles := make([]string, len(g.AdminRoles))
-	copy(adminRoles, g.AdminRoles)
+	storedRoles := readRoles(g.GuildID)
+	roleNamesByID := make(map[discordid.SnowflakeID]string)
+	if storedRoles != nil {
+		for _, role := range storedRoles.Roles {
+			roleNamesByID[role.RoleID] = role.RoleName
+		}
+	}
+
+	adminRoles := make([]string, 0, len(g.AdminRoles))
+	for _, roleID := range g.AdminRoles {
+		if roleName, ok := roleNamesByID[roleID]; ok {
+			adminRoles = append(adminRoles, roleName)
+			continue
+		}
+
+		adminRoles = append(adminRoles, roleID.String())
+	}
+
 	return adminRoles
 }
 

@@ -141,6 +141,11 @@ func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 	}
 }
 
+// GetEventListeners returns the gateway event listeners for the heist plugin.
+func (p *Plugin) GetEventListeners() []bot.EventListener {
+	return nil
+}
+
 func (p *Plugin) GetComponentHandlers() map[string]handler.ComponentHandler {
 	return map[string]handler.ComponentHandler{
 		"/heist/join": joinHeistButtonHandler,

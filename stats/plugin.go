@@ -78,6 +78,11 @@ func (p *Plugin) GetSlashCommands() []discord.ApplicationCommandCreate {
 	return commands
 }
 
+// GetEventListeners returns the gateway event listeners for the stats plugin.
+func (p *Plugin) GetEventListeners() []bot.EventListener {
+	return nil
+}
+
 // GetComponentHandlers returns the component handlers for the bank plugin.
 func (p *Plugin) GetComponentHandlers() map[string]handler.ComponentHandler {
 	return nil

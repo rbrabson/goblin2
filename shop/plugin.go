@@ -100,6 +100,11 @@ func (p *Plugin) GetSlashCommands() []discord.ApplicationCommandCreate {
 	return commands
 }
 
+// GetEventListeners returns the gateway event listeners for the shop plugin.
+func (p *Plugin) GetEventListeners() []bot.EventListener {
+	return nil
+}
+
 // GetComponentHandlers returns the component handlers for the shop plugin.
 func (p *Plugin) GetComponentHandlers() map[string]handler.ComponentHandler {
 	return map[string]handler.ComponentHandler{
