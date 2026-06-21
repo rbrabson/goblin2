@@ -6,8 +6,10 @@ import (
 	"slices"
 	"time"
 
+	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
+	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -69,6 +71,7 @@ func (r *Roles) RoleNames() []string {
 	return names
 }
 
+// sortRolesByPosition sorts the roles by position.
 func sortRolesByPosition(roles []Role) {
 	slices.SortFunc(roles, func(a Role, b Role) int {
 		if a.Position < b.Position {
@@ -81,6 +84,118 @@ func sortRolesByPosition(roles []Role) {
 	})
 }
 
+// startRoleSync starts a goroutine that syncs all cached guild roles from Discord on startup.
+func startRoleSync(client *bot.Client) {
+	if client == nil {
+		slog.Error("unable to start guild role sync: discord client is nil")
+		return
+	}
+
+	go func() {
+		for guild := range client.Caches.Guilds() {
+			guildID := discordid.NewSnowflakeID(guild.ID)
+
+			roles, err := client.Rest.GetRoles(guild.ID)
+			if err != nil {
+				slog.Error("unable to retrieve guild roles during startup sync",
+					slog.Any("guildID", guildID),
+					slog.Any("error", err),
+				)
+				continue
+			}
+
+			if err := syncGuildRoles(guildID, roles); err != nil {
+				slog.Error("unable to sync guild roles during startup",
+					slog.Any("guildID", guildID),
+					slog.Any("error", err),
+				)
+			}
+		}
+	}()
+}
+
+// syncGuildRoles stores the current Discord roles, removes deleted roles from admin_roles,
+// and migrates any admin_roles entries that still use role names to role IDs.
+func syncGuildRoles(guildID discordid.SnowflakeID, discordRoles []discord.Role) error {
+	currentRoles := NewRoles(guildID, discordRoles)
+
+	if err := writeRoles(currentRoles); err != nil {
+		return err
+	}
+
+	currentRoleIDs := make(map[discordid.SnowflakeID]struct{}, len(currentRoles.Roles))
+	currentRoleIDsByName := make(map[string]discordid.SnowflakeID, len(currentRoles.Roles))
+	for _, role := range currentRoles.Roles {
+		currentRoleIDs[role.RoleID] = struct{}{}
+		currentRoleIDsByName[role.RoleName] = role.RoleID
+	}
+
+	rawAdminRoles, err := readGuildAdminRolesRaw(guildID)
+	if err != nil {
+		slog.Error("unable to read admin roles",
+			slog.Any("guildID", guildID),
+			slog.Any("error", err),
+		)
+		return err
+	}
+
+	adminRoles := make([]discordid.SnowflakeID, 0, len(rawAdminRoles))
+	seenAdminRoles := make(map[discordid.SnowflakeID]struct{}, len(rawAdminRoles))
+
+	for _, rawAdminRole := range rawAdminRoles {
+		roleID, ok := adminRoleIDFromRaw(rawAdminRole, currentRoleIDsByName)
+		if !ok {
+			continue
+		}
+
+		if _, exists := currentRoleIDs[roleID]; !exists {
+			continue
+		}
+
+		if _, seen := seenAdminRoles[roleID]; seen {
+			continue
+		}
+
+		adminRoles = append(adminRoles, roleID)
+		seenAdminRoles[roleID] = struct{}{}
+	}
+
+	if err := replaceGuildAdminRoles(guildID, adminRoles); err != nil {
+		slog.Error("unable to replace admin roles",
+			slog.Any("guildID", guildID),
+			slog.Any("error", err),
+		)
+		return err
+	}
+
+	return nil
+}
+
+// adminRoleIDFromRaw converts a legacy admin role entry into a role ID.
+// Existing role IDs are kept, and legacy role names are resolved against current Discord roles.
+func adminRoleIDFromRaw(rawAdminRole any, roleIDsByName map[string]discordid.SnowflakeID) (discordid.SnowflakeID, bool) {
+	switch role := rawAdminRole.(type) {
+	case discordid.SnowflakeID:
+		return role, true
+	case snowflake.ID:
+		return discordid.NewSnowflakeID(role), true
+	case string:
+		if roleID, ok := roleIDsByName[role]; ok {
+			return roleID, true
+		}
+
+		parsedRoleID, err := snowflake.Parse(role)
+		if err != nil {
+			return discordid.NewSnowflakeID(0), false
+		}
+
+		return discordid.NewSnowflakeID(parsedRoleID), true
+	default:
+		return discordid.NewSnowflakeID(0), false
+	}
+}
+
+// guildRoleCreateListener is called when a guild role is created.
 func guildRoleCreateListener(e *events.RoleCreate) {
 	guildID := discordid.NewSnowflakeID(e.GuildID)
 
@@ -93,6 +208,7 @@ func guildRoleCreateListener(e *events.RoleCreate) {
 	}
 }
 
+// guildRoleUpdateListener is called when a guild role is updated.
 func guildRoleUpdateListener(e *events.RoleUpdate) {
 	guildID := discordid.NewSnowflakeID(e.GuildID)
 
@@ -105,6 +221,7 @@ func guildRoleUpdateListener(e *events.RoleUpdate) {
 	}
 }
 
+// guildRoleDeleteListener is called when a guild role is deleted.
 func guildRoleDeleteListener(e *events.RoleDelete) {
 	guildID := discordid.NewSnowflakeID(e.GuildID)
 	roleID := discordid.NewSnowflakeID(e.RoleID)

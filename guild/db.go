@@ -22,6 +22,7 @@ var (
 // readGuild reads a guild from the database, returning nil if not found.
 func readGuild(guildID discordid.SnowflakeID) *Guild {
 	filter := bson.M{"guild_id": guildID}
+
 	var g Guild
 	if err := db.FindOne(guildCollection, filter, &g); err != nil {
 		slog.Debug("guild not found in database",
@@ -30,6 +31,7 @@ func readGuild(guildID discordid.SnowflakeID) *Guild {
 		)
 		return nil
 	}
+
 	return &g
 }
 
@@ -196,7 +198,7 @@ func deleteRole(guildID, roleID discordid.SnowflakeID) error {
 func removeDeletedAdminRole(guildID, roleID discordid.SnowflakeID) error {
 	update := bson.M{
 		"$pull": bson.M{
-			"admin_roles": roleID.String(),
+			"admin_roles": roleID,
 		},
 	}
 
@@ -204,6 +206,44 @@ func removeDeletedAdminRole(guildID, roleID discordid.SnowflakeID) error {
 		slog.Error("unable to remove deleted role from guild admin roles",
 			slog.Any("guildID", guildID),
 			slog.Any("roleID", roleID),
+			slog.Any("error", err),
+		)
+		return err
+	}
+
+	return nil
+}
+
+// readGuildAdminRolesRaw reads admin_roles without assuming whether legacy values are names or IDs.
+func readGuildAdminRolesRaw(guildID discordid.SnowflakeID) ([]any, error) {
+	filter := bson.M{"guild_id": guildID}
+
+	var rawGuild struct {
+		AdminRoles []any `bson:"admin_roles"`
+	}
+
+	if err := db.FindOne(guildCollection, filter, &rawGuild); err != nil {
+		slog.Debug("guild not found while reading raw admin roles",
+			slog.Any("guildID", guildID),
+			slog.Any("error", err),
+		)
+		return nil, nil
+	}
+
+	return rawGuild.AdminRoles, nil
+}
+
+// replaceGuildAdminRoles replaces guilds.admin_roles with role IDs only.
+func replaceGuildAdminRoles(guildID discordid.SnowflakeID, adminRoles []discordid.SnowflakeID) error {
+	update := bson.M{
+		"$set": bson.M{
+			"admin_roles": adminRoles,
+		},
+	}
+
+	if _, err := db.UpdateOne(guildCollection, bson.M{"guild_id": guildID}, update); err != nil {
+		slog.Error("unable to replace guild admin roles",
+			slog.Any("guildID", guildID),
 			slog.Any("error", err),
 		)
 		return err
