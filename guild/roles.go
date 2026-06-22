@@ -126,6 +126,16 @@ func syncGuildRoles(guildID discordid.SnowflakeID, discordRoles []discord.Role) 
 		return err
 	}
 
+	if readGuild(guildID) == nil {
+		g := &Guild{
+			GuildID:    guildID,
+			AdminRoles: defaultAdminRoleIDsFromRoles(currentRoles.Roles),
+		}
+		if err := writeGuild(g); err != nil {
+			return err
+		}
+	}
+
 	roleIDsByName := make(map[string]discordid.SnowflakeID, len(currentRoles.Roles))
 	for _, role := range currentRoles.Roles {
 		roleIDsByName[role.RoleName] = role.RoleID
@@ -175,6 +185,30 @@ func syncGuildRoles(guildID discordid.SnowflakeID, discordRoles []discord.Role) 
 	}
 
 	return nil
+}
+
+// defaultAdminRoleIDsFromRoles returns role IDs for Discord roles whose names match the default admin role names.
+func defaultAdminRoleIDsFromRoles(roles []Role) []discordid.SnowflakeID {
+	defaultAdminRoleNameSet := make(map[string]struct{}, len(defaultAdminRoleNames))
+	for _, roleName := range defaultAdminRoleNames {
+		defaultAdminRoleNameSet[roleName] = struct{}{}
+	}
+
+	adminRoleIDs := make([]discordid.SnowflakeID, 0, len(defaultAdminRoleNames))
+	seenAdminRoleIDs := make(map[discordid.SnowflakeID]struct{}, len(defaultAdminRoleNames))
+	for _, role := range roles {
+		if _, ok := defaultAdminRoleNameSet[role.RoleName]; !ok {
+			continue
+		}
+		if _, seen := seenAdminRoleIDs[role.RoleID]; seen {
+			continue
+		}
+
+		adminRoleIDs = append(adminRoleIDs, role.RoleID)
+		seenAdminRoleIDs[role.RoleID] = struct{}{}
+	}
+
+	return adminRoleIDs
 }
 
 // adminRoleIDFromRaw converts a legacy admin role entry into a role ID.

@@ -36,6 +36,7 @@ func NewPlugin(_ string) (*Plugin, error) {
 // Initialize initializes the guild plugin.
 func (p *Plugin) Initialize(mongoDB *database.MongoDB, client *bot.Client) {
 	db = mongoDB
+	startRoleSync(client)
 }
 
 // GetName returns the name of the guild plugin.
