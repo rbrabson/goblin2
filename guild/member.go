@@ -364,6 +364,11 @@ func (m *Member) getGuildRole(client *bot.Client, roleName string) (discord.Role
 		}
 	}
 
+	slog.Error("role not found",
+		slog.Any("guildID", m.GuildID),
+		slog.String("roleName", roleName),
+		slog.Any("error", err),
+	)
 	return discord.Role{}, ErrRoleNotFound
 }
 

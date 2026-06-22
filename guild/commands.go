@@ -67,9 +67,13 @@ func guildAdminRoleListHandler(_ discord.SlashCommandInteractionData, e *handler
 	})
 }
 
+// roleFromOption returns the role with the given name from the given guild.
 func roleFromOption(data discord.SlashCommandInteractionData, optionName string, guildID discordid.SnowflakeID, client *bot.Client) (discord.Role, error) {
 	option, ok := data.Options[optionName]
 	if !ok {
+		slog.Error("invalid role option",
+			slog.String("optionName", optionName),
+		)
 		return discord.Role{}, ErrRoleNotFound
 	}
 
@@ -79,6 +83,12 @@ func roleFromOption(data discord.SlashCommandInteractionData, optionName string,
 
 	roleID, err := snowflake.Parse(roleIDText)
 	if err != nil {
+		slog.Error("invalid role option",
+			slog.Any("guildID", guildID),
+			slog.Any("option", option),
+			slog.String("roleIDText", roleIDText),
+			slog.Any("error", err),
+		)
 		return discord.Role{}, fmt.Errorf("invalid role option %q: %w", option.String(), err)
 	}
 
@@ -93,6 +103,12 @@ func roleFromOption(data discord.SlashCommandInteractionData, optionName string,
 		}
 	}
 
+	slog.Error("role not found",
+		slog.Any("guildID", guildID),
+		slog.Any("option", option),
+		slog.String("roleIDText", roleIDText),
+		slog.Any("error", err),
+	)
 	return discord.Role{}, ErrRoleNotFound
 }
 
@@ -103,7 +119,7 @@ func guildAdminRoleAddHandler(data discord.SlashCommandInteractionData, e *handl
 	}
 
 	guild := GetGuild(discordid.NewSnowflakeID(e.Member().GuildID))
-	role, err := roleFromOption(data, "name", guild.GuildID, e.Client())
+	role, err := roleFromOption(data, "role", guild.GuildID, e.Client())
 	if err != nil {
 		slog.Error("invalid role",
 			slog.Any("guildID", guild.GuildID),
@@ -147,7 +163,7 @@ func guildAdminRoleRemoveHandler(data discord.SlashCommandInteractionData, e *ha
 	}
 
 	guild := GetGuild(discordid.NewSnowflakeID(e.Member().GuildID))
-	role, err := roleFromOption(data, "name", guild.GuildID, e.Client())
+	role, err := roleFromOption(data, "role", guild.GuildID, e.Client())
 	if err != nil {
 		slog.Error("invalid role",
 			slog.Any("guildID", guild.GuildID),
