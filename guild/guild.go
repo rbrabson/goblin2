@@ -36,7 +36,7 @@ func GetGuild(guildID discordid.SnowflakeID) *Guild {
 func createDefaultGuild(guildID discordid.SnowflakeID) *Guild {
 	return &Guild{
 		GuildID:    guildID,
-		AdminRoles: append([]discordid.SnowflakeID(nil), defaultAdminRoles...),
+		AdminRoles: defaultAdminRoleIDsFromStoredRoles(guildID),
 	}
 }
 

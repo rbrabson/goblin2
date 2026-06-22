@@ -156,9 +156,10 @@ func reconcileGuildAdminRoles(guildID discordid.SnowflakeID, roles []Role) error
 		roleID, convertedFromName, ok := adminRoleIDFromRaw(rawAdminRole, roleIDsByName)
 		if !ok {
 			changed = true
-			slog.Warn("pruning unknown admin role value during role sync",
+			slog.Warn("unable to convert admin role value to role ID; pruning admin role",
 				slog.Any("guildID", guildID),
-				slog.Any("roleName", rawAdminRole),
+				slog.Any("adminRole", rawAdminRole),
+				slog.String("error", "role does not exist on guild or value is not a valid role ID"),
 			)
 			continue
 		}
@@ -200,23 +201,49 @@ func roleIDsByName(roles []Role) map[string]discordid.SnowflakeID {
 
 // defaultAdminRoleIDsFromRoles returns role IDs for Discord roles whose names match the default admin role names.
 func defaultAdminRoleIDsFromRoles(roles []Role) []discordid.SnowflakeID {
-	defaultAdminRoleNameSet := make(map[string]struct{}, len(defaultAdminRoleNames))
-	for _, roleName := range defaultAdminRoleNames {
-		defaultAdminRoleNameSet[roleName] = struct{}{}
+	roleIDsByName := roleIDsByName(roles)
+	return defaultAdminRoleIDsFromRoleIDsByName(discordid.NewSnowflakeID(0), roleIDsByName)
+}
+
+// defaultAdminRoleIDsFromStoredRoles returns role IDs for default admin role names using the stored guild_roles document.
+func defaultAdminRoleIDsFromStoredRoles(guildID discordid.SnowflakeID) []discordid.SnowflakeID {
+	roles := readRoles(guildID)
+	if roles == nil {
+		for _, roleName := range defaultAdminRoleNames {
+			slog.Warn("unable to convert default admin role name to role ID; pruning admin role",
+				slog.Any("guildID", guildID),
+				slog.String("roleName", roleName),
+				slog.String("error", "guild roles have not been synced"),
+			)
+		}
+		return nil
 	}
 
+	return defaultAdminRoleIDsFromRoleIDsByName(guildID, roleIDsByName(roles.Roles))
+}
+
+// defaultAdminRoleIDsFromRoleIDsByName converts default admin role names to role IDs.
+// Default role names that do not exist on the guild are pruned and logged as warnings.
+func defaultAdminRoleIDsFromRoleIDsByName(guildID discordid.SnowflakeID, roleIDsByName map[string]discordid.SnowflakeID) []discordid.SnowflakeID {
 	adminRoleIDs := make([]discordid.SnowflakeID, 0, len(defaultAdminRoleNames))
 	seenAdminRoleIDs := make(map[discordid.SnowflakeID]struct{}, len(defaultAdminRoleNames))
-	for _, role := range roles {
-		if _, ok := defaultAdminRoleNameSet[role.RoleName]; !ok {
+
+	for _, roleName := range defaultAdminRoleNames {
+		roleID, ok := roleIDsByName[roleName]
+		if !ok {
+			slog.Warn("unable to convert default admin role name to role ID; pruning admin role",
+				slog.Any("guildID", guildID),
+				slog.String("roleName", roleName),
+				slog.String("error", "role does not exist on guild"),
+			)
 			continue
 		}
-		if _, seen := seenAdminRoleIDs[role.RoleID]; seen {
+		if _, seen := seenAdminRoleIDs[roleID]; seen {
 			continue
 		}
 
-		adminRoleIDs = append(adminRoleIDs, role.RoleID)
-		seenAdminRoleIDs[role.RoleID] = struct{}{}
+		adminRoleIDs = append(adminRoleIDs, roleID)
+		seenAdminRoleIDs[roleID] = struct{}{}
 	}
 
 	return adminRoleIDs
