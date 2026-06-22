@@ -23,8 +23,13 @@ var (
 func readGuild(guildID discordid.SnowflakeID) *Guild {
 	filter := bson.M{"guild_id": guildID}
 
-	var g Guild
-	if err := db.FindOne(guildCollection, filter, &g); err != nil {
+	var rawGuild struct {
+		ID         bson.ObjectID         `bson:"_id,omitempty"`
+		GuildID    discordid.SnowflakeID `bson:"guild_id"`
+		AdminRoles []any                 `bson:"admin_roles"`
+		Version    int                   `bson:"version"`
+	}
+	if err := db.FindOne(guildCollection, filter, &rawGuild); err != nil {
 		slog.Debug("guild not found in database",
 			slog.Any("guildID", guildID),
 			slog.Any("error", err),
@@ -32,7 +37,31 @@ func readGuild(guildID discordid.SnowflakeID) *Guild {
 		return nil
 	}
 
-	return &g
+	adminRoles := make([]discordid.SnowflakeID, 0, len(rawGuild.AdminRoles))
+	seenAdminRoles := make(map[discordid.SnowflakeID]struct{}, len(rawGuild.AdminRoles))
+	for _, rawAdminRole := range rawGuild.AdminRoles {
+		roleID, convertedFromName, ok := adminRoleIDFromRaw(rawAdminRole, nil)
+		if !ok || convertedFromName {
+			slog.Debug("skipping legacy admin role value while reading guild; role sync will resolve names",
+				slog.Any("guildID", guildID),
+				slog.Any("adminRole", rawAdminRole),
+			)
+			continue
+		}
+		if _, seen := seenAdminRoles[roleID]; seen {
+			continue
+		}
+
+		adminRoles = append(adminRoles, roleID)
+		seenAdminRoles[roleID] = struct{}{}
+	}
+
+	return &Guild{
+		ID:         rawGuild.ID,
+		GuildID:    rawGuild.GuildID,
+		AdminRoles: adminRoles,
+		Version:    rawGuild.Version,
+	}
 }
 
 // writeGuild inserts a new guild into the database.

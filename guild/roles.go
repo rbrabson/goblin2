@@ -116,9 +116,10 @@ func startRoleSync(client *bot.Client) {
 	}()
 }
 
-// syncGuildRoles stores the current Discord roles and safely migrates any admin_roles entries
-// that still use role names to role IDs. This function is intentionally non-destructive for
-// admin_roles because startup role data can be incomplete or legacy data can decode differently.
+// syncGuildRoles stores the current Discord roles and reconciles guilds.admin_roles
+// so it contains role IDs only. Existing legacy role names are converted when they
+// match current Discord roles. Unknown legacy names are pruned because admin_roles
+// must be stored as role IDs.
 func syncGuildRoles(guildID discordid.SnowflakeID, discordRoles []discord.Role) error {
 	currentRoles := NewRoles(guildID, discordRoles)
 
@@ -126,27 +127,25 @@ func syncGuildRoles(guildID discordid.SnowflakeID, discordRoles []discord.Role) 
 		return err
 	}
 
-	if readGuild(guildID) == nil {
-		g := &Guild{
-			GuildID:    guildID,
-			AdminRoles: defaultAdminRoleIDsFromRoles(currentRoles.Roles),
-		}
-		if err := writeGuild(g); err != nil {
-			return err
-		}
-	}
+	return reconcileGuildAdminRoles(guildID, currentRoles.Roles)
+}
 
-	roleIDsByName := make(map[string]discordid.SnowflakeID, len(currentRoles.Roles))
-	for _, role := range currentRoles.Roles {
-		roleIDsByName[role.RoleName] = role.RoleID
-	}
+// reconcileGuildAdminRoles creates missing guild records and normalizes guilds.admin_roles
+// to role IDs only.
+func reconcileGuildAdminRoles(guildID discordid.SnowflakeID, roles []Role) error {
+	roleIDsByName := roleIDsByName(roles)
 
 	rawAdminRoles, err := readGuildAdminRolesRaw(guildID)
 	if err != nil {
 		return err
 	}
-	if len(rawAdminRoles) == 0 {
-		return nil
+
+	if rawAdminRoles == nil {
+		g := &Guild{
+			GuildID:    guildID,
+			AdminRoles: defaultAdminRoleIDsFromRoles(roles),
+		}
+		return writeGuild(g)
 	}
 
 	adminRoles := make([]discordid.SnowflakeID, 0, len(rawAdminRoles))
@@ -156,14 +155,20 @@ func syncGuildRoles(guildID discordid.SnowflakeID, discordRoles []discord.Role) 
 	for _, rawAdminRole := range rawAdminRoles {
 		roleID, convertedFromName, ok := adminRoleIDFromRaw(rawAdminRole, roleIDsByName)
 		if !ok {
-			slog.Warn("preserving unknown admin role value during role sync",
+			changed = true
+			slog.Warn("pruning unknown admin role value during role sync",
 				slog.Any("guildID", guildID),
-				slog.Any("adminRole", rawAdminRole),
+				slog.Any("roleName", rawAdminRole),
 			)
 			continue
 		}
 
 		if convertedFromName {
+			slog.Info("converting legacy admin role name to role ID",
+				slog.Any("guildID", guildID),
+				slog.Any("roleName", rawAdminRole),
+				slog.String("roleID", roleID.String()),
+			)
 			changed = true
 		}
 
@@ -180,11 +185,17 @@ func syncGuildRoles(guildID discordid.SnowflakeID, discordRoles []discord.Role) 
 		return nil
 	}
 
-	if err := replaceGuildAdminRoles(guildID, adminRoles); err != nil {
-		return err
+	return replaceGuildAdminRoles(guildID, adminRoles)
+}
+
+// roleIDsByName returns a lookup table for resolving role names to role IDs.
+func roleIDsByName(roles []Role) map[string]discordid.SnowflakeID {
+	roleIDs := make(map[string]discordid.SnowflakeID, len(roles))
+	for _, role := range roles {
+		roleIDs[role.RoleName] = role.RoleID
 	}
 
-	return nil
+	return roleIDs
 }
 
 // defaultAdminRoleIDsFromRoles returns role IDs for Discord roles whose names match the default admin role names.
@@ -220,14 +231,25 @@ func adminRoleIDFromRaw(rawAdminRole any, roleIDsByName map[string]discordid.Sno
 	case snowflake.ID:
 		return discordid.NewSnowflakeID(role), false, true
 	case int64:
+		if role < 0 {
+			return discordid.NewSnowflakeID(0), false, false
+		}
 		return discordid.NewSnowflakeID(snowflake.ID(role)), false, true
 	case int32:
+		if role < 0 {
+			return discordid.NewSnowflakeID(0), false, false
+		}
 		return discordid.NewSnowflakeID(snowflake.ID(role)), false, true
 	case int:
+		if role < 0 {
+			return discordid.NewSnowflakeID(0), false, false
+		}
 		return discordid.NewSnowflakeID(snowflake.ID(role)), false, true
 	case string:
-		if roleID, ok := roleIDsByName[role]; ok {
-			return roleID, true, true
+		if roleIDsByName != nil {
+			if roleID, ok := roleIDsByName[role]; ok {
+				return roleID, true, true
+			}
 		}
 
 		parsedRoleID, err := snowflake.Parse(role)
@@ -251,7 +273,10 @@ func guildRoleCreateListener(e *events.RoleCreate) {
 			slog.Any("roleID", e.Role.ID),
 			slog.Any("error", err),
 		)
+		return
 	}
+
+	reconcileGuildAdminRolesFromStoredRoles(guildID)
 }
 
 // guildReadyListener syncs roles when a guild becomes ready after gateway startup.
@@ -290,6 +315,21 @@ func syncGuildRolesFromDiscord(client *bot.Client, guildID discordid.SnowflakeID
 	}
 }
 
+// reconcileGuildAdminRolesFromStoredRoles normalizes admin_roles using the stored guild_roles document.
+func reconcileGuildAdminRolesFromStoredRoles(guildID discordid.SnowflakeID) {
+	roles := readRoles(guildID)
+	if roles == nil {
+		return
+	}
+
+	if err := reconcileGuildAdminRoles(guildID, roles.Roles); err != nil {
+		slog.Error("unable to reconcile guild admin roles",
+			slog.Any("guildID", guildID),
+			slog.Any("error", err),
+		)
+	}
+}
+
 // guildRoleUpdateListener is called when a guild role is updated.
 func guildRoleUpdateListener(e *events.RoleUpdate) {
 	guildID := discordid.NewSnowflakeID(e.GuildID)
@@ -300,7 +340,10 @@ func guildRoleUpdateListener(e *events.RoleUpdate) {
 			slog.Any("roleID", e.Role.ID),
 			slog.Any("error", err),
 		)
+		return
 	}
+
+	reconcileGuildAdminRolesFromStoredRoles(guildID)
 }
 
 // guildRoleDeleteListener is called when a guild role is deleted.
@@ -314,5 +357,8 @@ func guildRoleDeleteListener(e *events.RoleDelete) {
 			slog.Any("roleID", roleID),
 			slog.Any("error", err),
 		)
+		return
 	}
+
+	reconcileGuildAdminRolesFromStoredRoles(guildID)
 }
