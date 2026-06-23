@@ -284,10 +284,10 @@ func sendMonthlyLeaderboard(client *bot.Client, lb *Leaderboard) error {
 
 // publishMonthlyLeaderboard sends the monthly leaderboard to each guild.
 func sendAllMonthlyLeaderboards(client *bot.Client) {
-	// Get the last season for the banks, defaulting to the current time if there are no banks.
+	// Get the last season for the banks, defaulting to the current month if there are no banks.
 	// This handles the off-chance that the server crashed and a new month starts before the
 	// server is restarted.
-	lastSeason := time.Now()
+	lastSeason := disctime.CurrentMonth(time.Now())
 	leaderboards := getLeaderboards()
 	for _, lb := range leaderboards {
 		if lb.LastSeason.Before(lastSeason) {
@@ -297,26 +297,28 @@ func sendAllMonthlyLeaderboards(client *bot.Client) {
 
 	for {
 		nextMonth := disctime.NextMonth(lastSeason)
-		time.Sleep(time.Until(nextMonth))
-		lastSeason = disctime.CurrentMonth(lastSeason)
+		if nextMonth.After(time.Now()) {
+			time.Sleep(time.Until(nextMonth))
+		}
 
 		leaderboards := getLeaderboards()
 		for _, lb := range leaderboards {
-			err := sendMonthlyLeaderboard(client, lb)
-			if err != nil {
-				slog.Error("unable to send monthly leaderboard", "guildID", lb.GuildID, "channelID", lb.ChannelID, "error", err)
-			}
-			nextSeason := disctime.NextMonth(lastSeason)
-			if err := UpdateLeaderboard(lb.GuildID, func(latest *Leaderboard) error {
-				latest.LastSeason = nextSeason
-				return nil
-			}); err != nil {
-				slog.Error("unable to write leaderboard to database", "guildID", lb.GuildID, "channelID", lb.ChannelID, "error", err)
+			if lb.LastSeason.Before(nextMonth) {
+				err := sendMonthlyLeaderboard(client, lb)
+				if err != nil {
+					slog.Error("unable to send monthly leaderboard", "guildID", lb.GuildID, "channelID", lb.ChannelID, "error", err)
+				}
+				if err := UpdateLeaderboard(lb.GuildID, func(latest *Leaderboard) error {
+					latest.LastSeason = nextMonth
+					return nil
+				}); err != nil {
+					slog.Error("unable to write leaderboard to database", "guildID", lb.GuildID, "channelID", lb.ChannelID, "error", err)
+				}
 			}
 		}
-		lastSeason = disctime.NextMonth(time.Now())
 
 		bank.ResetMonthlyBalances()
+		lastSeason = nextMonth
 	}
 }
 
