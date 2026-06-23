@@ -385,6 +385,7 @@ func configInfoHandler(_ discord.SlashCommandInteractionData, e *handler.Command
 					{Name: "bet amount", Value: fmt.Sprintf("%d", config.BetAmount), Inline: &inline},
 					{Name: "payout percent", Value: fmt.Sprintf("%d", config.PayoutPercent), Inline: &inline},
 					{Name: "single player", Value: fmt.Sprintf("%t", config.SinglePlayerMode), Inline: &inline},
+					{Name: "wait for players", Value: format.Duration(config.WaitForPlayers), Inline: &inline},
 				},
 			},
 		},
@@ -549,6 +550,7 @@ func runBlackjack(game *Game) {
 
 // waitForBlackjackPlayers waits for players to join before starting the round.
 func waitForBlackjackPlayers(game *Game) {
+	memberCanJoin := time.Now().Add(game.config.WaitForPlayers)
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
@@ -561,7 +563,7 @@ func waitForBlackjackPlayers(game *Game) {
 			}
 		}
 
-		if time.Until(game.gameStartTime) <= 0 {
+		if time.Until(memberCanJoin) <= 0 {
 			break
 		}
 		if len(game.Players()) >= game.config.MaxPlayers {

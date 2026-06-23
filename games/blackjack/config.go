@@ -15,18 +15,18 @@ var (
 
 // Config holds the configuration settings for the blackjack game.
 type Config struct {
-	ID                bson.ObjectID         `json:"id,omitempty" bson:"_id,omitempty"`
-	GuildID           discordid.SnowflakeID `json:"guild_id" bson:"guild_id"`
-	MaxPlayers        int                   `json:"max_players" bson:"max_players"`
-	Decks             int                   `json:"decks" bson:"decks"`
-	BetAmount         int                   `json:"bet_amount" bson:"bet_amount"`
-	DelayBetweenGames time.Duration         `json:"delay_between_games" bson:"delay_between_games"`
-	WaitForPlayers    time.Duration         `json:"wait_for_players" bson:"wait_for_players"`
-	PlayerTimeout     time.Duration         `json:"player_timeout" bson:"player_timeout"`
-	ShowPlayerTurn    time.Duration         `json:"show_player_turn" bson:"show_player_turn"`
-	ShowDealerTurn    time.Duration         `json:"show_dealer_turn" bson:"show_dealer_turn"`
-	PayoutPercent     int                   `json:"payout_percent" bson:"payout_percent"`
-	SinglePlayerMode  bool                  `json:"single_player_mode" bson:"single_player_mode"`
+	ID                bson.ObjectID         `json:"id,omitempty" bson:"_id,omitempty" yaml:"-"`
+	GuildID           discordid.SnowflakeID `json:"guild_id" bson:"guild_id" yaml:"guild_id"`
+	MaxPlayers        int                   `json:"max_players" bson:"max_players" yaml:"max_players"`
+	Decks             int                   `json:"decks" bson:"decks" yaml:"decks"`
+	BetAmount         int                   `json:"bet_amount" bson:"bet_amount" yaml:"bet_amount"`
+	DelayBetweenGames time.Duration         `json:"delay_between_games" bson:"delay_between_games" yaml:"delay_between_games"`
+	WaitForPlayers    time.Duration         `json:"wait_for_players" bson:"wait_for_players" yaml:"wait_for_players"`
+	PlayerTimeout     time.Duration         `json:"player_timeout" bson:"player_timeout" yaml:"player_timeout"`
+	ShowPlayerTurn    time.Duration         `json:"show_player_turn" bson:"show_player_turn" yaml:"show_player_turn"`
+	ShowDealerTurn    time.Duration         `json:"show_dealer_turn" bson:"show_dealer_turn" yaml:"show_dealer_turn"`
+	PayoutPercent     int                   `json:"payout_percent" bson:"payout_percent" yaml:"payout_percent"`
+	SinglePlayerMode  bool                  `json:"single_player_mode" bson:"single_player_mode" yaml:"single_player_mode"`
 }
 
 // GetConfig retrieves the blackjack configuration, either from the cache, database, or by creating a new, default configuration.
@@ -37,6 +37,7 @@ func GetConfig(guildID discordid.SnowflakeID) *Config {
 	}
 
 	if cfg, ok := configCache.Get(key); ok {
+		applyLegacyConfigDefaults(&cfg)
 		return runtimeConfig(&cfg)
 	}
 
@@ -45,10 +46,23 @@ func GetConfig(guildID discordid.SnowflakeID) *Config {
 		cfg = createNewConfig(guildID)
 		cfg.GuildID = guildID
 		writeConfig(cfg)
+	} else {
+		applyLegacyConfigDefaults(cfg)
 	}
 
 	configCache.Set(key, *cfg)
 	return runtimeConfig(cfg)
+}
+
+// applyLegacyConfigDefaults fills in values that older persisted configs may not have stored.
+func applyLegacyConfigDefaults(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+
+	if cfg.WaitForPlayers == 0 && !cfg.SinglePlayerMode {
+		cfg.WaitForPlayers = defaultConfig.WaitForPlayers
+	}
 }
 
 // runtimeConfig returns a copy of the persisted config with runtime-only adjustments applied.
