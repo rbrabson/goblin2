@@ -117,8 +117,13 @@ func StartGame(guildID discordid.SnowflakeID, memberID discordid.SnowflakeID) (*
 	uid := getUID(guildID, memberID)
 	config := GetConfig(guildID)
 
-	if remaining := gameCooldownRemaining(uid, config.DelayBetweenGames); remaining > 0 {
-		return nil, fmt.Errorf("please wait %s before starting another blackjack game.", format.Duration(remaining))
+	if config.SinglePlayerMode {
+		slog.Error("single player mode is enabled", slog.Any("guildID", guildID))
+		if remaining := gameCooldownRemaining(uid, config.DelayBetweenGames); remaining > 0 {
+			return nil, fmt.Errorf("please wait %s before starting another blackjack game", format.Duration(remaining))
+		}
+	} else {
+		slog.Error("single player mode is disabled", slog.Any("guildID", guildID))
 	}
 
 	game := games[uid]
