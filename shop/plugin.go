@@ -64,6 +64,7 @@ func (p *Plugin) GetAdminHelp() map[string]string {
 		"/shop-admin channel":     "Sets the channel to which to publish the shop items.",
 		"/shop-admin info":        "Gets the shop configuration.",
 		"/shop-admin list-bans":   "Lists the users banned from the shop.",
+		"/shop-admin message-id":  "Sets the shop message ID manually.",
 		"/shop-admin mod-channel": "Sets the channel to which to publish notices.",
 		"/shop-admin publish":     "Publishes the shop items in the shop channel.",
 		"/shop-admin remove-role": "Removes a purchasable item from the shop.",
@@ -95,6 +96,7 @@ func (p *Plugin) GetSlashHandlers() map[string]handler.SlashCommandHandler {
 		"/shop-admin/mod-channel": setModChannelHandler,
 		"/shop-admin/publish":     publishShopHandler,
 		"/shop-admin/info":        getShopInfoHandler,
+		"/shop-admin/message-id":  setMessageIDHandler,
 	}
 }
 

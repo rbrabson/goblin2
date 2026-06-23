@@ -121,6 +121,17 @@ var (
 					Name:        "info",
 					Description: "Gets the shop configuration.",
 				},
+				discord.ApplicationCommandOptionSubCommand{
+					Name:        "message-id",
+					Description: "Sets the shop message ID.",
+					Options: []discord.ApplicationCommandOption{
+						discord.ApplicationCommandOptionString{
+							Name:        "id",
+							Description: "The message ID.",
+							Required:    true,
+						},
+					},
+				},
 			},
 		},
 	}
@@ -488,6 +499,36 @@ func publishShopHandler(_ discord.SlashCommandInteractionData, e *handler.Comman
 	)
 	return e.CreateMessage(discord.MessageCreate{
 		Content: "Shop published.",
+		Flags:   discord.MessageFlagEphemeral,
+	})
+}
+
+// setMessageIDHandler handles the /shop-admin message-id command.
+func setMessageIDHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	if !disgobot.IsAdmin(e) || disgobot.IsShuttingDown(e) {
+		return disgobot.ErrUnableToProcessCommand
+	}
+
+	member := e.Member()
+	if member == nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "This command can only be used in a server.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	messageID := strings.TrimSpace(stringValue(data, "id"))
+	config := GetConfig(discordid.NewSnowflakeID(member.GuildID))
+	config.SetMessageID(messageID)
+
+	slog.Info("shop message ID set",
+		slog.Any("guildID", member.GuildID),
+		slog.String("member", member.EffectiveName()),
+		slog.String("messageID", messageID),
+	)
+
+	return e.CreateMessage(discord.MessageCreate{
+		Content: fmt.Sprintf("Shop message ID set to %s.", messageID),
 		Flags:   discord.MessageFlagEphemeral,
 	})
 }

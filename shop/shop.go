@@ -108,6 +108,22 @@ func (s *Shop) Publish() error {
 
 	msg := s.messageCreate()
 
+	if config.MessageID == "" {
+		messages, err := client.Rest.GetMessages(snowflake.ID(channelID), 0, 0, 0, 100)
+		if err == nil {
+			for _, m := range messages {
+				if m.Author.ID != client.ApplicationID {
+					continue
+				}
+				if len(m.Embeds) > 0 && m.Embeds[0].Title == "Shop Items" {
+					config.SetMessageID(m.ID.String())
+					config.MessageID = m.ID.String()
+					break
+				}
+			}
+		}
+	}
+
 	if config.MessageID != "" {
 		messageID, err := strconv.ParseUint(config.MessageID, 10, 64)
 		if err == nil {
