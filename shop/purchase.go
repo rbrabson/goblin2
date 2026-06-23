@@ -179,7 +179,7 @@ func UpdatePurchase(purchase *Purchase, mutate func(*Purchase) error) error {
 func PurchaseItem(guildID, memberID discordid.SnowflakeID, item *Item, status string, renew bool) (*Purchase, error) {
 	p := message.NewPrinter(language.AmericanEnglish)
 
-	member, _ := readMember(discordid.SnowflakeID(guildID), discordid.SnowflakeID(memberID))
+	member, _ := readMember(guildID, memberID)
 	if member != nil && member.HasRestriction(showBan) {
 		return nil, errors.New(p.Sprintf("you are banned from using the shop"))
 	}
@@ -311,7 +311,7 @@ func (p *Purchase) HasExpired() bool {
 	return p.IsExpired
 }
 
-// notifyExpirationIfNeeded sends a DM to the member if the purchase has expired and the member has not already been notified.
+// notifyExpirationIfNeeded sends a DM to the member if the purchase has expired and the member has not yet been notified.
 // It also marks the purchase as notified.
 func (p *Purchase) notifyExpirationIfNeeded() error {
 	if p.ExpirationNotified {
