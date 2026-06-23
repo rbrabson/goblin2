@@ -591,7 +591,27 @@ func (g *Game) PayoutResults() {
 	g.Lock()
 	defer g.Unlock()
 
-	g.game.PayoutResults()
+	for _, player := range g.game.Players() {
+		for _, hand := range player.Hands() {
+			// Skip hands with no bet or already settled.
+			if hand.Bet() == 0 || hand.Winnings() != 0 {
+				continue
+			}
+
+			switch g.game.EvaluateHand(hand) {
+			case bj.PlayerWin, bj.PlayerBlackjack:
+				payout := 1.0
+				if hand.IsBlackjack() {
+					payout = 1.5
+				}
+				hand.WinBet(payout)
+			case bj.Push:
+				hand.PushBet()
+			case bj.DealerWin, bj.DealerBlackjack:
+				hand.LoseBet()
+			}
+		}
+	}
 }
 
 // EvaluateHand evaluates the result of a specific hand for a player.
