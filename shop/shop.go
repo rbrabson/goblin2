@@ -11,6 +11,8 @@ import (
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/snowflake/v2"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 )
 
 const (
@@ -184,13 +186,14 @@ func (s *Shop) messageCreate() discord.MessageCreate {
 
 // formatPublishedShopItem formats the shop item for display in the published shop message.
 func formatPublishedShopItem(item *Item) string {
+	p := message.NewPrinter(language.AmericanEnglish)
 	var parts []string
 
 	if item.Description != "" {
 		parts = append(parts, fmt.Sprintf("Description: %s", item.Description))
 	}
 
-	parts = append(parts, fmt.Sprintf("Cost: %s", strconv.Itoa(item.Price)))
+	parts = append(parts, p.Sprintf("Cost: %d", item.Price))
 
 	if item.Duration != "" {
 		parts = append(parts, fmt.Sprintf("Duration: %s", item.Duration))

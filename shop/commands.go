@@ -13,6 +13,8 @@ import (
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
 	"github.com/disgoorg/snowflake/v2"
+	"golang.org/x/text/language"
+	xmessage "golang.org/x/text/message"
 )
 
 var (
@@ -211,8 +213,9 @@ func addRoleHandler(data discord.SlashCommandInteractionData, e *handler.Command
 		slog.String("role", roleName),
 	)
 
+	p := xmessage.NewPrinter(language.AmericanEnglish)
 	return e.CreateMessage(discord.MessageCreate{
-		Content: fmt.Sprintf("Added role `%s` to the shop for %d credits.", roleName, price),
+		Content: p.Sprintf("Added role `%s` to the shop for %d credits.", roleName, price),
 		Flags:   discord.MessageFlagEphemeral,
 	})
 }
@@ -612,13 +615,10 @@ func buyRoleButtonHandler(e *handler.ComponentEvent) error {
 		})
 	}
 
+	p := xmessage.NewPrinter(language.AmericanEnglish)
 	return e.CreateMessage(discord.MessageCreate{
-		Content: fmt.Sprintf(
-			"Please confirm that you want to purchase role `%s` for %d credits.",
-			role.Name,
-			role.Price,
-		),
-		Flags: discord.MessageFlagEphemeral,
+		Content: p.Sprintf("Please confirm that you want to purchase role `%s` for %d credits.", role.Name, role.Price),
+		Flags:   discord.MessageFlagEphemeral,
 		Components: []discord.LayoutComponent{
 			discord.ActionRowComponent{
 				Components: []discord.InteractiveComponent{
@@ -702,18 +702,20 @@ func confirmBuyRoleButtonHandler(e *handler.ComponentEvent) error {
 		slog.Int("price", purchase.Item.Price),
 	)
 
+	p := xmessage.NewPrinter(language.AmericanEnglish)
 	return e.CreateMessage(discord.MessageCreate{
-		Content: fmt.Sprintf("Purchased role `%s` for %d credits.", purchase.Item.Name, purchase.Item.Price),
+		Content: p.Sprintf("Purchased role `%s` for %d credits.", purchase.Item.Name, purchase.Item.Price),
 		Flags:   discord.MessageFlagEphemeral,
 	})
 }
 
 // formatPurchase formats a purchase into a human-readable string.
 func formatPurchase(purchase *Purchase) string {
+	p := xmessage.NewPrinter(language.AmericanEnglish)
 	var parts []string
 
 	parts = append(parts, fmt.Sprintf("**Status**: %s", purchase.Status))
-	parts = append(parts, fmt.Sprintf("**Price**: %d", purchase.Item.Price))
+	parts = append(parts, p.Sprintf("**Price**: %d", purchase.Item.Price))
 	parts = append(parts, fmt.Sprintf("**Purchased**: %s", purchase.PurchasedOn.Format("2006-01-02 15:04:05 MST")))
 
 	if !purchase.ExpiresOn.IsZero() {
