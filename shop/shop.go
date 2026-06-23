@@ -150,9 +150,15 @@ func (s *Shop) messageCreate() discord.MessageCreate {
 	buttons := make([]discord.InteractiveComponent, 0, len(s.Items))
 
 	for _, item := range s.Items {
+		itemDescription := formatPublishedShopItem(item)
+		if len(fields)+1 < len(s.Items) {
+			itemDescription += "\n\u200B"
+		}
+
 		fields = append(fields, discord.EmbedField{
-			Name:  fmt.Sprintf("%s %s", shopItemDisplayType(item.Type), item.Name),
-			Value: formatPublishedShopItem(item),
+			Name:   fmt.Sprintf("%s %s", shopItemDisplayType(item.Type), item.Name),
+			Value:  itemDescription,
+			Inline: new(false),
 		})
 
 		if item.Type != roleItemType {
