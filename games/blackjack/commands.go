@@ -293,7 +293,7 @@ func configBetAmountHandler(data discord.SlashCommandInteractionData, e *handler
 	guildID := discordid.NewSnowflakeID(member.GuildID)
 	betAmount := data.Int("amount")
 
-	config := GetConfig(guildID)
+	config := editableConfig(guildID)
 	config.BetAmount = betAmount
 	writeConfig(config)
 
@@ -322,7 +322,7 @@ func configPayoutPercentHandler(data discord.SlashCommandInteractionData, e *han
 	guildID := discordid.NewSnowflakeID(member.GuildID)
 	payoutPercent := data.Int("percent")
 
-	config := GetConfig(guildID)
+	config := editableConfig(guildID)
 	config.PayoutPercent = payoutPercent
 	writeConfig(config)
 
@@ -351,7 +351,7 @@ func configSinglePlayerHandler(data discord.SlashCommandInteractionData, e *hand
 	guildID := discordid.NewSnowflakeID(member.GuildID)
 	singlePlayer := data.Bool("enabled")
 
-	config := GetConfig(guildID)
+	config := editableConfig(guildID)
 	config.SinglePlayerMode = singlePlayer
 	writeConfig(config)
 

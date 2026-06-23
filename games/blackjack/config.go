@@ -29,16 +29,27 @@ type Config struct {
 	SinglePlayerMode  bool                  `bson:"single_player_mode" yaml:"single_player_mode"`
 }
 
-// GetConfig retrieves the blackjack configuration, either from the cache, database, or by creating a new, default configuration.
+// GetConfig retrieves the blackjack configuration used during gameplay, with single-player
+// runtime adjustments applied. The returned value is for reading only; to change settings,
+// mutate the value returned by editableConfig and persist it with writeConfig.
 // The value returned is guaranteed to be non-nil.
 func GetConfig(guildID discordid.SnowflakeID) *Config {
+	return runtimeConfig(editableConfig(guildID))
+}
+
+// editableConfig returns a mutable copy of the persisted configuration, without the
+// single-player runtime overrides. Handlers use this so changing one setting and writing it
+// back does not accidentally persist a runtime override (such as MaxPlayers=1) into the
+// stored config, which would then leak into multi-player games.
+// The value returned is guaranteed to be non-nil.
+func editableConfig(guildID discordid.SnowflakeID) *Config {
 	key := configCacheKey{
 		guildID: guildID,
 	}
 
 	if cfg, ok := configCache.Get(key); ok {
 		applyLegacyConfigDefaults(&cfg)
-		return runtimeConfig(&cfg)
+		return &cfg
 	}
 
 	cfg := readConfig(key.guildID)
@@ -51,7 +62,7 @@ func GetConfig(guildID discordid.SnowflakeID) *Config {
 	}
 
 	configCache.Set(key, *cfg)
-	return runtimeConfig(cfg)
+	return cfg
 }
 
 // applyLegacyConfigDefaults fills in values that older persisted configs may not have stored.
@@ -62,6 +73,13 @@ func applyLegacyConfigDefaults(cfg *Config) {
 
 	if cfg.WaitForPlayers == 0 && !cfg.SinglePlayerMode {
 		cfg.WaitForPlayers = defaultConfig.WaitForPlayers
+	}
+
+	// A multi-player game must allow more than one player. Older configs could have had
+	// MaxPlayers persisted as 1 (the single-player runtime value) when toggling modes;
+	// restore the default so the limit is not stuck at 1.
+	if cfg.MaxPlayers <= 1 && !cfg.SinglePlayerMode {
+		cfg.MaxPlayers = defaultConfig.MaxPlayers
 	}
 }
 
