@@ -15,18 +15,18 @@ var (
 
 // Config holds the configuration settings for the blackjack game.
 type Config struct {
-	ID                bson.ObjectID         `json:"id,omitempty" bson:"_id,omitempty" yaml:"-"`
-	GuildID           discordid.SnowflakeID `json:"guild_id" bson:"guild_id" yaml:"guild_id"`
-	MaxPlayers        int                   `json:"max_players" bson:"max_players" yaml:"max_players"`
-	Decks             int                   `json:"decks" bson:"decks" yaml:"decks"`
-	BetAmount         int                   `json:"bet_amount" bson:"bet_amount" yaml:"bet_amount"`
-	DelayBetweenGames time.Duration         `json:"delay_between_games" bson:"delay_between_games" yaml:"delay_between_games"`
-	WaitForPlayers    time.Duration         `json:"wait_for_players" bson:"wait_for_players" yaml:"wait_for_players"`
-	PlayerTimeout     time.Duration         `json:"player_timeout" bson:"player_timeout" yaml:"player_timeout"`
-	ShowPlayerTurn    time.Duration         `json:"show_player_turn" bson:"show_player_turn" yaml:"show_player_turn"`
-	ShowDealerTurn    time.Duration         `json:"show_dealer_turn" bson:"show_dealer_turn" yaml:"show_dealer_turn"`
-	PayoutPercent     int                   `json:"payout_percent" bson:"payout_percent" yaml:"payout_percent"`
-	SinglePlayerMode  bool                  `json:"single_player_mode" bson:"single_player_mode" yaml:"single_player_mode"`
+	ID                bson.ObjectID         `bson:"_id,omitempty" yaml:"-"`
+	GuildID           discordid.SnowflakeID `bson:"guild_id" yaml:"guild_id"`
+	MaxPlayers        int                   `bson:"max_players" yaml:"max_players"`
+	Decks             int                   `bson:"decks" yaml:"decks"`
+	BetAmount         int                   `bson:"bet_amount" yaml:"bet_amount"`
+	DelayBetweenGames time.Duration         `bson:"delay_between_games" yaml:"delay_between_games"`
+	WaitForPlayers    time.Duration         `bson:"wait_for_players" yaml:"wait_for_players"`
+	PlayerTimeout     time.Duration         `bson:"player_timeout" yaml:"player_timeout"`
+	ShowPlayerTurn    time.Duration         `bson:"show_player_turn" yaml:"show_player_turn"`
+	ShowDealerTurn    time.Duration         `bson:"show_dealer_turn" yaml:"show_dealer_turn"`
+	PayoutPercent     int                   `bson:"payout_percent" yaml:"payout_percent"`
+	SinglePlayerMode  bool                  `bson:"single_player_mode" yaml:"single_player_mode"`
 }
 
 // GetConfig retrieves the blackjack configuration, either from the cache, database, or by creating a new, default configuration.
