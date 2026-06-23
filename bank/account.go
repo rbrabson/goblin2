@@ -325,23 +325,42 @@ func UpdateAccount(guildID, memberID discordid.SnowflakeID, mutate func(*Account
 	return fmt.Errorf("failed to update account after %d retries: %w", maxRetries, ErrVersionConflict)
 }
 
-// ResetMonthlyBalances resets the monthly balances for all accounts in all banks.
-func ResetMonthlyBalances() {
+// ResetMonthlyBalances resets the monthly balances for all accounts in the given guild.
+// It retries a few times on transient database errors and returns an error if the
+// balances could not be cleared, so callers can avoid treating a failed reset as success.
+func ResetMonthlyBalances(guildID discordid.SnowflakeID) error {
+	const maxRetries = 3
+
 	accountMu.Lock()
 	defer accountMu.Unlock()
 
-	filter := bson.M{}
+	filter := bson.M{"guild_id": guildID}
 	update := bson.M{
 		"$set": bson.M{
 			"monthly_balance": 0,
 		},
 	}
 
-	_, err := db.UpdateMany(accountCollection, filter, update)
-	if err != nil {
-		slog.Error("unable to reset monthly balances for all accounts", "error", err)
-		return
+	var err error
+	for attempt := range maxRetries {
+		if _, err = db.UpdateMany(accountCollection, filter, update); err == nil {
+			// Invalidate the cached accounts for this guild so callers don't read
+			// stale monthly balances after the reset.
+			accountCache.Range(func(key accountCacheKey, _ Account) bool {
+				if key.guildID == guildID {
+					accountCache.Delete(key)
+				}
+				return true
+			})
+			return nil
+		}
+
+		slog.Warn("unable to reset monthly balances, retrying",
+			slog.Any("guildID", guildID),
+			slog.Int("attempt", attempt+1),
+			slog.Any("error", err),
+		)
 	}
 
-	accountCache.Clear()
+	return fmt.Errorf("unable to reset monthly balances for guild %s after %d retries: %w", guildID, maxRetries, err)
 }

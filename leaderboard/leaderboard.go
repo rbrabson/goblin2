@@ -8,6 +8,7 @@ import (
 	"goblin2/internal/discordid"
 	"goblin2/internal/disctime"
 	"log/slog"
+	"net/http"
 	"slices"
 	"strconv"
 	"sync"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
+	"github.com/disgoorg/disgo/rest"
 	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"golang.org/x/text/language"
@@ -261,7 +263,7 @@ func sendMonthlyLeaderboard(client *bot.Client, lb *Leaderboard) error {
 	if lb.ChannelID != "" {
 		channelID, err := strconv.ParseUint(lb.ChannelID, 10, 64)
 		if err != nil {
-			return fmt.Errorf("invalid leaderboard channel ID %q: %w", lb.ChannelID, err)
+			return fmt.Errorf("%w %q: %v", errInvalidChannel, lb.ChannelID, err)
 		}
 
 		p := message.NewPrinter(language.AmericanEnglish)
@@ -303,22 +305,137 @@ func sendAllMonthlyLeaderboards(client *bot.Client) {
 
 		leaderboards := getLeaderboards()
 		for _, lb := range leaderboards {
-			if lb.LastSeason.Before(nextMonth) {
-				err := sendMonthlyLeaderboard(client, lb)
-				if err != nil {
-					slog.Error("unable to send monthly leaderboard", "guildID", lb.GuildID, "channelID", lb.ChannelID, "error", err)
+			if !lb.LastSeason.Before(nextMonth) {
+				continue
+			}
+
+			switch publishMonthlyLeaderboard(client, lb) {
+			case publishSucceeded:
+				// Only clear the guild's monthly balance after its leaderboard has been
+				// published, and only advance LastSeason once the balance is cleared. If the
+				// reset fails we leave LastSeason untouched so the next cycle republishes
+				// (a duplicate message) rather than wrongly clearing or skipping the guild.
+				if err := bank.ResetMonthlyBalances(lb.GuildID); err != nil {
+					slog.Error("published leaderboard but unable to reset monthly balances; will retry next cycle",
+						"guildID", lb.GuildID, "channelID", lb.ChannelID, "error", err)
+					break
 				}
-				if err := UpdateLeaderboard(lb.GuildID, func(latest *Leaderboard) error {
-					latest.LastSeason = nextMonth
-					return nil
-				}); err != nil {
-					slog.Error("unable to write leaderboard to database", "guildID", lb.GuildID, "channelID", lb.ChannelID, "error", err)
-				}
+				advanceLeaderboardSeason(lb, nextMonth)
+			case publishAbandoned:
+				// Permanent failure (bot removed, channel deleted, bad config): stop retrying
+				// this guild and leave its monthly balance untouched.
+				advanceLeaderboardSeason(lb, nextMonth)
 			}
 		}
 
-		bank.ResetMonthlyBalances()
 		lastSeason = nextMonth
+	}
+}
+
+const (
+	// publishRetryBaseDelay is the initial backoff between publish attempts; it doubles
+	// after each failure up to publishRetryMaxDelay.
+	publishRetryBaseDelay = 1 * time.Second
+	// publishRetryMaxDelay caps the backoff so recovery after a long Discord outage is
+	// picked up promptly.
+	publishRetryMaxDelay = 5 * time.Minute
+)
+
+// errInvalidChannel indicates the configured leaderboard channel cannot be parsed. This is a
+// permanent configuration error that retrying will never fix.
+var errInvalidChannel = errors.New("invalid leaderboard channel ID")
+
+// publishResult is the disposition of an attempt to publish a guild's monthly leaderboard.
+type publishResult int
+
+const (
+	publishSucceeded publishResult = iota // published; clear the balance and advance the season
+	publishAbandoned                      // permanent failure; advance the season but never retry
+)
+
+// errorKind classifies why a publish attempt failed, which determines how it is retried.
+type errorKind int
+
+const (
+	errPermanent   errorKind = iota // unrecoverable without intervention (kicked, channel gone, bad config)
+	errDiscordDown                  // Discord/connectivity is down; wait for it to recover
+)
+
+// classifyError determines how a failure from sendMonthlyLeaderboard should be handled.
+func classifyError(err error) errorKind {
+	// A malformed channel configuration cannot be fixed by retrying.
+	if errors.Is(err, errInvalidChannel) {
+		return errPermanent
+	}
+
+	var restErr *rest.Error
+	if errors.As(err, &restErr) {
+		// Conditions the bot can never recover from on its own: it has been removed from
+		// the guild, the channel was deleted, or it lacks permission to post there.
+		if rest.IsJSONErrorCode(err,
+			rest.JSONErrorCodeUnknownChannel,
+			rest.JSONErrorCodeUnknownGuild,
+			rest.JSONErrorCodeMissingAccess,
+			rest.JSONErrorCodeLackPermissionsToPerformAction,
+		) {
+			return errPermanent
+		}
+		if restErr.Response != nil {
+			switch sc := restErr.Response.StatusCode; {
+			case sc == http.StatusForbidden, sc == http.StatusNotFound:
+				return errPermanent
+			case sc == http.StatusTooManyRequests, sc >= 500:
+				return errDiscordDown
+			}
+		}
+		// Any other error Discord returns is a request we cannot fix by retrying.
+		return errPermanent
+	}
+
+	// Not a Discord REST error: a connection-level failure reaching Discord. Treat it the
+	// same as Discord being down and wait for connectivity to recover.
+	return errDiscordDown
+}
+
+// publishMonthlyLeaderboard publishes a single guild's leaderboard, retrying transient
+// failures with exponential backoff. It blocks until the publish succeeds or the failure is
+// determined to be permanent; Discord or connectivity outages are waited out indefinitely.
+func publishMonthlyLeaderboard(client *bot.Client, lb *Leaderboard) publishResult {
+	delay := publishRetryBaseDelay
+	for attempt := 1; ; attempt++ {
+		err := sendMonthlyLeaderboard(client, lb)
+		if err == nil {
+			return publishSucceeded
+		}
+
+		switch classifyError(err) {
+		case errPermanent:
+			slog.Error("giving up on monthly leaderboard; guild or channel is unreachable",
+				"guildID", lb.GuildID, "channelID", lb.ChannelID, "attempt", attempt, "error", err)
+			return publishAbandoned
+		case errDiscordDown:
+			// Discord or connectivity to it is down; keep waiting for it to recover rather
+			// than abandoning the guild for the month.
+			slog.Warn("Discord unavailable while sending monthly leaderboard, waiting to retry",
+				"guildID", lb.GuildID, "channelID", lb.ChannelID, "attempt", attempt, "error", err)
+		}
+
+		time.Sleep(delay)
+		if delay *= 2; delay > publishRetryMaxDelay {
+			delay = publishRetryMaxDelay
+		}
+	}
+}
+
+// advanceLeaderboardSeason records that the guild's leaderboard has been handled for the
+// given season so the publishing loop does not select it again until the next month.
+func advanceLeaderboardSeason(lb *Leaderboard, season time.Time) {
+	if err := UpdateLeaderboard(lb.GuildID, func(latest *Leaderboard) error {
+		latest.LastSeason = season
+		return nil
+	}); err != nil {
+		slog.Error("unable to write leaderboard to database",
+			"guildID", lb.GuildID, "channelID", lb.ChannelID, "error", err)
 	}
 }
 
