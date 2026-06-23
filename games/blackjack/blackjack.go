@@ -52,6 +52,7 @@ type Game struct {
 	state            GameState
 	gameStartTime    time.Time
 	turnChan         chan Action
+	turnDeadline     time.Time
 	interaction      *handler.CommandEvent
 	messageID        snowflake.ID
 	symbols          *Symbols
@@ -632,6 +633,35 @@ func (g *Game) Lock() {
 // Unlock unlocks the game's mutex.
 func (g *Game) Unlock() {
 	g.lock.Unlock()
+}
+
+// setTurnDeadline records when the active player's turn will time out, so the rendered
+// message can show a countdown beneath their name.
+func (g *Game) setTurnDeadline(deadline time.Time) {
+	g.Lock()
+	defer g.Unlock()
+	g.turnDeadline = deadline
+}
+
+// clearTurnDeadline stops the turn countdown from being shown.
+func (g *Game) clearTurnDeadline() {
+	g.Lock()
+	defer g.Unlock()
+	g.turnDeadline = time.Time{}
+}
+
+// TurnTimeRemaining returns how long the active player has left to act, or 0 if no turn
+// timer is currently running.
+func (g *Game) TurnTimeRemaining() time.Duration {
+	g.Lock()
+	defer g.Unlock()
+	if g.turnDeadline.IsZero() {
+		return 0
+	}
+	if remaining := time.Until(g.turnDeadline); remaining > 0 {
+		return remaining
+	}
+	return 0
 }
 
 // handValue calculates the value of a blackjack hand.

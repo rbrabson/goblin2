@@ -28,6 +28,9 @@ const (
 	// color for active player
 	activePlayerColor   = 0x00ff00
 	inactivePlayerColor = 0x2f3136
+
+	// turnTimerUpdateInterval is how often the active player's turn countdown is refreshed.
+	turnTimerUpdateInterval = 5 * time.Second
 )
 
 var (
@@ -586,43 +589,59 @@ func playBlackjackPlayers(game *Game) {
 			}
 
 			hand.SetActive(true)
-
-			hand.SetActive(true)
-
-			hand.SetActive(true)
 			game.clearPendingActions()
 
 			for hand.IsActive() {
+				// (Re)start the turn countdown for each decision, so taking an action such as
+				// a hit gives the player a fresh timer for their next decision.
+				game.setTurnDeadline(time.Now().Add(game.config.PlayerTimeout))
 				if err := updateBlackjackMessage(game, true); err != nil {
 					slog.Error("failed to update blackjack active player message", slog.Any("error", err))
 				}
 
-				select {
-				case action := <-game.turnChan:
-					if err := applyBlackjackAction(game, player, action); err != nil {
-						slog.Warn("failed to apply blackjack action",
-							slog.Any("guildID", game.guildID),
-							slog.String("player", player.Name()),
-							slog.Any("action", action),
-							slog.Any("error", err),
-						)
-					}
+				timeout := time.NewTimer(game.config.PlayerTimeout)
+				ticker := time.NewTicker(turnTimerUpdateInterval)
+				for acted := false; !acted; {
+					select {
+					case action := <-game.turnChan:
+						acted = true
+						if err := applyBlackjackAction(game, player, action); err != nil {
+							slog.Warn("failed to apply blackjack action",
+								slog.Any("guildID", game.guildID),
+								slog.String("player", player.Name()),
+								slog.Any("action", action),
+								slog.Any("error", err),
+							)
+						}
 
+					case <-timeout.C:
+						acted = true
+						if err := game.PlayerStand(player); err != nil {
+							slog.Warn("failed to auto-stand blackjack player",
+								slog.Any("guildID", game.guildID),
+								slog.String("player", player.Name()),
+								slog.Any("error", err),
+							)
+						}
+
+					case <-ticker.C:
+						// Refresh the message so the countdown shown under the active player's
+						// name stays current; Discord's own relative timestamps update poorly
+						// on mobile, so the remaining time is baked into the message text.
+						if err := updateBlackjackMessage(game, true); err != nil {
+							slog.Error("failed to refresh blackjack turn timer", slog.Any("error", err))
+						}
+					}
+				}
+				timeout.Stop()
+				ticker.Stop()
+
+				// Clear the countdown as soon as the player acts (or times out). If the hand is
+				// still active the loop restarts it; otherwise this renders the final state.
+				game.clearTurnDeadline()
+				if !hand.IsActive() {
 					if err := updateBlackjackMessage(game, true); err != nil {
 						slog.Error("failed to update blackjack message after player action", slog.Any("error", err))
-					}
-
-				case <-time.After(game.config.PlayerTimeout):
-					if err := game.PlayerStand(player); err != nil {
-						slog.Warn("failed to auto-stand blackjack player",
-							slog.Any("guildID", game.guildID),
-							slog.String("player", player.Name()),
-							slog.Any("error", err),
-						)
-					}
-
-					if err := updateBlackjackMessage(game, true); err != nil {
-						slog.Error("failed to update blackjack message after player timeout", slog.Any("error", err))
 					}
 				}
 			}
@@ -700,7 +719,7 @@ func blackjackEmbeds(game *Game, hideDealerCard bool) []discord.Embed {
 			embeds = append(embeds, discord.Embed{
 				Type:        discord.EmbedTypeRich,
 				Title:       blackjackPlayerTitle(game, player),
-				Description: blackjackPlayerHands(game, player),
+				Description: blackjackPlayerDescription(game, player),
 				Color:       blackjackPlayerEmbedColor(game, player),
 			})
 		}
@@ -810,6 +829,26 @@ func blackjackPlayerName(game *Game, player *bj.Player) string {
 	}
 
 	return member.Name
+}
+
+// blackjackPlayerDescription renders a player's hands, prefixed with the turn countdown when
+// it is currently that player's turn.
+func blackjackPlayerDescription(game *Game, player *bj.Player) string {
+	hands := blackjackPlayerHands(game, player)
+	if game.IsDealingHands() && game.GetActivePlayer() == player {
+		if remaining := game.TurnTimeRemaining(); remaining > 0 {
+			return fmt.Sprintf("%s\n%s", blackjackTurnTimer(remaining), hands)
+		}
+	}
+	return hands
+}
+
+// blackjackTurnTimer renders the countdown shown beneath the active player's name. The
+// remaining time is baked into the text (rather than using a Discord relative timestamp,
+// which updates poorly on mobile) and refreshed every turnTimerUpdateInterval.
+func blackjackTurnTimer(remaining time.Duration) string {
+	seconds := int((remaining + time.Second - 1) / time.Second)
+	return fmt.Sprintf("⏳ %ds remaining", seconds)
 }
 
 // blackjackPlayerHands returns the rendered hands for a player.
