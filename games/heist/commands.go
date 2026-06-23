@@ -369,21 +369,23 @@ func sendHeistResults(e *handler.CommandEvent, heist *Heist, res *Result) error 
 		return err
 	}
 
+	unmute := func() {}
 	if err := permissionManager.MuteChannel(); err != nil {
-		slog.Error("failed to mute channel",
+		slog.Warn("failed to mute channel; continuing heist results without channel mute",
 			slog.Any("guildID", heist.GuildID),
 			slog.Any("error", err),
 		)
-		return err
-	}
-	defer func() {
-		if err := permissionManager.UnmuteChannel(); err != nil {
-			slog.Error("failed to unmute channel",
-				slog.Any("guildID", heist.GuildID),
-				slog.Any("error", err),
-			)
+	} else {
+		unmute = func() {
+			if err := permissionManager.UnmuteChannel(); err != nil {
+				slog.Error("failed to unmute channel",
+					slog.Any("guildID", heist.GuildID),
+					slog.Any("error", err),
+				)
+			}
 		}
-	}()
+	}
+	defer unmute()
 
 	if err := heistMessage(heist); err != nil {
 		slog.Error("failed to update heist message", slog.Any("error", err))
