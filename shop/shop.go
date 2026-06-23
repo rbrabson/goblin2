@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"goblin2/internal/discordid"
+	"goblin2/internal/disctime"
 	"log/slog"
 	"slices"
 	"strconv"
@@ -28,7 +29,7 @@ func shopBuyRoleComponentID(roleName string) string {
 	return shopBuyRoleComponentPath + "/" + roleName
 }
 
-// shopConfirmBuyRoleComponentID returns the component ID for the confirm buy role component.
+// shopConfirmBuyRoleComponentID returns the component ID for the `confirm` buy role component.
 func shopConfirmBuyRoleComponentID(roleName string) string {
 	return shopConfirmBuyRoleComponentPath + "/" + roleName
 }
@@ -105,7 +106,7 @@ func (s *Shop) Publish() error {
 		return fmt.Errorf("invalid shop channel ID %q: %w", config.ChannelID, err)
 	}
 
-	message := s.messageCreate()
+	msg := s.messageCreate()
 
 	if config.MessageID != "" {
 		messageID, err := strconv.ParseUint(config.MessageID, 10, 64)
@@ -114,8 +115,8 @@ func (s *Shop) Publish() error {
 				snowflake.ID(channelID),
 				snowflake.ID(messageID),
 				discord.MessageUpdate{
-					Embeds:     &message.Embeds,
-					Components: &message.Components,
+					Embeds:     &msg.Embeds,
+					Components: &msg.Components,
 				},
 			)
 			if err == nil {
@@ -133,7 +134,7 @@ func (s *Shop) Publish() error {
 		}
 	}
 
-	created, err := client.Rest.CreateMessage(snowflake.ID(channelID), message)
+	created, err := client.Rest.CreateMessage(snowflake.ID(channelID), msg)
 	if err != nil {
 		return fmt.Errorf("unable to publish shop message: %w", err)
 	}
@@ -196,7 +197,17 @@ func formatPublishedShopItem(item *Item) string {
 	parts = append(parts, p.Sprintf("Cost: %d", item.Price))
 
 	if item.Duration != "" {
-		parts = append(parts, fmt.Sprintf("Duration: %s", item.Duration))
+		duration, err := disctime.ParseDuration(item.Duration)
+		if err != nil {
+			slog.Error("failed to parse item duration",
+				slog.String("itemName", item.Name),
+				slog.String("itemDuration", item.Duration),
+				slog.Any("error", err),
+			)
+			parts = append(parts, fmt.Sprintf("Duration: %s", item.Duration))
+		} else {
+			parts = append(parts, p.Sprintf("Duration: %s", disctime.FormatDuration(duration)))
+		}
 	}
 
 	return strings.Join(parts, "\n")
