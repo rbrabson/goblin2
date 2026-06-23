@@ -56,7 +56,7 @@ func (b *Bot) Start(mongoDB *database.MongoDB) error {
 		bot.WithGatewayConfigOpts(
 			gateway.WithIntents(
 				gateway.IntentGuilds,
-				gateway.IntentGuildMembers,
+				//gateway.IntentGuildMembers,
 				gateway.IntentDirectMessages,
 			),
 		),
