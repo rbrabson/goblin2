@@ -9,19 +9,17 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 )
 
-// permissionSnapshot is used to store the current permission overwrites of a channel before muting it, so that they
-// can be restored when unmuting the channel.
+// permissionSnapshot stores the @everyone overwrite before muting so it can be restored later.
 type permissionSnapshot struct {
-	channelID  snowflake.ID
-	overwrites []discord.PermissionOverwrite
+	channelID            snowflake.ID
+	everyoneOverwrite    discord.RolePermissionOverwrite
+	hasEveryoneOverwrite bool
 }
 
 // PermissionManager is used for muting and unmuting a channel on a server
 type PermissionManager struct {
 	client   *bot.Client
-	event    *handler.CommandEvent
 	guildID  snowflake.ID
-	channel  discord.GuildChannel
 	snapshot permissionSnapshot
 }
 
@@ -42,64 +40,46 @@ func NewPermissionManager(client *bot.Client, e *handler.CommandEvent) (*Permiss
 		return nil, ErrChannelNotInGuild
 	}
 
-	existingOverwrites := guildChannel.PermissionOverwrites()
-
 	snapshot := permissionSnapshot{
-		channelID:  e.Channel().ID(),
-		overwrites: append([]discord.PermissionOverwrite(nil), existingOverwrites...),
+		channelID: e.Channel().ID(),
+	}
+	if everyoneOverwrite, ok := guildChannel.PermissionOverwrites().Role(guild.ID); ok {
+		snapshot.everyoneOverwrite = everyoneOverwrite
+		snapshot.hasEveryoneOverwrite = true
 	}
 
 	pm := &PermissionManager{
 		client:   client,
-		event:    e,
 		guildID:  guild.ID,
-		channel:  guildChannel,
 		snapshot: snapshot,
 	}
 
 	return pm, nil
 }
 
-// MuteChannel sets the channel so that `@everyone` can't send messages or create threads in the channel.
+// MuteChannel sets the channel so that `@everyone` can't send messages in the channel.
 func (pm *PermissionManager) MuteChannel() error {
-	const mutePermissions = discord.PermissionSendMessages |
-		discord.PermissionSendMessagesInThreads |
-		discord.PermissionCreatePublicThreads |
-		discord.PermissionCreatePrivateThreads
+	const mutePermissions = discord.PermissionSendMessages
 
-	overwrites := make([]discord.PermissionOverwrite, 0, len(pm.snapshot.overwrites)+1)
+	everyoneOverwrite := pm.snapshot.everyoneOverwrite
+	everyoneOverwrite.RoleID = pm.guildID // @everyone role ID is the same as the guild ID
 
-	everyoneOverwrite := discord.RolePermissionOverwrite{
-		RoleID: pm.guildID, // @everyone role ID is the same as the guild ID
-		Allow:  0,
-		Deny:   mutePermissions,
-	}
-
-	for _, overwrite := range pm.snapshot.overwrites {
-		if overwrite.Type() != discord.PermissionOverwriteTypeRole || overwrite.ID() != pm.guildID {
-			overwrites = append(overwrites, overwrite)
-			continue
+	if !pm.snapshot.hasEveryoneOverwrite {
+		everyoneOverwrite = discord.RolePermissionOverwrite{
+			RoleID: pm.guildID,
 		}
-
-		roleOverwrite := overwrite.(discord.RolePermissionOverwrite)
-		everyoneOverwrite.Allow = roleOverwrite.Allow
-		everyoneOverwrite.Deny = roleOverwrite.Deny | mutePermissions
 	}
 
-	overwrites = append(overwrites, everyoneOverwrite)
+	allow := everyoneOverwrite.Allow & mutePermissions
+	deny := everyoneOverwrite.Deny ^ mutePermissions
 
-	update := discord.GuildTextChannelUpdate{
-		PermissionOverwrites: &overwrites,
+	update := discord.RolePermissionOverwriteUpdate{
+		Allow: &allow,
+		Deny:  &deny,
 	}
 
-	updatedChannel, err := pm.client.Rest.UpdateChannel(pm.snapshot.channelID, update)
-	if err != nil {
+	if err := pm.client.Rest.UpdatePermissionOverwrite(pm.snapshot.channelID, pm.guildID, update); err != nil {
 		return err
-	}
-
-	guildChannel, ok := updatedChannel.(discord.GuildChannel)
-	if ok {
-		pm.channel = guildChannel
 	}
 
 	slog.Info("muted channel",
@@ -111,20 +91,16 @@ func (pm *PermissionManager) MuteChannel() error {
 
 // UnmuteChannel resets the permissions for `@everyone` to what they were before the channel was muted.
 func (pm *PermissionManager) UnmuteChannel() error {
-	overwrites := append([]discord.PermissionOverwrite(nil), pm.snapshot.overwrites...)
+	everyoneOverwrite := pm.snapshot.everyoneOverwrite
+	everyoneOverwrite.RoleID = pm.guildID
 
-	update := discord.GuildTextChannelUpdate{
-		PermissionOverwrites: &overwrites,
+	update := discord.RolePermissionOverwriteUpdate{
+		Allow: &everyoneOverwrite.Allow,
+		Deny:  &everyoneOverwrite.Deny,
 	}
 
-	updatedChannel, err := pm.client.Rest.UpdateChannel(pm.snapshot.channelID, update)
-	if err != nil {
+	if err := pm.client.Rest.UpdatePermissionOverwrite(pm.snapshot.channelID, pm.guildID, update); err != nil {
 		return err
-	}
-
-	guildChannel, ok := updatedChannel.(discord.GuildChannel)
-	if ok {
-		pm.channel = guildChannel
 	}
 
 	slog.Info("unmuted channel",
