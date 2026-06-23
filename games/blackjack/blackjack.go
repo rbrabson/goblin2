@@ -2,7 +2,9 @@ package blackjack
 
 import (
 	"errors"
+	"fmt"
 	"goblin2/internal/discordid"
+	"goblin2/internal/format"
 	"goblin2/plugin"
 	"goblin2/stats"
 	"log/slog"
@@ -20,6 +22,10 @@ import (
 var (
 	gamesLock sync.Mutex
 	games     = make(map[string]*Game)
+	// gameEndTimes records when the most recent game for each uid ended, so a new game for
+	// the same uid is held off until config.DelayBetweenGames has elapsed. Access is guarded
+	// by gamesLock.
+	gameEndTimes = make(map[string]time.Time)
 )
 
 type GameState int
@@ -110,6 +116,11 @@ func StartGame(guildID discordid.SnowflakeID, memberID discordid.SnowflakeID) (*
 
 	uid := getUID(guildID, memberID)
 	config := GetConfig(guildID)
+
+	if remaining := gameCooldownRemaining(uid, config.DelayBetweenGames); remaining > 0 {
+		return nil, fmt.Errorf("please wait %s before starting another blackjack game.", format.Duration(remaining))
+	}
+
 	game := games[uid]
 	if game == nil {
 		game = newGame(guildID, uid, config.Decks)
@@ -142,6 +153,27 @@ func StartGame(guildID discordid.SnowflakeID, memberID discordid.SnowflakeID) (*
 	}
 
 	return game, nil
+}
+
+// gameCooldownRemaining returns how long until a new game for the given uid may start, based
+// on when the previous game ended and the configured delay between games. It returns 0 if no
+// delay applies. It must be called while holding gamesLock; expired entries are pruned.
+func gameCooldownRemaining(uid string, delay time.Duration) time.Duration {
+	if delay <= 0 {
+		return 0
+	}
+
+	endedAt, ok := gameEndTimes[uid]
+	if !ok {
+		return 0
+	}
+
+	if remaining := delay - time.Since(endedAt); remaining > 0 {
+		return remaining
+	}
+
+	delete(gameEndTimes, uid)
+	return 0
 }
 
 // newGame creates a new blackjack game for the specified guild.
@@ -325,6 +357,10 @@ func (g *Game) EndRound() {
 		slog.Info("clearing multiplayer blackjack game state for new round", slog.Any("guildID", g.guildID))
 		g.Dealer().ClearHand()
 	}
+
+	// Record when this game ended so the configured delay between games is enforced before a
+	// new game for the same uid can be started.
+	gameEndTimes[g.uid] = time.Now()
 
 	if currentPlugin != nil {
 		currentPlugin.stopIfIdle()
