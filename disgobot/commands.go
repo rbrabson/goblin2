@@ -351,7 +351,7 @@ func serverStatusHandler(_ discord.SlashCommandInteractionData, e *handler.Comma
 
 	botStatus := plugin.Running
 	for _, p := range plugins {
-		slog.Error("plugin status",
+		slog.Debug("plugin status",
 			slog.String("plugin", p.GetName()),
 			slog.String("status", p.Status().String()),
 		)
