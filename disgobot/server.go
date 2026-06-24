@@ -6,10 +6,37 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/disgoorg/snowflake/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 var serverMutex sync.Mutex
+
+// seedOwnerFromGuild seeds the bootstrap owner from a guild's owner the first time the bot loads or
+// joins a guild and no owners have been configured yet. It is a no-op once any owner exists, so
+// later guilds and restarts leave the configured owners untouched.
+func seedOwnerFromGuild(guildID, ownerID snowflake.ID) {
+	server := GetServer()
+	if server.HasOwners() {
+		return
+	}
+
+	seeded, err := server.SeedOwner(discordid.NewSnowflakeID(ownerID))
+	if err != nil {
+		slog.Error("failed to seed bootstrap owner from guild owner",
+			slog.Any("guildID", guildID),
+			slog.Any("ownerID", ownerID),
+			slog.Any("error", err),
+		)
+		return
+	}
+	if seeded {
+		slog.Info("seeded bootstrap owner from guild owner",
+			slog.Any("guildID", guildID),
+			slog.Any("ownerID", ownerID),
+		)
+	}
+}
 
 // Server represents the owners and admins of the bot in the database.
 type Server struct {
@@ -51,6 +78,23 @@ func (s *Server) AddOwner(memberID discordid.SnowflakeID) error {
 	}
 	s.Owners = append(s.Owners, memberID)
 	return writeServer(s)
+}
+
+// SeedOwner designates memberID as the bootstrap owner when no owners are configured yet. It is
+// idempotent: once any owner exists it is a no-op and reports seeded == false. This is used to seed
+// the first owner from a Discord guild owner on the bot's first run.
+func (s *Server) SeedOwner(memberID discordid.SnowflakeID) (seeded bool, err error) {
+	serverMutex.Lock()
+	defer serverMutex.Unlock()
+
+	if len(s.Owners) > 0 {
+		return false, nil
+	}
+	s.Owners = append(s.Owners, memberID)
+	if err := writeServer(s); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // RemoveOwner removes a member as an owner of the server.

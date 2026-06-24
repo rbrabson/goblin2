@@ -63,6 +63,15 @@ func (b *Bot) Start(mongoDB *database.MongoDB) error {
 		bot.WithEventListenerFunc(func(e *events.Ready) {
 			slog.Info("bot is connected as " + e.User.Username)
 		}),
+		// Seed the bootstrap owner from a guild owner on first run. GuildReady covers guilds the
+		// bot is already in at startup; GuildJoin covers the bot's first guild being added while
+		// running. seedOwnerFromGuild is idempotent, so registering both is safe.
+		bot.WithEventListenerFunc(func(e *events.GuildReady) {
+			seedOwnerFromGuild(e.Guild.ID, e.Guild.OwnerID)
+		}),
+		bot.WithEventListenerFunc(func(e *events.GuildJoin) {
+			seedOwnerFromGuild(e.Guild.ID, e.Guild.OwnerID)
+		}),
 		bot.WithEventListeners(b.getEventListeners()),
 		bot.WithEventListeners(b.getPluginEventListeners()...),
 	)
