@@ -224,11 +224,11 @@ func IsAdmin(e *handler.CommandEvent) bool {
 	return sendPermissionDeniedMessage(e)
 }
 
-// IsGuildAdmin reports whether the member is an admin of the guild based on the guild owner, the guild's configured
-// admin roles, or the Discord administrator permission. The configured admin roles already include the default admin
-// roles, which are converted to role IDs when the guild is created, so role names are not matched here. It performs no
-// user-facing messaging so other permission checks can compose it. Errors fetching guild data are logged and treated as
-// "not admin".
+// IsGuildAdmin reports whether the member is an admin of the guild based on the guild owner or the guild's configured
+// admin roles. The configured admin roles already include the default admin roles, which are converted to role IDs when
+// the guild is created, so role names are not matched here. The guild owner is the only exception to the admin_roles
+// check; the Discord administrator permission does not grant access. It performs no user-facing messaging so other
+// permission checks can compose it. Errors fetching guild data are logged and treated as "not admin".
 func IsGuildAdmin(e *handler.CommandEvent) bool {
 	guildID := discordid.NewSnowflakeID(e.Member().GuildID)
 	guild := GetGuild(guildID)
@@ -254,27 +254,6 @@ func IsGuildAdmin(e *handler.CommandEvent) bool {
 
 	for _, adminRoleID := range guild.AdminRoles {
 		if _, ok := memberRoleIDs[adminRoleID]; ok {
-			return true
-		}
-	}
-
-	guildRoles, err := e.Client().Rest.GetRoles(guildID.ID())
-	if err != nil {
-		slog.Error("unable to get guild roles for admin check",
-			slog.Any("guildID", guildID),
-			slog.Any("userID", e.Member().User.ID),
-			slog.Any("error", err),
-		)
-		return false
-	}
-
-	for _, role := range guildRoles {
-		roleID := discordid.NewSnowflakeID(role.ID)
-		if _, memberHasRole := memberRoleIDs[roleID]; !memberHasRole {
-			continue
-		}
-
-		if role.Permissions.Has(discord.PermissionAdministrator) {
 			return true
 		}
 	}

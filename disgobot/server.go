@@ -192,11 +192,3 @@ func (s *Server) CanManage(memberID discordid.SnowflakeID) bool {
 
 	return len(s.Owners) == 0 || slices.Contains(s.Owners, memberID) || slices.Contains(s.Admins, memberID)
 }
-
-// CanManageOwners checks if the given member can manage the server owners.
-func (s *Server) CanManageOwners(memberID discordid.SnowflakeID) bool {
-	serverMutex.Lock()
-	defer serverMutex.Unlock()
-
-	return len(s.Owners) == 0 || slices.Contains(s.Owners, memberID)
-}

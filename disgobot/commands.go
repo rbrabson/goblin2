@@ -326,7 +326,7 @@ func sendHelpMessages(b *Bot, e *handler.CommandEvent, title string, helpMessage
 
 // serverShutdownHandler handles the server shutdown command.
 func serverShutdownHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if !isOwner(e) || IsShuttingDown(e) {
+	if !canManageServer(e) || IsShuttingDown(e) {
 		return ErrUnableToProcessCommand
 	}
 
@@ -341,7 +341,7 @@ func serverShutdownHandler(_ discord.SlashCommandInteractionData, e *handler.Com
 
 // serverStatusHandler handles the server status command.
 func serverStatusHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if !isOwner(e) {
+	if !canManageServer(e) {
 		return ErrUnableToProcessCommand
 	}
 
@@ -411,7 +411,7 @@ func serverStatusHandler(_ discord.SlashCommandInteractionData, e *handler.Comma
 
 // serverOwnerAddHandler handles the server owner add command.
 func serverOwnerAddHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if !isOwner(e) || IsShuttingDown(e) {
+	if !canManageServer(e) || IsShuttingDown(e) {
 		return ErrUnableToProcessCommand
 	}
 
@@ -442,7 +442,7 @@ func serverOwnerAddHandler(data discord.SlashCommandInteractionData, e *handler.
 
 // serverOwnerRemoveHandler handles the server owner remove command.
 func serverOwnerRemoveHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if !isOwner(e) || IsShuttingDown(e) {
+	if !canManageServer(e) || IsShuttingDown(e) {
 		return ErrUnableToProcessCommand
 	}
 
@@ -474,7 +474,7 @@ func serverOwnerRemoveHandler(data discord.SlashCommandInteractionData, e *handl
 
 // serverOwnerListHandler handles the server owner list command.
 func serverOwnerListHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if !isOwner(e) || IsShuttingDown(e) {
+	if !canManageServer(e) || IsShuttingDown(e) {
 		return ErrUnableToProcessCommand
 	}
 
@@ -512,7 +512,7 @@ func serverOwnerListHandler(_ discord.SlashCommandInteractionData, e *handler.Co
 
 // serverAdminAddHandler handles the server admin add command.
 func serverAdminAddHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if !isOwner(e) || IsShuttingDown(e) {
+	if !canManageServer(e) || IsShuttingDown(e) {
 		return ErrUnableToProcessCommand
 	}
 
@@ -543,7 +543,7 @@ func serverAdminAddHandler(data discord.SlashCommandInteractionData, e *handler.
 
 // serverAdminRemoveHandler handles the server admin remove command.
 func serverAdminRemoveHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if !isOwner(e) || IsShuttingDown(e) {
+	if !canManageServer(e) || IsShuttingDown(e) {
 		return ErrUnableToProcessCommand
 	}
 
@@ -575,7 +575,7 @@ func serverAdminRemoveHandler(data discord.SlashCommandInteractionData, e *handl
 
 // serverAdminListHandler handles the server admin list command.
 func serverAdminListHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if !isOwner(e) || IsShuttingDown(e) {
+	if !canManageServer(e) || IsShuttingDown(e) {
 		return ErrUnableToProcessCommand
 	}
 
@@ -613,7 +613,7 @@ func serverAdminListHandler(_ discord.SlashCommandInteractionData, e *handler.Co
 
 // serverLogHandler handles the server log command.
 func serverLogHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if !isOwner(e) || IsShuttingDown(e) {
+	if !canManageServer(e) || IsShuttingDown(e) {
 		return ErrUnableToProcessCommand
 	}
 
@@ -626,10 +626,11 @@ func serverLogHandler(data discord.SlashCommandInteractionData, e *handler.Comma
 	})
 }
 
-// isOwner checks if the member has permissions to manage the server.
-func isOwner(e *handler.CommandEvent) bool {
+// canManageServer checks if the member is an owner or admin in the goblin table, who are the only members allowed to run
+// /server commands.
+func canManageServer(e *handler.CommandEvent) bool {
 	server := GetServer()
-	if !server.CanManageOwners(discordid.NewSnowflakeID(e.Member().User.ID)) {
+	if !server.CanManage(discordid.NewSnowflakeID(e.Member().User.ID)) {
 		slog.Warn("user does not have permission to manage server",
 			slog.String("user", e.Member().User.Username),
 			slog.Any("user_id", e.Member().User.ID),
@@ -650,13 +651,12 @@ func isOwner(e *handler.CommandEvent) bool {
 	return true
 }
 
-// IsAdmin checks if the member has permissions to manage the server. A member qualifies if they are a bot owner/admin
-// (or when no owners are configured, any member), or if they are an admin of the guild via the guild owner, a configured
-// admin role, a default admin role name, or the Discord administrator permission. If the member lacks permission, it
-// sends an ephemeral message to the user and returns false. Otherwise, it returns true.
+// IsAdmin checks if the member is a guild admin, which gates all admin commands other than the /server commands. A member
+// qualifies if they are the guild owner or hold one of the guild's configured admin roles (see guild.IsGuildAdmin).
+// Goblin-table server owners/admins are intentionally not granted access here; they are scoped to the /server commands.
+// If the member lacks permission, it sends an ephemeral message to the user and returns false. Otherwise, it returns true.
 func IsAdmin(e *handler.CommandEvent) bool {
-	server := GetServer()
-	if server.CanManage(discordid.NewSnowflakeID(e.Member().User.ID)) || guild.IsGuildAdmin(e) {
+	if guild.IsGuildAdmin(e) {
 		return true
 	}
 

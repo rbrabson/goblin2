@@ -275,10 +275,20 @@ func (m *Member) HasRole(client *bot.Client, roleID discordid.SnowflakeID) (bool
 	return false, nil
 }
 
-// IsAdmin checks if the member has any of the guild's configured admin roles.
+// IsAdmin checks if the member is a guild admin: the guild owner, or a member holding one of the guild's configured
+// admin roles. The guild owner is the only exception to the admin-role check; the Discord administrator permission does
+// not grant access.
 func (m *Member) IsAdmin(client *bot.Client, guild *Guild) (bool, error) {
 	if guild == nil {
 		return false, nil
+	}
+
+	discordGuild, err := client.Rest.GetGuild(m.GuildID.ID(), false)
+	if err != nil {
+		return false, fmt.Errorf("unable to get guild %s for admin check: %w", m.GuildID, err)
+	}
+	if discordid.NewSnowflakeID(discordGuild.OwnerID) == m.MemberID {
+		return true, nil
 	}
 
 	adminRoleIDs := make(map[discordid.SnowflakeID]struct{}, len(guild.AdminRoles))
@@ -294,10 +304,6 @@ func (m *Member) IsAdmin(client *bot.Client, guild *Guild) (bool, error) {
 	for _, role := range roles {
 		roleID := discordid.NewSnowflakeID(role.ID)
 		if _, ok := adminRoleIDs[roleID]; ok {
-			return true, nil
-		}
-
-		if role.Permissions.Has(discord.PermissionAdministrator) {
 			return true, nil
 		}
 	}
