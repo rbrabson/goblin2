@@ -100,6 +100,17 @@ func startRaceHandler(_ discord.SlashCommandInteractionData, e *handler.CommandE
 		})
 	}
 
+	// The race is now in the cache. Until ownership is handed to the runRace
+	// goroutine (whose deferred End() removes it), any early return or panic
+	// during setup must clear the race; otherwise it is orphaned in the cache
+	// and every later /race start reports "one is already in progress".
+	started := false
+	defer func() {
+		if !started {
+			race.End()
+		}
+	}()
+
 	race.interaction = e
 
 	guildMember := resolvedGuildMember(member)
@@ -110,7 +121,6 @@ func startRaceHandler(_ discord.SlashCommandInteractionData, e *handler.CommandE
 			slog.Any("memberID", memberID),
 			slog.Any("error", err),
 		)
-		race.End()
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "Failed to add you as a participant to the race",
 			Flags:   discord.MessageFlagEphemeral,
@@ -120,12 +130,10 @@ func startRaceHandler(_ discord.SlashCommandInteractionData, e *handler.CommandE
 	if err := e.CreateMessage(discord.MessageCreate{
 		Content: "Starting a race...",
 	}); err != nil {
-		race.End()
 		return err
 	}
 
 	if err := raceMessage(race, "start"); err != nil {
-		race.End()
 		return err
 	}
 
@@ -134,6 +142,7 @@ func startRaceHandler(_ discord.SlashCommandInteractionData, e *handler.CommandE
 		slog.Any("racer", guildMember.Name),
 	)
 	go runRace(race)
+	started = true
 
 	return nil
 }

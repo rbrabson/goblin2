@@ -33,15 +33,20 @@ func getMember(guildID discordid.SnowflakeID, guildMember *guild.Member) *Member
 	if member == nil {
 		member = newMember(guildID, guildMember.MemberID)
 	}
-	var err error
-	member.guildMember, err = guild.GetMemberByID(guildID, guildMember.MemberID)
+	gm, err := guild.GetMemberByID(guildID, guildMember.MemberID)
 	if err != nil {
 		slog.Error("error getting guild member",
 			slog.Any("guildID", guildID),
 			slog.Any("memberID", guildMember.MemberID),
 			slog.Any("error", err),
 		)
+		// Fall back to the guild member resolved from the interaction so
+		// member.guildMember is never nil. A nil guildMember would panic later
+		// when the race message dereferences guildMember.Name, which would leave
+		// the race orphaned in the cache.
+		gm = guildMember
 	}
+	member.guildMember = gm
 	return member
 }
 

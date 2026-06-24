@@ -103,6 +103,32 @@ func (tm *TimedMap[K, V]) Get(key K) (V, bool) {
 	return item.value, true
 }
 
+// Peek retrieves a value without refreshing its expiration time.
+//
+// Unlike Get, Peek does not extend the entry's TTL, so repeated peeks cannot
+// keep an otherwise idle entry alive indefinitely. Expired entries are treated
+// as absent and removed.
+func (tm *TimedMap[K, V]) Peek(key K) (V, bool) {
+	var zero V
+
+	now := time.Now()
+
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+
+	item, ok := tm.items[key]
+	if !ok {
+		return zero, false
+	}
+
+	if now.After(item.expiresAt) {
+		delete(tm.items, key)
+		return zero, false
+	}
+
+	return item.value, true
+}
+
 // GetOrSet returns an existing value if present and not expired.
 //
 // If the key is missing or expired, factory() is called,

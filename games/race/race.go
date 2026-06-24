@@ -25,6 +25,12 @@ const (
 const (
 	raceCacheTTL             = 2 * time.Hour
 	raceCacheCleanupInterval = 5 * time.Minute
+
+	// maxRaceLifetime is the longest a race should ever remain in the cache. A
+	// normal race completes in a few minutes, so an entry older than this has
+	// hung (e.g. the runRace goroutine never finished) and is cleared so a new
+	// race can start.
+	maxRaceLifetime = 10 * time.Minute
 )
 
 type raceCacheKey struct {
@@ -322,7 +328,12 @@ func (r *Race) End() {
 	if len(r.Racers) >= r.config.MinNumRacers {
 		lastRaceTimes.SetWithTTL(key, time.Now(), r.config.WaitBetweenRaces)
 	}
-	currentRaces.Delete(key)
+	// Only remove the cache entry if it still points to this race. If this race
+	// was cleared as hung and replaced by a newer one, deleting here would wipe
+	// the new race. Peek avoids refreshing the entry's TTL.
+	if cached, ok := currentRaces.Peek(key); !ok || cached == r {
+		currentRaces.Delete(key)
+	}
 	raceLock.Unlock()
 
 	if currentPlugin != nil {
@@ -460,12 +471,26 @@ func raceStartChecks(guildID discordid.SnowflakeID) error {
 		guildID: guildID,
 	}
 
-	race, _ := currentRaces.Get(key)
+	// Peek rather than Get so a stale entry is not kept alive by its sliding
+	// TTL every time a blocked user retries /race start.
+	race, _ := currentRaces.Peek(key)
 	if race != nil {
-		slog.Debug("race already in progress",
-			slog.Any("guildID", guildID),
-		)
-		return ErrRaceAlreadyInProgress
+		// A race that has been around far longer than a race can legitimately
+		// last is hung; clear it and allow a new one to start. The caller holds
+		// raceLock, so delete the entry directly instead of calling End() (which
+		// would deadlock on raceLock and double-process results).
+		if age := time.Since(race.RaceStartTime); age > maxRaceLifetime {
+			slog.Warn("clearing hung race",
+				slog.Any("guildID", guildID),
+				slog.Duration("age", age),
+			)
+			currentRaces.Delete(key)
+		} else {
+			slog.Debug("race already in progress",
+				slog.Any("guildID", guildID),
+			)
+			return ErrRaceAlreadyInProgress
+		}
 	}
 
 	lastRaceTime, ok := lastRaceTimes.Get(key)
