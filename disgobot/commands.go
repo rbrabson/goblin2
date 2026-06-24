@@ -523,7 +523,7 @@ func serverAdminAddHandler(data discord.SlashCommandInteractionData, e *handler.
 	}
 
 	server := GetServer()
-	if err := server.AddOwner(userID); err != nil {
+	if err := server.AddAdmin(userID); err != nil {
 		slog.Error("failed to add admin",
 			slog.Any("userID", e.Member().User.ID),
 			slog.String("userName", e.Member().EffectiveName()),
@@ -580,27 +580,27 @@ func serverAdminListHandler(_ discord.SlashCommandInteractionData, e *handler.Co
 	}
 
 	server := GetServer()
-	owners := server.ListOwners()
-	if len(owners) == 0 {
+	admins := server.ListAdmins()
+	if len(admins) == 0 {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "There are no admins for this server",
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
 
-	ownerNames := make([]string, 0, len(owners))
+	adminNames := make([]string, 0, len(admins))
 	guildID := discordid.NewSnowflakeID(e.Member().GuildID)
-	for _, ownerID := range owners {
-		owner, err := guild.GetMemberByID(guildID, ownerID)
+	for _, adminID := range admins {
+		admin, err := guild.GetMemberByID(guildID, adminID)
 		if err != nil {
-			ownerNames = append(ownerNames, ownerID.String())
+			adminNames = append(adminNames, adminID.String())
 		} else {
-			ownerNames = append(ownerNames, owner.Name)
+			adminNames = append(adminNames, admin.Name)
 		}
 	}
 
 	err := e.CreateMessage(discord.MessageCreate{
-		Content: "Admins: " + strings.Join(ownerNames, ","),
+		Content: "Admins: " + strings.Join(adminNames, ","),
 		Flags:   discord.MessageFlagEphemeral,
 	})
 	if err != nil {
@@ -650,11 +650,12 @@ func isOwner(e *handler.CommandEvent) bool {
 	return true
 }
 
-// IsAdmin checks if the member has permissions to manage the server. If not, it sends an ephemeral message to the user
-// and returns false. Otherwise, it returns true.
+// IsAdmin checks if the member has permissions to manage the server. Owners are treated as admins (and when no owners
+// are configured, any member may manage the server). If the member lacks permission, it sends an ephemeral message to
+// the user and returns false. Otherwise, it returns true.
 func IsAdmin(e *handler.CommandEvent) bool {
 	server := GetServer()
-	if !server.IsAdmin(discordid.NewSnowflakeID(e.Member().User.ID)) {
+	if !server.CanManage(discordid.NewSnowflakeID(e.Member().User.ID)) {
 		slog.Warn("user is not a guild admin",
 			slog.String("user", e.Member().User.Username),
 			slog.Any("user_id", e.Member().User.ID),
