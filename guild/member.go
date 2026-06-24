@@ -286,20 +286,6 @@ func (m *Member) IsAdmin(client *bot.Client, guild *Guild) (bool, error) {
 		adminRoleIDs[roleID] = struct{}{}
 	}
 
-	defaultAdminRoleNameSet := make(map[string]struct{}, len(defaultAdminRoleNames))
-	for _, roleName := range defaultAdminRoleNames {
-		defaultAdminRoleNameSet[roleName] = struct{}{}
-	}
-
-	storedRoles := readRoles(guild.GuildID)
-	if storedRoles != nil {
-		for _, role := range storedRoles.Roles {
-			if _, ok := defaultAdminRoleNameSet[role.RoleName]; ok {
-				adminRoleIDs[role.RoleID] = struct{}{}
-			}
-		}
-	}
-
 	roles, err := m.GetRoles(client)
 	if err != nil {
 		return false, err
@@ -312,10 +298,6 @@ func (m *Member) IsAdmin(client *bot.Client, guild *Guild) (bool, error) {
 		}
 
 		if role.Permissions.Has(discord.PermissionAdministrator) {
-			return true, nil
-		}
-
-		if _, ok := defaultAdminRoleNameSet[role.Name]; ok {
 			return true, nil
 		}
 	}

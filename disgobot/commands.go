@@ -650,30 +650,31 @@ func isOwner(e *handler.CommandEvent) bool {
 	return true
 }
 
-// IsAdmin checks if the member has permissions to manage the server. Owners are treated as admins (and when no owners
-// are configured, any member may manage the server). If the member lacks permission, it sends an ephemeral message to
-// the user and returns false. Otherwise, it returns true.
+// IsAdmin checks if the member has permissions to manage the server. A member qualifies if they are a bot owner/admin
+// (or when no owners are configured, any member), or if they are an admin of the guild via the guild owner, a configured
+// admin role, a default admin role name, or the Discord administrator permission. If the member lacks permission, it
+// sends an ephemeral message to the user and returns false. Otherwise, it returns true.
 func IsAdmin(e *handler.CommandEvent) bool {
 	server := GetServer()
-	if !server.CanManage(discordid.NewSnowflakeID(e.Member().User.ID)) {
-		slog.Warn("user is not a guild admin",
-			slog.String("user", e.Member().User.Username),
-			slog.Any("user_id", e.Member().User.ID),
-			slog.String("name", e.Member().EffectiveName()),
-		)
-		err := e.CreateMessage(discord.MessageCreate{
-			Content: "You do not have permission to manage this server",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-		if err != nil {
-			slog.Error("error sending permission error message",
-				slog.Any("error", err),
-			)
-		}
-		return false
+	if server.CanManage(discordid.NewSnowflakeID(e.Member().User.ID)) || guild.IsGuildAdmin(e) {
+		return true
 	}
 
-	return true
+	slog.Warn("user is not a guild admin",
+		slog.String("user", e.Member().User.Username),
+		slog.Any("user_id", e.Member().User.ID),
+		slog.String("name", e.Member().EffectiveName()),
+	)
+	err := e.CreateMessage(discord.MessageCreate{
+		Content: "You do not have permission to manage this server",
+		Flags:   discord.MessageFlagEphemeral,
+	})
+	if err != nil {
+		slog.Error("error sending permission error message",
+			slog.Any("error", err),
+		)
+	}
+	return false
 }
 
 // IsShuttingDown checks if the bot is shutting down. If it is, it sends an ephemeral message to the user and returns

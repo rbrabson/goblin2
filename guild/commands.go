@@ -10,12 +10,17 @@ import (
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
+	"github.com/disgoorg/omit"
 	"github.com/disgoorg/snowflake/v2"
 )
 
 var adminCommands = discord.SlashCommandCreate{
 	Name:        "guild-admin",
 	Description: "Commands used to configure the bot for a given server.",
+	// Hide the command from members who lack Manage Server. This is only a Discord-side
+	// visibility gate; IsAdmin remains the authoritative check in each handler, and server
+	// admins can still grant access to other roles via Server Settings -> Integrations.
+	DefaultMemberPermissions: omit.NewPtr(discord.PermissionManageGuild),
 	Options: []discord.ApplicationCommandOption{
 		discord.ApplicationCommandOptionSubCommandGroup{
 			Name:        "role",
@@ -53,7 +58,7 @@ var adminCommands = discord.SlashCommandCreate{
 }
 
 func guildAdminRoleListHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if !isAdmin(e) || isShuttingDown(e) {
+	if !IsAdmin(e) || isShuttingDown(e) {
 		return ErrUnableToProcessCommand
 	}
 
@@ -114,7 +119,7 @@ func roleFromOption(data discord.SlashCommandInteractionData, optionName string,
 
 // guildAdminRoleAddHandler adds an admin role for the server.
 func guildAdminRoleAddHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if !isAdmin(e) || isShuttingDown(e) {
+	if !IsAdmin(e) || isShuttingDown(e) {
 		return ErrUnableToProcessCommand
 	}
 
@@ -158,7 +163,7 @@ func guildAdminRoleAddHandler(data discord.SlashCommandInteractionData, e *handl
 
 // guildAdminRoleRemoveHandler removes an admin role for the server.
 func guildAdminRoleRemoveHandler(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	if !isAdmin(e) || isShuttingDown(e) {
+	if !IsAdmin(e) || isShuttingDown(e) {
 		return ErrUnableToProcessCommand
 	}
 
@@ -200,9 +205,31 @@ func guildAdminRoleRemoveHandler(data discord.SlashCommandInteractionData, e *ha
 	})
 }
 
-// isAdmin checks if the member has permissions to manage the server. If not, it sends an ephemeral message to the user
+// IsAdmin checks if the member has permissions to manage the server. If not, it sends an ephemeral message to the user
 // and returns false. Otherwise, it returns true.
-func isAdmin(e *handler.CommandEvent) bool {
+func IsAdmin(e *handler.CommandEvent) bool {
+	if IsGuildAdmin(e) {
+		return true
+	}
+
+	guildID := discordid.NewSnowflakeID(e.Member().GuildID)
+	slog.Warn("user is not a guild admin",
+		slog.String("user", e.Member().User.Username),
+		slog.Any("user_id", e.Member().User.ID),
+		slog.Any("guild_id", guildID),
+		slog.String("name", e.Member().EffectiveName()),
+		slog.Any("member_role_ids", e.Member().RoleIDs),
+	)
+
+	return sendPermissionDeniedMessage(e)
+}
+
+// IsGuildAdmin reports whether the member is an admin of the guild based on the guild owner, the guild's configured
+// admin roles, or the Discord administrator permission. The configured admin roles already include the default admin
+// roles, which are converted to role IDs when the guild is created, so role names are not matched here. It performs no
+// user-facing messaging so other permission checks can compose it. Errors fetching guild data are logged and treated as
+// "not admin".
+func IsGuildAdmin(e *handler.CommandEvent) bool {
 	guildID := discordid.NewSnowflakeID(e.Member().GuildID)
 	guild := GetGuild(guildID)
 
@@ -213,7 +240,7 @@ func isAdmin(e *handler.CommandEvent) bool {
 			slog.Any("userID", e.Member().User.ID),
 			slog.Any("error", err),
 		)
-		return sendPermissionDeniedMessage(e)
+		return false
 	}
 
 	if discordGuild.OwnerID == e.Member().User.ID {
@@ -231,11 +258,6 @@ func isAdmin(e *handler.CommandEvent) bool {
 		}
 	}
 
-	defaultAdminRoleNameSet := make(map[string]struct{}, len(defaultAdminRoleNames))
-	for _, roleName := range defaultAdminRoleNames {
-		defaultAdminRoleNameSet[roleName] = struct{}{}
-	}
-
 	guildRoles, err := e.Client().Rest.GetRoles(guildID.ID())
 	if err != nil {
 		slog.Error("unable to get guild roles for admin check",
@@ -243,7 +265,7 @@ func isAdmin(e *handler.CommandEvent) bool {
 			slog.Any("userID", e.Member().User.ID),
 			slog.Any("error", err),
 		)
-		return sendPermissionDeniedMessage(e)
+		return false
 	}
 
 	for _, role := range guildRoles {
@@ -255,22 +277,9 @@ func isAdmin(e *handler.CommandEvent) bool {
 		if role.Permissions.Has(discord.PermissionAdministrator) {
 			return true
 		}
-
-		if _, isDefaultAdminRole := defaultAdminRoleNameSet[role.Name]; isDefaultAdminRole {
-			return true
-		}
 	}
 
-	slog.Warn("user is not a guild admin",
-		slog.String("user", e.Member().User.Username),
-		slog.Any("user_id", e.Member().User.ID),
-		slog.Any("guild_id", guildID),
-		slog.String("name", e.Member().EffectiveName()),
-		slog.Any("member_role_ids", e.Member().RoleIDs),
-		slog.Any("configured_admin_role_ids", guild.AdminRoles),
-	)
-
-	return sendPermissionDeniedMessage(e)
+	return false
 }
 
 func sendPermissionDeniedMessage(e *handler.CommandEvent) bool {
