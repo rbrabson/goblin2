@@ -16,13 +16,15 @@ type Config struct {
 	DefaultBalance int    `yaml:"default_balance"`
 }
 
-// LoadConfig loads the configuration from the specified YAML file path.
+// LoadConfig loads the configuration from the specified YAML file path into the package-level
+// cfg, which createNewAccount and the bank setup read from.
 func LoadConfig(path string) error {
-	var cfg Config
+	var c Config
 	filePath := filepath.Join(path, "bank/config.yaml")
-	if err := config.LoadConfig(filePath, &cfg); err != nil {
+	if err := config.LoadConfig(filePath, &c); err != nil {
 		return err
 	}
 
+	cfg = &c
 	return nil
 }
