@@ -289,6 +289,20 @@ func (g *Game) StartNewRound() error {
 
 // EndRound ends the current round of blackjack for the guild, removing all players from the game.
 func (g *Game) EndRound() {
+	// All state mutation happens while holding gamesLock and the game lock. stopIfIdle is
+	// deliberately called afterwards (outside both locks): it invokes activeGameCount, which
+	// re-acquires gamesLock and every game's lock. Calling it while EndRound still held those
+	// locks self-deadlocks (Go mutexes are not reentrant) and wedges gamesLock for the whole
+	// process. This mirrors how heist and race release their map lock before stopIfIdle.
+	g.endRoundLocked()
+
+	if currentPlugin != nil {
+		currentPlugin.stopIfIdle()
+	}
+}
+
+// endRoundLocked performs the round teardown that must run under gamesLock and the game lock.
+func (g *Game) endRoundLocked() {
 	gamesLock.Lock()
 	defer gamesLock.Unlock()
 
@@ -346,15 +360,6 @@ func (g *Game) EndRound() {
 	g.messageID = 0
 	g.SetState(NotStarted)
 
-	for len(g.turnChan) > 0 {
-		<-g.turnChan
-	}
-	slog.Debug("cleared pending blackjack player actions for new round", slog.Any("guildID", g.guildID))
-
-	g.interaction = nil
-	g.messageID = 0
-	g.SetState(NotStarted)
-
 	if g.config.SinglePlayerMode {
 		slog.Info("deleting single blackjack player game", slog.Any("guildID", g.guildID), slog.String("uid", g.uid))
 		delete(games, g.uid)
@@ -366,10 +371,6 @@ func (g *Game) EndRound() {
 	// Record when this game ended so the configured delay between games is enforced before a
 	// new game for the same uid can be started.
 	gameEndTimes[g.uid] = time.Now()
-
-	if currentPlugin != nil {
-		currentPlugin.stopIfIdle()
-	}
 }
 
 // NotStarted returns whether the blackjack game has not yet started.
