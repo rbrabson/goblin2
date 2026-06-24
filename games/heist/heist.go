@@ -424,20 +424,29 @@ func calculateSuccessRate(heist *Heist, target *Target) float64 {
 	return successChance
 }
 
+// selectTarget finds the target with the minimum crew size that is greater than or equal to the crew size of the heist.
 func selectTarget(targets []*Target, crewSize int) *Target {
 	if len(targets) == 0 {
 		return nil
 	}
 
-	index := len(targets) - 1
-	for i, target := range targets {
+	// Sort by crew size so selection does not depend on the order targets are
+	// loaded from the database.
+	sorted := make([]*Target, len(targets))
+	copy(sorted, targets)
+	slices.SortFunc(sorted, func(a, b *Target) int {
+		return a.CrewSize - b.CrewSize
+	})
+
+	index := len(sorted) - 1
+	for i, target := range sorted {
 		if crewSize <= target.CrewSize {
 			index = i
 			break
 		}
 	}
 
-	return targets[index]
+	return sorted[index]
 }
 
 // calculateBonusRate calculates the bonus amount to add to the success rate

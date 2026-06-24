@@ -95,7 +95,7 @@ func writeMember(member *Member) {
 // readAllTargets loads the targets that may be used in heists for all guilds
 func readAllTargets(filter bson.M) ([]*Target, error) {
 	var targets []*Target
-	sort := bson.M{"crew_size": 1}
+	sort := bson.M{"crew": 1}
 	err := db.FindMany(targetCollection, filter, &targets, sort, 0)
 	if err != nil {
 		slog.Error("unable to read targets", slog.Any("error", err), slog.Any("filter", filter))
@@ -108,7 +108,7 @@ func readAllTargets(filter bson.M) ([]*Target, error) {
 // readTargets loads the targets that may be used in heists by the given guild
 func readTargets(guildID discordid.SnowflakeID, theme string) ([]*Target, error) {
 	var targets []*Target
-	sort := bson.M{"crew_size": 1}
+	sort := bson.M{"crew": 1}
 	filter := bson.M{"guild_id": guildID, "theme": theme}
 	err := db.FindMany(targetCollection, filter, &targets, sort, 0)
 	if err != nil {
