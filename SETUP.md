@@ -57,7 +57,7 @@ First, deselect `@everyone` and `# All Channels` options. This way, commands can
 The following commands are administrative commands, and should only be sent to the `#bot-admin-commands` channel. Only users with the `bot-admin` role should be able to send these commands.
 
 - `/account-admin`
-- `/admin-help`
+- `/adminhelp`
 - `/bank-admin`
 - `/blackjack-admin`
 - `/heist-admin`

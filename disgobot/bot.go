@@ -150,7 +150,7 @@ func (b *Bot) getEventListeners() *handler.Mux {
 
 	// Basic help commands; it consolidates the help from all plugins
 	h.SlashCommand("/help", helpHandler(b))
-	h.SlashCommand("/admin-help", adminHelpHandler(b))
+	h.SlashCommand("/adminhelp", adminHelpHandler(b))
 	h.SlashCommand("/version", versionHandler(b))
 
 	// Server commands; intended for the bot owner, not bot admins

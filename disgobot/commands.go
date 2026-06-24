@@ -24,7 +24,7 @@ var helpCommands = []discord.ApplicationCommandCreate{
 		Description: "Provides a description of commands for this server.",
 	},
 	discord.SlashCommandCreate{
-		Name:        "admin-help",
+		Name:        "adminhelp",
 		Description: "Provides a description of admin commands for this server.",
 	},
 	discord.SlashCommandCreate{
