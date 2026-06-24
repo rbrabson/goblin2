@@ -1,6 +1,7 @@
 package heist
 
 import (
+	"cmp"
 	"fmt"
 	"goblin2/bank"
 	"goblin2/disgobot"
@@ -10,6 +11,7 @@ import (
 	"goblin2/internal/format"
 	"log/slog"
 	"math"
+	"slices"
 	"strings"
 	"time"
 
@@ -925,6 +927,9 @@ func listTargetsHandler(_ discord.SlashCommandInteractionData, e *handler.Comman
 	}
 
 	targets := GetTargets(discordid.NewSnowflakeID(member.GuildID))
+	slices.SortFunc(targets, func(a, b *Target) int {
+		return cmp.Compare(a.CrewSize, b.CrewSize)
+	})
 	if len(targets) == 0 {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "There aren't any targets!",
