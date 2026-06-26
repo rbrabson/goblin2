@@ -28,11 +28,11 @@ var (
 
 // Avatar represents a character that may be assigned to a member that participates in a race
 type Avatar struct {
-	ID            bson.ObjectID         `json:"_id,omitempty" bson:"_id,omitempty"`
-	GuildID       discordid.SnowflakeID `json:"guild_id" bson:"guild_id"`
-	Theme         string                `json:"theme" bson:"theme"`
-	Emoji         string                `json:"emoji" bson:"emoji"`
-	MovementSpeed string                `json:"movement_speed" bson:"movement_speed"`
+	ID            bson.ObjectID         `yaml:"_id,omitempty" bson:"_id,omitempty"`
+	GuildID       discordid.SnowflakeID `yaml:"guild_id" bson:"guild_id"`
+	Theme         string                `yaml:"theme" bson:"theme"`
+	Emoji         string                `yaml:"emoji" bson:"emoji"`
+	MovementSpeed string                `yaml:"movement_speed" bson:"movement_speed"`
 }
 
 // getRaceAvatars returns the list of avatars that may be assigned to a member during a race.

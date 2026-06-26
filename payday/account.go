@@ -30,15 +30,15 @@ var (
 
 // Account is a user on the server that can a payday every 23 hours
 type Account struct {
-	ID              bson.ObjectID         `json:"_id,omitempty" bson:"_id,omitempty"`
-	GuildID         discordid.SnowflakeID `json:"guild_id" bson:"guild_id"`
-	MemberID        discordid.SnowflakeID `json:"member_id" bson:"member_id"`
-	NextPayday      time.Time             `json:"next_payday" bson:"next_payday"`
-	CurrentStreak   int                   `json:"current_streak" bson:"current_streak"`
-	MaxStreak       int                   `json:"max_streak" bson:"max_streak"`
-	TotalPaydays    int                   `json:"total_paydays" bson:"total_paydays"`
-	TotalAmountPaid int                   `json:"total_amount_paid" bson:"total_amount_paid"`
-	Version         int                   `json:"version" bson:"version"`
+	ID              bson.ObjectID         `yaml:"_id,omitempty" bson:"_id,omitempty"`
+	GuildID         discordid.SnowflakeID `yaml:"guild_id" bson:"guild_id"`
+	MemberID        discordid.SnowflakeID `yaml:"member_id" bson:"member_id"`
+	NextPayday      time.Time             `yaml:"next_payday" bson:"next_payday"`
+	CurrentStreak   int                   `yaml:"current_streak" bson:"current_streak"`
+	MaxStreak       int                   `yaml:"max_streak" bson:"max_streak"`
+	TotalPaydays    int                   `yaml:"total_paydays" bson:"total_paydays"`
+	TotalAmountPaid int                   `yaml:"total_amount_paid" bson:"total_amount_paid"`
+	Version         int                   `yaml:"version" bson:"version"`
 }
 
 // GetPaydayAccount returns the payday account for the given guild and member.

@@ -28,21 +28,21 @@ var (
 
 // Config is the configuration data for new heists.
 type Config struct {
-	ID                 bson.ObjectID         `bson:"_id,omitempty"`
-	GuildID            discordid.SnowflakeID `bson:"guild_id"`
-	BailBase           int                   `bson:"bail_base"`
-	BoostPercentage    float64               `bson:"boost_percentage"`
-	BoostEnabled       bool                  `bson:"boost_enabled"`
-	CrewOutput         string                `bson:"crew_output"`
-	DeathTimer         time.Duration         `bson:"death_timer"`
-	HeistCost          int                   `bson:"heist_cost"`
-	PoliceAlert        time.Duration         `bson:"police_alert"`
-	SentenceBase       time.Duration         `bson:"sentence_base"`
-	BaseVaultRecovery  float64               `bson:"base_vault_recovery"`
-	BoostVaultRecovery float64               `json:"boost_vault_recovery"`
-	WaitTime           time.Duration         `bson:"wait_time"`
-	Theme              *Theme                `bson:"-"`
-	Targets            []*Target             `bson:"-"`
+	ID                 bson.ObjectID         `bson:"_id,omitempty" yaml:"-"`
+	GuildID            discordid.SnowflakeID `bson:"guild_id" yaml:"-"`
+	BailBase           int                   `bson:"bail_base" yaml:"bail_base"`
+	BoostPercentage    float64               `bson:"boost_percentage" yaml:"boost_percentage"`
+	BoostEnabled       bool                  `bson:"boost_enabled" yaml:"boost_enabled"`
+	CrewOutput         string                `bson:"crew_output" yaml:"crew_output"`
+	DeathTimer         time.Duration         `bson:"death_timer" yaml:"death_timer"`
+	HeistCost          int                   `bson:"heist_cost" yaml:"heist_cost"`
+	PoliceAlert        time.Duration         `bson:"police_alert" yaml:"police_alert"`
+	SentenceBase       time.Duration         `bson:"sentence_base" yaml:"sentence_base"`
+	BaseVaultRecovery  float64               `bson:"base_vault_recovery" yaml:"base_vault_recovery"`
+	BoostVaultRecovery float64               `bson:"boost_vault_recovery" yaml:"boost_vault_recovery"`
+	WaitTime           time.Duration         `bson:"wait_time" yaml:"wait_time"`
+	Theme              *Theme                `bson:"-" yaml:"-"`
+	Targets            []*Target             `bson:"-" yaml:"-"`
 }
 
 // LoadConfig loads the configuration from the specified YAML file path.

@@ -12,16 +12,16 @@ import (
 
 // Item represents an item in the shop, which represents any purchasable item.
 type Item struct {
-	ID            bson.ObjectID         `json:"_id,omitempty" bson:"_id,omitempty"`
-	GuildID       discordid.SnowflakeID `json:"guild_id" bson:"guild_id"`
-	Name          string                `json:"name" bson:"name"`
-	Description   string                `json:"description" bson:"description"`
-	Type          string                `json:"type" bson:"type"`
-	Price         int                   `json:"price" bson:"price"`
-	Duration      string                `json:"duration,omitempty" bson:"duration,omitempty"`
-	AutoRenewable bool                  `json:"auto_renewable,omitempty" bson:"auto_renewable,omitempty"`
-	MaxPurchases  int                   `json:"max_purchases,omitempty" bson:"max_purchases,omitempty"`
-	Version       int                   `json:"version" bson:"version"`
+	ID            bson.ObjectID         `yaml:"_id,omitempty" bson:"_id,omitempty"`
+	GuildID       discordid.SnowflakeID `yaml:"guild_id" bson:"guild_id"`
+	Name          string                `yaml:"name" bson:"name"`
+	Description   string                `yaml:"description" bson:"description"`
+	Type          string                `yaml:"type" bson:"type"`
+	Price         int                   `yaml:"price" bson:"price"`
+	Duration      string                `yaml:"duration,omitempty" bson:"duration,omitempty"`
+	AutoRenewable bool                  `yaml:"auto_renewable,omitempty" bson:"auto_renewable,omitempty"`
+	MaxPurchases  int                   `yaml:"max_purchases,omitempty" bson:"max_purchases,omitempty"`
+	Version       int                   `yaml:"version" bson:"version"`
 }
 
 // getShopItem returns the shop item with the given guild ID, name, and type. If the item does
