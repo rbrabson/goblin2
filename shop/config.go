@@ -12,13 +12,13 @@ import (
 
 // Config represents the configuration for the shop in a guild.
 type Config struct {
-	ID             bson.ObjectID         `json:"_id,omitempty" bson:"_id,omitempty"`
-	GuildID        discordid.SnowflakeID `json:"guild_id" bson:"guild_id"`
-	ChannelID      string                `json:"channel_id" bson:"channel_id"`
-	MessageID      string                `json:"message_id" bson:"message_id"`
-	ModChannelID   string                `json:"mod_channel_id" bson:"mod_channel_id"`
-	NotificationID string                `json:"notification_id" bson:"notification_id"`
-	Version        int                   `json:"version" bson:"version"`
+	ID             bson.ObjectID         `bson:"_id,omitempty"`
+	GuildID        discordid.SnowflakeID `bson:"guild_id"`
+	ChannelID      string                `bson:"channel_id"`
+	MessageID      string                `bson:"message_id"`
+	ModChannelID   string                `bson:"mod_channel_id"`
+	NotificationID string                `bson:"notification_id"`
+	Version        int                   `bson:"version"`
 }
 
 // GetConfig reads the configuration from the database. If the config does not exist,

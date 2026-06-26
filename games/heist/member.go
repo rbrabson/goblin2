@@ -50,19 +50,19 @@ var (
 // Member is the heist-specific state for a guild member who has
 // participated in, or attempted to participate in, a heist.
 type Member struct {
-	ID            bson.ObjectID         `json:"_id,omitempty" bson:"_id,omitempty"`
-	GuildID       discordid.SnowflakeID `json:"guild_id" bson:"guild_id"`
-	MemberID      discordid.SnowflakeID `json:"member_id" bson:"member_id"`
-	BailCost      int                   `json:"bail_cost" bson:"bail_cost"`
-	CriminalLevel CriminalLevel         `json:"criminal_level" bson:"criminal_level"`
-	Deaths        int                   `json:"deaths" bson:"deaths"`
-	DeathTimer    time.Time             `json:"death_timer" bson:"death_timer"`
-	JailCounter   int                   `json:"jail_counter" bson:"jail_counter"`
-	JailTimer     time.Time             `json:"jail_timer" bson:"jail_timer"`
-	Sentence      time.Duration         `json:"sentence" bson:"sentence"`
-	Spree         int                   `json:"spree" bson:"spree"`
-	Status        MemberStatus          `json:"status" bson:"status"`
-	TotalJail     int                   `json:"total_jail" bson:"total_jail"`
+	ID            bson.ObjectID         `bson:"_id,omitempty"`
+	GuildID       discordid.SnowflakeID `bson:"guild_id"`
+	MemberID      discordid.SnowflakeID `bson:"member_id"`
+	BailCost      int                   `bson:"bail_cost"`
+	CriminalLevel CriminalLevel         `bson:"criminal_level"`
+	Deaths        int                   `bson:"deaths"`
+	DeathTimer    time.Time             `bson:"death_timer"`
+	JailCounter   int                   `bson:"jail_counter"`
+	JailTimer     time.Time             `bson:"jail_timer"`
+	Sentence      time.Duration         `bson:"sentence"`
+	Spree         int                   `bson:"spree"`
+	Status        MemberStatus          `bson:"status"`
+	TotalJail     int                   `bson:"total_jail"`
 
 	heist       *Heist
 	guildMember *guild.Member

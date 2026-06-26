@@ -17,11 +17,11 @@ const (
 
 // Member represents a member of a guild with restrictions on what they can or cannot do in a shop.
 type Member struct {
-	ID           bson.ObjectID         `json:"_id,omitempty" bson:"_id,omitempty"`
-	GuildID      discordid.SnowflakeID `json:"guild_id,omitempty" bson:"guild_id,omitempty"`
-	MemberID     discordid.SnowflakeID `json:"member_id,omitempty" bson:"member_id,omitempty"`
-	Restrictions []string              `json:"restrictions,omitempty" bson:"restrictions,omitempty"`
-	Version      int                   `json:"version" bson:"version"`
+	ID           bson.ObjectID         `bson:"_id,omitempty"`
+	GuildID      discordid.SnowflakeID `bson:"guild_id,omitempty"`
+	MemberID     discordid.SnowflakeID `bson:"member_id,omitempty"`
+	Restrictions []string              `bson:"restrictions,omitempty"`
+	Version      int                   `bson:"version"`
 }
 
 // GetMember retrieves a member from the database, creating one if it doesn't exist.

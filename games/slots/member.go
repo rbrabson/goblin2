@@ -28,19 +28,19 @@ var (
 
 // Member represents a member's statistics for the slots game.
 type Member struct {
-	ID                  bson.ObjectID         `json:"id" bson:"_id,omitempty"`
-	GuildID             discordid.SnowflakeID `json:"guild_id" bson:"guild_id"`
-	MemberID            discordid.SnowflakeID `json:"member_id" bson:"member_id"`
-	CurrentWinStreak    int                   `json:"current_win_streak" bson:"current_win_streak"`
-	LongestWinStreak    int                   `json:"longest_win_streak" bson:"longest_win_streak"`
-	CurrentLosingStreak int                   `json:"current_losing_streak" bson:"current_losing_streak"`
-	LongestLosingStreak int                   `json:"longest_losing_streak" bson:"longest_losing_streak"`
-	TotalWins           int                   `json:"total_wins" bson:"total_wins"`
-	TotalLosses         int                   `json:"total_losses" bson:"total_losses"`
-	TotalBet            int                   `json:"total_bet" bson:"total_bet"`
-	TotalWinnings       int                   `json:"total_winnings" bson:"total_winnings"`
-	MaxWin              int                   `json:"max_win" bson:"max_win"`
-	LastPlayed          time.Time             `json:"last_played" bson:"last_played"`
+	ID                  bson.ObjectID         `bson:"_id,omitempty"`
+	GuildID             discordid.SnowflakeID `bson:"guild_id"`
+	MemberID            discordid.SnowflakeID `bson:"member_id"`
+	CurrentWinStreak    int                   `bson:"current_win_streak"`
+	LongestWinStreak    int                   `bson:"longest_win_streak"`
+	CurrentLosingStreak int                   `bson:"current_losing_streak"`
+	LongestLosingStreak int                   `bson:"longest_losing_streak"`
+	TotalWins           int                   `bson:"total_wins"`
+	TotalLosses         int                   `bson:"total_losses"`
+	TotalBet            int                   `bson:"total_bet"`
+	TotalWinnings       int                   `bson:"total_winnings"`
+	MaxWin              int                   `bson:"max_win"`
+	LastPlayed          time.Time             `bson:"last_played"`
 }
 
 // GetMember retrieves the member statistics for a specific guild and user.

@@ -27,17 +27,17 @@ const (
 // Purchase is a purchase made from the shop.
 // Purchase is a purchase made from the shop.
 type Purchase struct {
-	ID                 bson.ObjectID         `json:"_id,omitempty" bson:"_id,omitempty"`
-	GuildID            discordid.SnowflakeID `json:"guild_id" bson:"guild_id"`
-	MemberID           discordid.SnowflakeID `json:"member_id" bson:"member_id"`
-	Item               *Item                 `json:"item" bson:"item,inline"`
-	Status             string                `json:"status" bson:"status"`
-	PurchasedOn        time.Time             `json:"purchased_on" bson:"purchased_on"`
-	ExpiresOn          time.Time             `json:"expires_on" bson:"expires_on"`
-	AutoRenew          bool                  `json:"auto_renew" bson:"auto_renew"`
-	IsExpired          bool                  `json:"is_expired" bson:"is_expired"`
-	ExpirationNotified bool                  `json:"expiration_notified" bson:"expiration_notified"`
-	Version            int                   `json:"version" bson:"version"`
+	ID                 bson.ObjectID         `bson:"_id,omitempty"`
+	GuildID            discordid.SnowflakeID `bson:"guild_id"`
+	MemberID           discordid.SnowflakeID `bson:"member_id"`
+	Item               *Item                 `bson:"item,inline"`
+	Status             string                `bson:"status"`
+	PurchasedOn        time.Time             `bson:"purchased_on"`
+	ExpiresOn          time.Time             `bson:"expires_on"`
+	AutoRenew          bool                  `bson:"auto_renew"`
+	IsExpired          bool                  `bson:"is_expired"`
+	ExpirationNotified bool                  `bson:"expiration_notified"`
+	Version            int                   `bson:"version"`
 }
 
 // GetAllPurchases returns all the purchases made by a member in the guild.
