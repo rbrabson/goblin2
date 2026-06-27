@@ -290,7 +290,7 @@ func (g *Game) StartNewRound() error {
 // EndRound ends the current round of blackjack for the guild, removing all players from the game.
 func (g *Game) EndRound() {
 	// All state mutation happens while holding gamesLock and the game lock. stopIfIdle is
-	// deliberately called afterwards (outside both locks): it invokes activeGameCount, which
+	// deliberately called afterward (outside both locks): it invokes activeGameCount, which
 	// re-acquires gamesLock and every game's lock. Calling it while EndRound still held those
 	// locks self-deadlocks (Go mutexes are not reentrant) and wedges gamesLock for the whole
 	// process. This mirrors how heist and race release their map lock before stopIfIdle.
