@@ -91,6 +91,7 @@ func (p *Plugin) Status() plugin.Status {
 	return p.status
 }
 
+// stopIfIdle stops the race plugin if it is in the stopping state and there are no active races.
 func (p *Plugin) stopIfIdle() {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()

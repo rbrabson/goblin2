@@ -28,7 +28,7 @@ const (
 
 	// maxRaceLifetime is the longest a race should ever remain in the cache. A
 	// normal race completes in a few minutes, so an entry older than this has
-	// hung (e.g. the runRace goroutine never finished) and is cleared so a new
+	// hung (e.g., the runRace goroutine never finished) and is cleared so a new
 	// race can start.
 	maxRaceLifetime = 10 * time.Minute
 )
@@ -404,16 +404,16 @@ func ResetRace(guildID discordid.SnowflakeID) {
 
 // IsFull checks to see if the race has already reached the maximum number of racers.
 func (r *Race) IsFull() bool {
-	raceLock.Lock()
-	defer raceLock.Unlock()
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 
 	return len(r.Racers) >= r.config.MaxNumRacers
 }
 
 // GetRacerNames returns the names of the racers in the race.
 func (r *Race) GetRacerNames() []string {
-	raceLock.Lock()
-	defer raceLock.Unlock()
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 
 	racerNames := make([]string, 0, len(r.Racers))
 	for _, racer := range r.Racers {
@@ -471,7 +471,7 @@ func raceStartChecks(guildID discordid.SnowflakeID) error {
 		guildID: guildID,
 	}
 
-	// Peek rather than Get so a stale entry is not kept alive by its sliding
+	// Peek rather than Get, so a stale entry is not kept alive by its sliding
 	// TTL every time a blocked user retries /race start.
 	race, _ := currentRaces.Peek(key)
 	if race != nil {

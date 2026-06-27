@@ -141,8 +141,8 @@ func startRaceHandler(_ discord.SlashCommandInteractionData, e *handler.CommandE
 		slog.Any("guildID", race.GuildID),
 		slog.Any("racer", guildMember.Name),
 	)
-	go runRace(race)
 	started = true
+	go runRace(race)
 
 	return nil
 }

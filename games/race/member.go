@@ -12,18 +12,18 @@ import (
 
 // Member represents a member of a guild that is assigned a racer
 type Member struct {
-	ID            bson.ObjectID         `yaml:"_id,omitempty" bson:"_id,omitempty"`
-	GuildID       discordid.SnowflakeID `yaml:"guild_id" bson:"guild_id"`
-	MemberID      discordid.SnowflakeID `yaml:"member_id" bson:"member_id"`
-	RacesLost     int                   `yaml:"races_lost" bson:"races_lost"`
-	RacesPlaced   int                   `yaml:"races_placed" bson:"races_placed"`
-	RacesShowed   int                   `yaml:"races_showed" bson:"races_showed"`
-	RacesWon      int                   `yaml:"races_won" bson:"races_won"`
-	TotalRaces    int                   `yaml:"total_races" bson:"total_races"`
-	BetsEarnings  int                   `yaml:"bets_earnings" bson:"bets_earnings"`
-	BetsMade      int                   `yaml:"bets_made" bson:"bets_made"`
-	BetsWon       int                   `yaml:"bets_won" bson:"bets_won"`
-	TotalEarnings int                   `yaml:"total_earnings" bson:"total_earnings"`
+	ID            bson.ObjectID         `bson:"_id,omitempty"`
+	GuildID       discordid.SnowflakeID `bson:"guild_id"`
+	MemberID      discordid.SnowflakeID `bson:"member_id"`
+	RacesLost     int                   `bson:"races_lost"`
+	RacesPlaced   int                   `bson:"races_placed"`
+	RacesShowed   int                   `bson:"races_showed"`
+	RacesWon      int                   `bson:"races_won"`
+	TotalRaces    int                   `bson:"total_races"`
+	BetsEarnings  int                   `bson:"bets_earnings"`
+	BetsMade      int                   `bson:"bets_made"`
+	BetsWon       int                   `bson:"bets_won"`
+	TotalEarnings int                   `bson:"total_earnings"`
 	guildMember   *guild.Member         `bson:"-"`
 }
 
