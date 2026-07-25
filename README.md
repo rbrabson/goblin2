@@ -21,7 +21,7 @@ docker-compose up -d
 ```
 
 `setup.sh` requires the configuration files are in the same directory as the `docker-compose.yaml` file
-under a directory named `yaml`. If this isn't true for your environment, then you can manually edit 
+under a directory named `yaml`. If this isn't true for your environment, then you can manually edit
 the `Dockerfile`.
 
 📖 **See [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) for complete Docker setup instructions**, including:
@@ -60,6 +60,7 @@ The Goblin bot relies on a set of environment variables to configure it.
     mkdir -p "$GOBLIN_CONFIG_PATH/log"
     mkdir -p "$GOBLIN_CONFIG_PATH/payday"
     ```
+
 3. Edit the bank configuration file `$GOBLIN_CONFIG_PATH/bank/config.yaml`:
 
     ```yaml
@@ -93,6 +94,7 @@ The Goblin bot relies on a set of environment variables to configure it.
 6. Edit the heist configuration files:
 
     `$GOBLIN_CONFIG_PATH/heist/config.yaml`
+
     ```yaml
     bail_base: 250
     boost_enabled: false
@@ -107,6 +109,7 @@ The Goblin bot relies on a set of environment variables to configure it.
     ```
 
     `$GOBLIN_CONFIG_PATH/heist/targets.yaml`
+
     ```yaml
     - target_id: Goblin Forest
       crew: 2
@@ -120,6 +123,7 @@ The Goblin bot relies on a set of environment variables to configure it.
     ```
 
     `$GOBLIN_CONFIG_PATH/heist/theme.yaml`
+
     ```yaml
     escaped_messages:
       - message: >-

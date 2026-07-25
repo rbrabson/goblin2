@@ -358,7 +358,6 @@ func serverStatusHandler(_ discord.SlashCommandInteractionData, e *handler.Comma
 		switch p.Status() {
 		case plugin.Stopping:
 			botStatus = plugin.Stopping
-			break
 		case plugin.Stopped:
 			if botStatus == plugin.Running {
 				botStatus = plugin.Stopped
