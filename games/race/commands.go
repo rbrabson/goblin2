@@ -304,7 +304,7 @@ func joinRaceButtonHandler(e *handler.ComponentEvent) error {
 		slog.Any("racer", guildMember.Name),
 	)
 
-	//return updateComponentResponse(e, "You have joined the race")
+	// return updateComponentResponse(e, "You have joined the race")
 	return e.CreateMessage(discord.MessageCreate{
 		Content: "You have joined the race",
 		Flags:   discord.MessageFlagEphemeral,
@@ -442,8 +442,8 @@ func betOnRaceButtonHandler(e *handler.ComponentEvent) error {
 		slog.Any("better", better.Member.guildMember.Name),
 		slog.Any("raceParticipant", raceParticipant.Member.guildMember.Name),
 	)
-	//p := message.NewPrinter(language.AmericanEnglish)
-	//return updateComponentResponse(e, p.Sprintf("You have placed a %d credit bet on %s", race.config.BetAmount, raceParticipant.Member.guildMember.Name))
+	// p := message.NewPrinter(language.AmericanEnglish)
+	// return updateComponentResponse(e, p.Sprintf("You have placed a %d credit bet on %s", race.config.BetAmount, raceParticipant.Member.guildMember.Name))
 	return e.CreateMessage(discord.MessageCreate{
 		Content: fmt.Sprintf("You have placed a %d credit bet on %s", race.config.BetAmount, raceParticipant.Member.guildMember.Name),
 		Flags:   discord.MessageFlagEphemeral,

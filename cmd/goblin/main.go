@@ -162,7 +162,7 @@ func main() {
 	var logConfig log.Config
 	if err := config.LoadConfig(logPath, &logConfig); err != nil {
 		slog.Error("failed to load config", "error", err)
-		os.Exit(-1)
+		return
 	}
 	log.Initialize(logConfig)
 
@@ -189,7 +189,7 @@ func main() {
 	db, err := database.New(dbName, dbURL)
 	if err != nil {
 		slog.Error("failed to initialize database", "error", err)
-		os.Exit(-1)
+		return
 	}
 	defer func(db *database.MongoDB) {
 		err := db.Close()
@@ -206,7 +206,7 @@ func main() {
 	botCfg, err := disgobot.LoadConfig(botToken, devGuilds)
 	if err != nil {
 		slog.Error("failed to load bot config", "error", err)
-		os.Exit(-1)
+		return
 	}
 	bot := disgobot.NewBot(botCfg, version)
 
@@ -216,7 +216,7 @@ func main() {
 
 	if err := bot.Start(db); err != nil {
 		slog.Error("failed to start the bot", "error", err)
-		os.Exit(-1)
+		return
 	}
 	defer bot.Stop()
 
