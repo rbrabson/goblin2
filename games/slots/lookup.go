@@ -20,9 +20,7 @@ func GetLookupTable() rslots.LookupTable {
 // createLookupTable creates a copy of the default lookup table.
 func createLookupTable() rslots.LookupTable {
 	lookupTable := make(rslots.LookupTable, len(defaultLookupTable))
-	for key, value := range defaultLookupTable {
-		lookupTable[key] = value
-	}
+	copy(lookupTable, defaultLookupTable)
 
 	return lookupTable
 }

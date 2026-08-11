@@ -29,8 +29,7 @@ go.work.sum
 .env-docker
 
 # IDE files
-.idea/
-.vscode/
-
-github.com/rbrabson/goblin2/
 /.idea/
+/.vscode/
+/.claude/
+/.junie

@@ -524,7 +524,9 @@ func sendWinningsTable(e *handler.CommandEvent, res *Result) error {
 	defer func(table *tablewriter.Table) {
 		err := table.Close()
 		if err != nil {
-
+			slog.Warn("failed to close table writer",
+				slog.Any("error", err),
+			)
 		}
 	}(table)
 
@@ -642,7 +644,7 @@ func joinHeistButtonHandler(e *handler.ComponentEvent) error {
 		slog.Any("member", member.EffectiveName()),
 	)
 
-	//return e.DeferUpdateMessage()
+	// return e.DeferUpdateMessage()
 	p := message.NewPrinter(language.AmericanEnglish)
 	return e.CreateMessage(discord.MessageCreate{
 		Content: p.Sprintf("You have joined the %s at a cost of %d credits.", heist.config.Theme.Heist, heist.config.HeistCost),
@@ -963,7 +965,9 @@ func listTargetsHandler(_ discord.SlashCommandInteractionData, e *handler.Comman
 	defer func(table *tablewriter.Table) {
 		err := table.Close()
 		if err != nil {
-
+			slog.Warn("failed to close table writer",
+				slog.Any("error", err),
+			)
 		}
 	}(table)
 
