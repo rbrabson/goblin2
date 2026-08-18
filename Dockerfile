@@ -1,4 +1,4 @@
-FROM golang:1.26.4-alpine3.22 AS builder
+FROM golang:1.26.6-alpine3.24 AS builder
 
 # Install make
 RUN apk add --no-cache make
@@ -19,7 +19,7 @@ COPY ./ ./
 RUN make build-linux
 
 # Create a new image for the application code to run in
-FROM alpine:3.22
+FROM alpine:3.24
 LABEL org.label-schema.vendor="rbrabson" \
   org.label-schema.name="goblin bot" \
   org.label-schema.description="Deploy the goblin bot" \
