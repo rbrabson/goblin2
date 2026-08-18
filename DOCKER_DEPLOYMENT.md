@@ -245,4 +245,3 @@ Run with debug logging:
 # Set LOG_LEVEL=debug in .env or docker-compose.yaml
 LOG_LEVEL=debug docker-compose up
 ```
-
