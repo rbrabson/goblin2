@@ -200,7 +200,7 @@ func updateVaults() {
 		}
 
 		recoverPercent := cfg.BaseVaultRecovery
-		if cfg.BoostEnabled {
+		if cfg.BoostEnabled && cfg.BoostVaultRecovery > 0 {
 			recoverPercent = cfg.BoostVaultRecovery
 		}
 
