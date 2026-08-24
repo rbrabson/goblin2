@@ -72,6 +72,10 @@ func GetConfig(guildID discordid.SnowflakeID) *Config {
 	if cfg == nil {
 		cfg = createNewConfig(guildID)
 		writeConfig(cfg)
+	} else if applyLegacyConfigDefaults(cfg) {
+		// Older guild configs were created while the recovery YAML key did not
+		// match the struct tag, leaving the value at zero. Repair them once.
+		writeConfig(cfg)
 	}
 
 	configCache.Set(key, *cfg)
@@ -81,6 +85,17 @@ func GetConfig(guildID discordid.SnowflakeID) *Config {
 	cfg.Targets = GetTargets(guildID)
 
 	return cfg
+}
+
+// applyLegacyConfigDefaults repairs values that could not be loaded by older
+// versions. It reports whether the configuration was changed.
+func applyLegacyConfigDefaults(cfg *Config) bool {
+	if cfg == nil || cfg.BaseVaultRecovery != 0 || defaultConfig.BaseVaultRecovery == 0 {
+		return false
+	}
+
+	cfg.BaseVaultRecovery = defaultConfig.BaseVaultRecovery
+	return true
 }
 
 // createNewConfig creates a new heist configuration with default values for the specified guild.
