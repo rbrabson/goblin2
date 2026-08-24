@@ -603,7 +603,8 @@ func waitForBlackjackPlayers(game *Game) {
 
 // playBlackjackPlayers processes player turns.
 func playBlackjackPlayers(game *Game) {
-	for _, player := range game.Players() {
+	players := game.Players()
+	for _, player := range players {
 		if !player.IsActive() {
 			continue
 		}
@@ -768,7 +769,7 @@ func blackjackEmbeds(game *Game, hideDealerCard bool) []discord.Embed {
 	}
 
 	if !game.IsWaitingForPlayers() {
-		for _, player := range game.Players() {
+		for _, player := range game.playersLocked() {
 			embeds = append(embeds, discord.Embed{
 				Type:        discord.EmbedTypeRich,
 				Title:       blackjackPlayerTitle(game, player),
@@ -800,8 +801,8 @@ func blackjackGameEmbedFields(game *Game, hideDealerCard bool) []discord.EmbedFi
 			Inline: new(true),
 		})
 
-		playerNames := make([]string, 0, len(game.Players()))
-		for _, player := range game.Players() {
+		playerNames := make([]string, 0, len(game.playersLocked()))
+		for _, player := range game.playersLocked() {
 			playerNames = append(playerNames, blackjackPlayerName(game, player))
 		}
 
@@ -812,10 +813,10 @@ func blackjackGameEmbedFields(game *Game, hideDealerCard bool) []discord.EmbedFi
 		})
 	}
 
-	if game.Dealer() != nil && len(game.Dealer().Hand().Cards()) > 0 {
+	if game.dealerLocked() != nil && len(game.dealerLocked().Hand().Cards()) > 0 {
 		fields = append(fields, discord.EmbedField{
 			Name:   "Dealer",
-			Value:  game.symbols.GetHand(game.Dealer().Hand(), hideDealerCard),
+			Value:  game.symbols.GetHand(game.dealerLocked().Hand(), hideDealerCard),
 			Inline: new(false),
 		})
 	}
@@ -828,7 +829,7 @@ func blackjackPlayerEmbedColor(game *Game, player *bj.Player) int {
 	if !game.IsDealingHands() {
 		return 0
 	}
-	if game.GetActivePlayer() != player {
+	if game.getActivePlayerLocked() != player {
 		return 0
 	}
 	if !player.HasActiveHands() {
@@ -848,7 +849,7 @@ func blackjackStatus(game *Game) string {
 	case game.IsStartingRound():
 		return "Starting the round..."
 	case game.IsDealingHands():
-		activePlayer := game.GetActivePlayer()
+		activePlayer := game.getActivePlayerLocked()
 		if activePlayer != nil {
 			return p.Sprintf("It is %s's turn.", blackjackPlayerName(game, activePlayer))
 		}
@@ -888,7 +889,7 @@ func blackjackPlayerName(game *Game, player *bj.Player) string {
 // it is currently that player's turn.
 func blackjackPlayerDescription(game *Game, player *bj.Player) string {
 	hands := blackjackPlayerHands(game, player)
-	if game.IsDealingHands() && game.GetActivePlayer() == player {
+	if game.IsDealingHands() && game.getActivePlayerLocked() == player {
 		remaining := game.turnTimeRemaining()
 		if remaining > 0 {
 			return fmt.Sprintf("%s\n%s", blackjackTurnTimer(remaining), hands)
@@ -908,7 +909,7 @@ func blackjackTurnTimer(remaining time.Duration) string {
 // blackjackPlayerHands returns the rendered hands for a player.
 func blackjackPlayerHands(game *Game, player *bj.Player) string {
 	hands := make([]string, 0, len(player.Hands()))
-	activePlayer := game.GetActivePlayer()
+	activePlayer := game.getActivePlayerLocked()
 	activeHandIndex := -1
 	if activePlayer == player {
 		activeHandIndex = player.GetCurrentHandNumber()
@@ -941,13 +942,13 @@ func blackjackHandResult(game *Game, hand *bj.Hand) string {
 
 	switch game.EvaluateHand(hand) {
 	case bj.PlayerBlackjack:
-		return blackjackCreditResult(winnings, game.config.PayoutPercent)
+		return blackjackCreditResult(winnings)
 	case bj.PlayerWin:
-		return blackjackCreditResult(winnings, game.config.PayoutPercent)
+		return blackjackCreditResult(winnings)
 	case bj.DealerBlackjack:
-		return blackjackCreditResult(winnings, game.config.PayoutPercent)
+		return blackjackCreditResult(winnings)
 	case bj.DealerWin:
-		return blackjackCreditResult(winnings, game.config.PayoutPercent)
+		return blackjackCreditResult(winnings)
 	case bj.Push:
 		return "Push"
 	default:
@@ -956,12 +957,11 @@ func blackjackHandResult(game *Game, hand *bj.Hand) string {
 }
 
 // blackjackCreditResult formats the hand result with the amount won or lost.
-func blackjackCreditResult(winnings int, payoutPercent int) string {
+func blackjackCreditResult(winnings int) string {
 	p := message.NewPrinter(language.AmericanEnglish)
 
 	switch {
 	case winnings > 0:
-		winnings = winnings * payoutPercent / 100
 		if winnings == 1 {
 			return "Won 1 credit"
 		}
@@ -993,7 +993,7 @@ func blackjackJoinComponents(game *Game) []discord.LayoutComponent {
 
 // blackjackComponents returns the component rows for the current game state.
 func blackjackComponents(game *Game) []discord.LayoutComponent {
-	if game.Dealer().HasBlackjack() {
+	if game.dealerLocked().HasBlackjack() {
 		return []discord.LayoutComponent{}
 	}
 
@@ -1019,7 +1019,7 @@ func blackjackComponents(game *Game) []discord.LayoutComponent {
 
 // blackjackActionButtons returns only the action buttons valid for the current active hand.
 func blackjackActionButtons(game *Game) []discord.InteractiveComponent {
-	activePlayer := game.GetActivePlayer()
+	activePlayer := game.getActivePlayerLocked()
 	if activePlayer == nil {
 		return nil
 	}

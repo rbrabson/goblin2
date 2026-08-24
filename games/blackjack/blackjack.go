@@ -3,6 +3,7 @@ package blackjack
 import (
 	"errors"
 	"fmt"
+	"goblin2/bank"
 	"goblin2/internal/discordid"
 	"goblin2/internal/format"
 	"goblin2/plugin"
@@ -68,6 +69,8 @@ type Game struct {
 	gameStartTime    time.Time
 	turnChan         chan playerAction
 	turnID           uint64
+	payoutComplete   bool
+	settledHands     map[*bj.Hand]bool
 	turnDeadline     time.Time
 	interaction      *handler.CommandEvent
 	messageID        snowflake.ID
@@ -80,10 +83,12 @@ type Game struct {
 	surrenderButton  discord.ButtonComponent
 	uid              string
 	lock             sync.Mutex
+	stateLock        sync.RWMutex
+	chipManagers     map[string]*ChipManager
 }
 
 // GetGame retrieves the blackjack game for the specified guild.
-// If no game exists, a new one is created.
+// If no game exists, nil is returned.
 func GetGame(guildID discordid.SnowflakeID, uid string) *Game {
 	gamesLock.Lock()
 	defer gamesLock.Unlock()
@@ -91,6 +96,9 @@ func GetGame(guildID discordid.SnowflakeID, uid string) *Game {
 	game := games[uid]
 	if game == nil {
 		slog.Warn("blackjack game not found", slog.Any("guildID", guildID), slog.String("uid", uid))
+		return nil
+	}
+	if game.guildID != guildID {
 		return nil
 	}
 	return game
@@ -192,13 +200,14 @@ func gameCooldownRemaining(uid string, delay time.Duration) time.Duration {
 // newGame creates a new blackjack game for the specified guild.
 func newGame(guildID discordid.SnowflakeID, uid string, numDecks int) *Game {
 	game := &Game{
-		guildID:  guildID,
-		uid:      uid,
-		game:     bj.New(numDecks),
-		state:    NotStarted,
-		turnChan: make(chan playerAction, 5),
-		symbols:  GetSymbols(),
-		lock:     sync.Mutex{},
+		guildID:      guildID,
+		uid:          uid,
+		game:         bj.New(numDecks),
+		state:        NotStarted,
+		turnChan:     make(chan playerAction, 1),
+		symbols:      GetSymbols(),
+		lock:         sync.Mutex{},
+		chipManagers: make(map[string]*ChipManager),
 	}
 	createButtons(game)
 
@@ -218,7 +227,7 @@ func (g *Game) joinGame(memberID discordid.SnowflakeID) error {
 func (g *Game) addPlayer(memberID discordid.SnowflakeID) error {
 	playerID := memberID.String()
 
-	if g.GetPlayer(memberID) != nil {
+	if g.getPlayerLocked(memberID) != nil {
 		return ErrPlayerAlreadyInGame
 	}
 	if g.NotStarted() {
@@ -233,7 +242,8 @@ func (g *Game) addPlayer(memberID discordid.SnowflakeID) error {
 
 	cm := NewChipManager(g, memberID)
 	g.game.AddPlayer(playerID, bj.WithChipManager(cm))
-	player := g.GetPlayer(memberID)
+	g.chipManagers[playerID] = cm
+	player := g.getPlayerLocked(memberID)
 	if err := player.CurrentHand().PlaceBet(g.config.BetAmount); err != nil {
 		g.game.RemovePlayer(playerID)
 		return err
@@ -263,22 +273,42 @@ func (g *Game) clearPendingActions() {
 
 // SetState sets the current state of the blackjack game.
 func (g *Game) SetState(state GameState) {
+	g.stateLock.Lock()
+	defer g.stateLock.Unlock()
 	slog.Debug("setting blackjack game state", slog.Any("guildID", g.guildID), slog.Any("state", state))
 	g.state = state
 }
 
 // GetPlayer retrieves a player from the blackjack game by their member ID.
 func (g *Game) GetPlayer(memberID discordid.SnowflakeID) *bj.Player {
+	g.Lock()
+	defer g.Unlock()
+	return g.getPlayerLocked(memberID)
+}
+
+func (g *Game) getPlayerLocked(memberID discordid.SnowflakeID) *bj.Player {
 	return g.game.GetPlayer(memberID.String())
 }
 
 // GetActivePlayer retrieves the currently active player in the blackjack game.
 func (g *Game) GetActivePlayer() *bj.Player {
+	g.Lock()
+	defer g.Unlock()
+	return g.getActivePlayerLocked()
+}
+
+func (g *Game) getActivePlayerLocked() *bj.Player {
 	return g.game.GetActivePlayer()
 }
 
 // Players returns a slice of all players in the blackjack game.
 func (g *Game) Players() []*bj.Player {
+	g.Lock()
+	defer g.Unlock()
+	return g.playersLocked()
+}
+
+func (g *Game) playersLocked() []*bj.Player {
 	return g.game.Players()
 }
 
@@ -290,6 +320,8 @@ func (g *Game) StartNewRound() error {
 	if err := g.game.StartNewRound(); err != nil {
 		return err
 	}
+	g.payoutComplete = false
+	g.settledHands = make(map[*bj.Hand]bool)
 	g.SetState(StartingRound)
 
 	return nil
@@ -318,7 +350,7 @@ func (g *Game) endRoundLocked() {
 	defer g.Unlock()
 
 	// Update the member stats
-	for _, player := range g.Players() {
+	for _, player := range g.playersLocked() {
 		slog.Debug("updating member stats for player",
 			slog.Any("guildID", g.guildID),
 			slog.String("playerName", player.Name()),
@@ -336,8 +368,8 @@ func (g *Game) endRoundLocked() {
 		member.RoundPlayed(g, player)
 	}
 
-	memberIDs := make([]discordid.SnowflakeID, 0, len(g.Players()))
-	for _, player := range g.Players() {
+	memberIDs := make([]discordid.SnowflakeID, 0, len(g.playersLocked()))
+	for _, player := range g.playersLocked() {
 		memberID, err := discordid.SnowflakeIDFromString(player.Name())
 		if err != nil {
 			slog.Warn("unable to parse blackjack player id for stats",
@@ -357,6 +389,7 @@ func (g *Game) endRoundLocked() {
 			slog.String("playerName", player.Name()),
 		)
 		g.game.RemovePlayer(player.Name())
+		delete(g.chipManagers, player.Name())
 	}
 
 	g.clearPendingActions()
@@ -373,7 +406,7 @@ func (g *Game) endRoundLocked() {
 		delete(games, g.uid)
 	} else {
 		slog.Info("clearing multiplayer blackjack game state for new round", slog.Any("guildID", g.guildID))
-		g.Dealer().ClearHand()
+		g.dealerLocked().ClearHand()
 	}
 
 	// Record when this game ended so the configured delay between games is enforced before a
@@ -383,27 +416,37 @@ func (g *Game) endRoundLocked() {
 
 // NotStarted returns whether the blackjack game has not yet started.
 func (g *Game) NotStarted() bool {
+	g.stateLock.RLock()
+	defer g.stateLock.RUnlock()
 	return g.state == NotStarted
 }
 
 // IsWaitingForPlayers returns whether the blackjack game is waiting for players to join.
 func (g *Game) IsWaitingForPlayers() bool {
+	g.stateLock.RLock()
+	defer g.stateLock.RUnlock()
 	return g.state == WaitingForPlayers
 }
 
 // IsStartingRound returns whether the blackjack game is in the process of starting a new round,
 // which occurs after the initial hands have been dealt and before player turns begin.
 func (g *Game) IsStartingRound() bool {
+	g.stateLock.RLock()
+	defer g.stateLock.RUnlock()
 	return g.state == StartingRound
 }
 
 // IsDealingHands returns whether the blackjack game is currently dealing initial hands to players.
 func (g *Game) IsDealingHands() bool {
+	g.stateLock.RLock()
+	defer g.stateLock.RUnlock()
 	return g.state == DealingHands
 }
 
 // IsCompleted returns whether the blackjack game has completed.
 func (g *Game) IsCompleted() bool {
+	g.stateLock.RLock()
+	defer g.stateLock.RUnlock()
 	return g.state == Completed
 }
 
@@ -437,6 +480,12 @@ func (g *Game) DealInitialCards() error {
 
 // Dealer returns the dealer of the blackjack game.
 func (g *Game) Dealer() *bj.Dealer {
+	g.Lock()
+	defer g.Unlock()
+	return g.dealerLocked()
+}
+
+func (g *Game) dealerLocked() *bj.Dealer {
 	return g.game.Dealer()
 }
 
@@ -444,6 +493,9 @@ func (g *Game) Dealer() *bj.Dealer {
 func (g *Game) PlayerHit(player *bj.Player) error {
 	g.Lock()
 	defer g.Unlock()
+	if err := g.validateActivePlayer(player); err != nil {
+		return err
+	}
 
 	if err := g.game.PlayerHit(player.Name()); err != nil {
 		return err
@@ -474,6 +526,9 @@ func (g *Game) PlayerHit(player *bj.Player) error {
 func (g *Game) PlayerStand(player *bj.Player) error {
 	g.Lock()
 	defer g.Unlock()
+	if err := g.validateActivePlayer(player); err != nil {
+		return err
+	}
 
 	if err := g.game.PlayerStand(player.Name()); err != nil {
 		return err
@@ -490,6 +545,9 @@ func (g *Game) PlayerStand(player *bj.Player) error {
 func (g *Game) PlayerDoubleDown(player *bj.Player) error {
 	g.Lock()
 	defer g.Unlock()
+	if err := g.validateActivePlayer(player); err != nil {
+		return err
+	}
 
 	if !player.CurrentHand().CanDoubleDown() {
 		slog.Error("cannot double down",
@@ -540,6 +598,9 @@ func (g *Game) PlayerDoubleDown(player *bj.Player) error {
 func (g *Game) PlayerSplit(player *bj.Player) error {
 	g.Lock()
 	defer g.Unlock()
+	if err := g.validateActivePlayer(player); err != nil {
+		return err
+	}
 
 	if !player.CurrentHand().CanSplit() {
 		slog.Error("cannot split",
@@ -548,8 +609,19 @@ func (g *Game) PlayerSplit(player *bj.Player) error {
 		)
 		return ErrCannotSplit
 	}
+	manager := g.chipManagers[player.Name()]
+	if manager == nil {
+		return ErrCannotSplit
+	}
+	bet := player.CurrentHand().Bet()
+	if err := manager.reserveDeduction(bet); err != nil {
+		return err
+	}
 
 	if err := g.game.PlayerSplit(player.Name()); err != nil {
+		if rollbackErr := manager.cancelDeduction(bet); rollbackErr != nil {
+			return fmt.Errorf("%w (split wager rollback failed: %v)", err, rollbackErr)
+		}
 		slog.Error("error processing player split",
 			slog.Any("guildID", g.guildID),
 			slog.String("playerName", player.Name()),
@@ -565,6 +637,9 @@ func (g *Game) PlayerSplit(player *bj.Player) error {
 func (g *Game) PlayerSurrender(player *bj.Player) error {
 	g.Lock()
 	defer g.Unlock()
+	if err := g.validateActivePlayer(player); err != nil {
+		return err
+	}
 
 	if !player.CurrentHand().CanSurrender() {
 		slog.Error("cannot surrender",
@@ -573,14 +648,37 @@ func (g *Game) PlayerSurrender(player *bj.Player) error {
 		)
 		return ErrCannotSurrender
 	}
+	manager := g.chipManagers[player.Name()]
+	if manager == nil {
+		return ErrCannotSurrender
+	}
+	refund := player.CurrentHand().Bet() / 2
+	if err := manager.reserveCredit(refund); err != nil {
+		return err
+	}
 
 	if err := g.game.PlayerSurrender(player.Name()); err != nil {
+		if rollbackErr := manager.cancelCredit(refund); rollbackErr != nil {
+			return fmt.Errorf("%w (surrender refund rollback failed: %v)", err, rollbackErr)
+		}
 		return err
 	}
 
 	hand := player.CurrentHand()
 	hand.SetActive(false)
 
+	return nil
+}
+
+// validateActivePlayer ensures action methods cannot mutate a player that is
+// not part of this game or is not the current player. Callers must hold g.lock.
+func (g *Game) validateActivePlayer(player *bj.Player) error {
+	if player == nil || g.game.GetPlayer(player.Name()) != player {
+		return ErrNotActivePlayer
+	}
+	if g.game.GetActivePlayer() != player {
+		return ErrNotActivePlayer
+	}
 	return nil
 }
 
@@ -593,8 +691,8 @@ func (g *Game) PlayerActionRequest(memberID discordid.SnowflakeID, action Action
 		return ErrGameNotStarted
 	}
 
-	player := g.GetPlayer(memberID)
-	activePlayer := g.GetActivePlayer()
+	player := g.getPlayerLocked(memberID)
+	activePlayer := g.getActivePlayerLocked()
 	if player == nil || player != activePlayer {
 		return ErrNotActivePlayer
 	}
@@ -624,7 +722,7 @@ func (g *Game) DealerPlay() error {
 
 // hasNonbustedPlayers checks if there are any players in the game who have not busted, surrendered, or gotten blackjack.
 func (g *Game) hasNonbustedPlayers() bool {
-	for _, player := range g.Players() {
+	for _, player := range g.playersLocked() {
 		for _, hand := range player.Hands() {
 			if !(hand.IsBusted() || hand.IsSurrendered() || hand.IsBlackjack()) {
 				return true
@@ -638,9 +736,19 @@ func (g *Game) hasNonbustedPlayers() bool {
 func (g *Game) PayoutResults() {
 	g.Lock()
 	defer g.Unlock()
+	if g.payoutComplete {
+		return
+	}
+	if g.settledHands == nil {
+		g.settledHands = make(map[*bj.Hand]bool)
+	}
+	allSettled := true
 
 	for _, player := range g.game.Players() {
 		for _, hand := range player.Hands() {
+			if g.settledHands[hand] {
+				continue
+			}
 			// Skip hands with no bet or already settled.
 			if hand.Bet() == 0 || hand.Winnings() != 0 {
 				continue
@@ -652,14 +760,46 @@ func (g *Game) PayoutResults() {
 				if hand.IsBlackjack() {
 					payout = 1.5 * float64(g.config.PayoutPercent) / 100
 				}
-				hand.WinBet(payout)
+				profit := int(float64(hand.Bet()) * payout)
+				if err := g.creditChips(player, hand.Bet()+profit); err != nil {
+					slog.Error("failed to credit blackjack winnings", slog.Any("guildID", g.guildID), slog.String("player", player.Name()), slog.Any("error", err))
+					allSettled = false
+					continue
+				}
+				hand.SetWinnings(profit)
+				g.settledHands[hand] = true
 			case bj.Push:
-				hand.PushBet()
+				if err := g.creditChips(player, hand.Bet()); err != nil {
+					slog.Error("failed to return blackjack push bet", slog.Any("guildID", g.guildID), slog.String("player", player.Name()), slog.Any("error", err))
+					allSettled = false
+					continue
+				}
+				hand.SetWinnings(0)
+				g.settledHands[hand] = true
 			case bj.DealerWin, bj.DealerBlackjack:
 				hand.LoseBet()
+				g.settledHands[hand] = true
 			}
 		}
 	}
+	g.payoutComplete = allSettled
+}
+
+func (g *Game) creditChips(player *bj.Player, amount int) error {
+	memberID, err := discordid.SnowflakeIDFromString(player.Name())
+	if err != nil {
+		return err
+	}
+	account := bank.GetAccount(g.guildID, memberID)
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if err := account.Deposit(amount); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+	}
+	return lastErr
 }
 
 // EvaluateHand evaluates the result of a specific hand for a player.
