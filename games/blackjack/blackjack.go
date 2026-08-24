@@ -50,6 +50,15 @@ const (
 	Surrender
 )
 
+// playerAction is queued with the player and decision that accepted it. The
+// identity prevents a late component interaction from being applied to a
+// subsequent player's turn.
+type playerAction struct {
+	memberID string
+	turnID   uint64
+	action   Action
+}
+
 // Game represents a blackjack game for a specific guild.
 type Game struct {
 	guildID          discordid.SnowflakeID
@@ -57,7 +66,8 @@ type Game struct {
 	config           *Config
 	state            GameState
 	gameStartTime    time.Time
-	turnChan         chan Action
+	turnChan         chan playerAction
+	turnID           uint64
 	turnDeadline     time.Time
 	interaction      *handler.CommandEvent
 	messageID        snowflake.ID
@@ -78,13 +88,11 @@ func GetGame(guildID discordid.SnowflakeID, uid string) *Game {
 	gamesLock.Lock()
 	defer gamesLock.Unlock()
 
-	config := GetConfig(guildID)
 	game := games[uid]
 	if game == nil {
 		slog.Warn("blackjack game not found", slog.Any("guildID", guildID), slog.String("uid", uid))
 		return nil
 	}
-	game.config = config
 	return game
 }
 
@@ -118,12 +126,12 @@ func StartGame(guildID discordid.SnowflakeID, memberID discordid.SnowflakeID) (*
 	config := GetConfig(guildID)
 
 	if config.SinglePlayerMode {
-		slog.Error("single player mode is enabled", slog.Any("guildID", guildID))
+		slog.Debug("single player mode is enabled", slog.Any("guildID", guildID))
 		if remaining := gameCooldownRemaining(uid, config.DelayBetweenGames); remaining > 0 {
 			return nil, fmt.Errorf("please wait %s before starting another blackjack game", format.Duration(remaining))
 		}
 	} else {
-		slog.Error("single player mode is disabled", slog.Any("guildID", guildID))
+		slog.Debug("single player mode is disabled", slog.Any("guildID", guildID))
 	}
 
 	game := games[uid]
@@ -188,7 +196,7 @@ func newGame(guildID discordid.SnowflakeID, uid string, numDecks int) *Game {
 		uid:      uid,
 		game:     bj.New(numDecks),
 		state:    NotStarted,
-		turnChan: make(chan Action, 5),
+		turnChan: make(chan playerAction, 5),
 		symbols:  GetSymbols(),
 		lock:     sync.Mutex{},
 	}
@@ -579,23 +587,20 @@ func (g *Game) PlayerSurrender(player *bj.Player) error {
 // PlayerActionRequest processes a request from a player to take an action, ensuring that the player is active and the game is in progress.
 func (g *Game) PlayerActionRequest(memberID discordid.SnowflakeID, action Action) error {
 	g.Lock()
+	defer g.Unlock()
 
 	if !g.IsDealingHands() {
-		g.Unlock()
 		return ErrGameNotStarted
 	}
 
 	player := g.GetPlayer(memberID)
 	activePlayer := g.GetActivePlayer()
 	if player == nil || player != activePlayer {
-		g.Unlock()
 		return ErrNotActivePlayer
 	}
 
-	g.Unlock()
-
 	select {
-	case g.turnChan <- action:
+	case g.turnChan <- playerAction{memberID: memberID.String(), turnID: g.turnID, action: action}:
 		return nil
 	default:
 		return errors.New("too many pending blackjack actions")
@@ -643,9 +648,9 @@ func (g *Game) PayoutResults() {
 
 			switch g.game.EvaluateHand(hand) {
 			case bj.PlayerWin, bj.PlayerBlackjack:
-				payout := 1.0
+				payout := float64(g.config.PayoutPercent) / 100
 				if hand.IsBlackjack() {
-					payout = 1.5
+					payout = 1.5 * float64(g.config.PayoutPercent) / 100
 				}
 				hand.WinBet(payout)
 			case bj.Push:
@@ -697,6 +702,10 @@ func (g *Game) clearTurnDeadline() {
 func (g *Game) TurnTimeRemaining() time.Duration {
 	g.Lock()
 	defer g.Unlock()
+	return g.turnTimeRemaining()
+}
+
+func (g *Game) turnTimeRemaining() time.Duration {
 	if g.turnDeadline.IsZero() {
 		return 0
 	}

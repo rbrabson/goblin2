@@ -143,7 +143,9 @@ func playBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.Comm
 		})
 	}
 
+	game.Lock()
 	game.interaction = e
+	game.Unlock()
 
 	if err := e.CreateMessage(discord.MessageCreate{
 		Content:    "Starting blackjack...",
@@ -292,6 +294,12 @@ func configBetAmountHandler(data discord.SlashCommandInteractionData, e *handler
 
 	guildID := discordid.NewSnowflakeID(member.GuildID)
 	betAmount := data.Int("amount")
+	if betAmount <= 0 {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Bet amount must be positive.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
 
 	config := editableConfig(guildID)
 	config.BetAmount = betAmount
@@ -321,6 +329,12 @@ func configPayoutPercentHandler(data discord.SlashCommandInteractionData, e *han
 
 	guildID := discordid.NewSnowflakeID(member.GuildID)
 	payoutPercent := data.Int("percent")
+	if payoutPercent < 0 || payoutPercent > 100 {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Payout percent must be between 0 and 100.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
 
 	config := editableConfig(guildID)
 	config.PayoutPercent = payoutPercent
@@ -507,7 +521,10 @@ func runBlackjack(game *Game) {
 		waitForBlackjackPlayers(game)
 	}
 
-	if len(game.Players()) == 0 {
+	game.Lock()
+	playerCount := len(game.game.Players())
+	game.Unlock()
+	if playerCount == 0 {
 		if err := updateBlackjackMessage(game, false); err != nil {
 			slog.Error("failed to update empty blackjack game", slog.Any("error", err))
 		}
@@ -534,13 +551,18 @@ func runBlackjack(game *Game) {
 		slog.Error("failed to update blackjack message after deal", slog.Any("error", err))
 	}
 
-	if !game.Dealer().HasBlackjack() {
+	game.Lock()
+	dealerHasBlackjack := game.game.Dealer().HasBlackjack()
+	game.Unlock()
+	if !dealerHasBlackjack {
 		playBlackjackPlayers(game)
 		playBlackjackDealer(game)
 	}
 
 	game.PayoutResults()
+	game.Lock()
 	game.SetState(Completed)
+	game.Unlock()
 
 	if err := updateBlackjackMessage(game, false); err != nil {
 		slog.Error("failed to update final blackjack message", slog.Any("error", err))
@@ -569,7 +591,11 @@ func waitForBlackjackPlayers(game *Game) {
 		if time.Until(memberCanJoin) <= 0 {
 			break
 		}
-		if len(game.Players()) >= game.config.MaxPlayers {
+		game.Lock()
+		playerCount := len(game.game.Players())
+		maxPlayers := game.config.MaxPlayers
+		game.Unlock()
+		if playerCount >= maxPlayers {
 			break
 		}
 	}
@@ -594,6 +620,13 @@ func playBlackjackPlayers(game *Game) {
 			for hand.IsActive() {
 				// (Re)start the turn countdown for each decision, so taking an action such as
 				// a hit gives the player a fresh timer for their next decision.
+				if game.config.ShowPlayerTurn > 0 {
+					time.Sleep(game.config.ShowPlayerTurn)
+				}
+				game.Lock()
+				game.turnID++
+				turnID := game.turnID
+				game.Unlock()
 				game.setTurnDeadline(time.Now().Add(game.config.PlayerTimeout))
 				if err := updateBlackjackMessage(game, true); err != nil {
 					slog.Error("failed to update blackjack active player message", slog.Any("error", err))
@@ -603,16 +636,23 @@ func playBlackjackPlayers(game *Game) {
 				ticker := time.NewTicker(turnTimerUpdateInterval)
 				for acted := false; !acted; {
 					select {
-					case action := <-game.turnChan:
-						acted = true
-						if err := applyBlackjackAction(game, player, action); err != nil {
+					case request := <-game.turnChan:
+						// Requests accepted for an earlier decision can still be in the
+						// buffered channel when this decision starts. Discard them rather
+						// than applying them to the wrong hand.
+						if request.memberID != player.Name() || request.turnID != turnID {
+							continue
+						}
+						if err := applyBlackjackAction(game, player, request.action); err != nil {
 							slog.Warn("failed to apply blackjack action",
 								slog.Any("guildID", game.guildID),
 								slog.String("player", player.Name()),
-								slog.Any("action", action),
+								slog.Any("action", request.action),
 								slog.Any("error", err),
 							)
+							continue
 						}
+						acted = true
 
 					case <-timeout.C:
 						acted = true
@@ -674,6 +714,13 @@ func applyBlackjackAction(game *Game, player *bj.Player, action Action) error {
 
 // playBlackjackDealer processes the dealer turn.
 func playBlackjackDealer(game *Game) {
+	// Reveal the dealer's hole card and publish the turn transition before the
+	// optional pause. Without this update, the message can remain on the last
+	// player-turn state until the dealer has finished playing.
+	if err := updateBlackjackMessage(game, false); err != nil {
+		slog.Error("failed to update blackjack message at start of dealer turn", slog.Any("error", err))
+	}
+
 	if game.config.ShowDealerTurn > 0 {
 		time.Sleep(game.config.ShowDealerTurn)
 	}
@@ -688,17 +735,23 @@ func playBlackjackDealer(game *Game) {
 
 // updateBlackjackMessage updates the original blackjack game message.
 func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
+	game.Lock()
 	if game.interaction == nil {
+		game.Unlock()
 		return nil
 	}
+	interaction := game.interaction
+	embeds := blackjackEmbeds(game, hideDealerCard)
+	components := blackjackComponents(game)
+	game.Unlock()
 
-	_, err := game.interaction.Client().Rest.UpdateInteractionResponse(
-		game.interaction.ApplicationID(),
-		game.interaction.Token(),
+	_, err := interaction.Client().Rest.UpdateInteractionResponse(
+		interaction.ApplicationID(),
+		interaction.Token(),
 		discord.MessageUpdate{
 			Content:    new(""),
-			Embeds:     new(blackjackEmbeds(game, hideDealerCard)),
-			Components: new(blackjackComponents(game)),
+			Embeds:     new(embeds),
+			Components: new(components),
 		},
 	)
 	return err
@@ -836,7 +889,8 @@ func blackjackPlayerName(game *Game, player *bj.Player) string {
 func blackjackPlayerDescription(game *Game, player *bj.Player) string {
 	hands := blackjackPlayerHands(game, player)
 	if game.IsDealingHands() && game.GetActivePlayer() == player {
-		if remaining := game.TurnTimeRemaining(); remaining > 0 {
+		remaining := game.turnTimeRemaining()
+		if remaining > 0 {
 			return fmt.Sprintf("%s\n%s", blackjackTurnTimer(remaining), hands)
 		}
 	}

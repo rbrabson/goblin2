@@ -34,8 +34,6 @@ func (c *ChipManager) SetChips(_ int) {
 
 // AddChips adds the specified number of chips to the player's account.
 func (c *ChipManager) AddChips(amount int) {
-	game := c.game
-	amount = amount * game.config.PayoutPercent / 100
 	if amount == 0 {
 		slog.Warn("attempted to add zero blackjack chips to account",
 			slog.Any("guildID", c.game.guildID),
