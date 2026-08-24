@@ -609,19 +609,7 @@ func (g *Game) PlayerSplit(player *bj.Player) error {
 		)
 		return ErrCannotSplit
 	}
-	manager := g.chipManagers[player.Name()]
-	if manager == nil {
-		return ErrCannotSplit
-	}
-	bet := player.CurrentHand().Bet()
-	if err := manager.reserveDeduction(bet); err != nil {
-		return err
-	}
-
 	if err := g.game.PlayerSplit(player.Name()); err != nil {
-		if rollbackErr := manager.cancelDeduction(bet); rollbackErr != nil {
-			return fmt.Errorf("%w (split wager rollback failed: %v)", err, rollbackErr)
-		}
 		slog.Error("error processing player split",
 			slog.Any("guildID", g.guildID),
 			slog.String("playerName", player.Name()),

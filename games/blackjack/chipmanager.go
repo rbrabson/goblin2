@@ -8,10 +8,9 @@ import (
 
 // ChipManager manages the chips for a blackjack player using a bank account.
 type ChipManager struct {
-	game              *Game
-	memberID          discordid.SnowflakeID
-	reservedDeduction int
-	reservedCredit    int
+	game           *Game
+	memberID       discordid.SnowflakeID
+	reservedCredit int
 }
 
 // NewChipManager returns a new ChipManager for the given guild and member.
@@ -65,10 +64,6 @@ func (c *ChipManager) AddChips(amount int) {
 
 // DeductChips deducts the specified number of chips from the player's account.
 func (c *ChipManager) DeductChips(amount int) error {
-	if c.reservedDeduction == amount {
-		c.reservedDeduction = 0
-		return nil
-	}
 	account := bank.GetAccount(c.game.guildID, c.memberID)
 	if err := account.Withdraw(amount); err != nil {
 		slog.Error("failed to deduct chips from account",
@@ -83,22 +78,6 @@ func (c *ChipManager) DeductChips(amount int) error {
 		slog.Any("memberID", c.memberID),
 		slog.Int("amount", amount),
 	)
-	return nil
-}
-
-func (c *ChipManager) reserveDeduction(amount int) error {
-	if err := bank.GetAccount(c.game.guildID, c.memberID).Withdraw(amount); err != nil {
-		return err
-	}
-	c.reservedDeduction = amount
-	return nil
-}
-
-func (c *ChipManager) cancelDeduction(amount int) error {
-	if c.reservedDeduction == amount {
-		c.reservedDeduction = 0
-		return bank.GetAccount(c.game.guildID, c.memberID).Deposit(amount)
-	}
 	return nil
 }
 
