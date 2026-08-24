@@ -54,6 +54,8 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rbrabson/blackjack v1.3.8 h1:0jqmo8y8axB50yQ7BWr/lAZX4gqa9yzcV8OqMQMyZBU=
 github.com/rbrabson/blackjack v1.3.8/go.mod h1:vqi9ITtqUkJmeaF0K1sBSSVLxz+gXRx3gSdC9tUGic8=
+github.com/rbrabson/blackjack v1.3.9 h1:gMBnXpB9Va5uSUEL65+Q3Bu1QkeoJThtu6yJX3yENCY=
+github.com/rbrabson/blackjack v1.3.9/go.mod h1:vqi9ITtqUkJmeaF0K1sBSSVLxz+gXRx3gSdC9tUGic8=
 github.com/rbrabson/cards v1.0.0 h1:VBZzei3vdK75HDvYHL9ioFnWCUuytv/NjYASYP7Nxzc=
 github.com/rbrabson/cards v1.0.0/go.mod h1:GPk2LWWWqovPc2zsQqRYCvFYqR/APTi1bcQf2ldVWGE=
 github.com/rbrabson/slots v1.0.3 h1:Fbiz9jS4cO//yPWD3zfGzDmOdCe1+Juyy4SfXGqSuDc=

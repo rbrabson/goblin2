@@ -31,6 +31,7 @@ const (
 
 	// turnTimerUpdateInterval is how often the active player's turn countdown is refreshed.
 	turnTimerUpdateInterval = 5 * time.Second
+	payoutRetryInterval     = 5 * time.Second
 )
 
 var (
@@ -143,7 +144,9 @@ func playBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.Comm
 		})
 	}
 
+	game.Lock()
 	game.interaction = e
+	game.Unlock()
 
 	if err := e.CreateMessage(discord.MessageCreate{
 		Content:    "Starting blackjack...",
@@ -292,6 +295,12 @@ func configBetAmountHandler(data discord.SlashCommandInteractionData, e *handler
 
 	guildID := discordid.NewSnowflakeID(member.GuildID)
 	betAmount := data.Int("amount")
+	if betAmount <= 0 {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Bet amount must be positive.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
 
 	config := editableConfig(guildID)
 	config.BetAmount = betAmount
@@ -321,6 +330,12 @@ func configPayoutPercentHandler(data discord.SlashCommandInteractionData, e *han
 
 	guildID := discordid.NewSnowflakeID(member.GuildID)
 	payoutPercent := data.Int("percent")
+	if payoutPercent < 0 || payoutPercent > 100 {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Payout percent must be between 0 and 100.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
 
 	config := editableConfig(guildID)
 	config.PayoutPercent = payoutPercent
@@ -507,7 +522,10 @@ func runBlackjack(game *Game) {
 		waitForBlackjackPlayers(game)
 	}
 
-	if len(game.Players()) == 0 {
+	game.Lock()
+	playerCount := len(game.game.Players())
+	game.Unlock()
+	if playerCount == 0 {
 		if err := updateBlackjackMessage(game, false); err != nil {
 			slog.Error("failed to update empty blackjack game", slog.Any("error", err))
 		}
@@ -534,13 +552,25 @@ func runBlackjack(game *Game) {
 		slog.Error("failed to update blackjack message after deal", slog.Any("error", err))
 	}
 
-	if !game.Dealer().HasBlackjack() {
+	game.Lock()
+	dealerHasBlackjack := game.game.Dealer().HasBlackjack()
+	game.Unlock()
+	if !dealerHasBlackjack {
 		playBlackjackPlayers(game)
 		playBlackjackDealer(game)
 	}
 
-	game.PayoutResults()
+	for {
+		if err := game.PayoutResults(); err == nil {
+			break
+		} else {
+			slog.Error("failed to settle blackjack payouts; retrying", slog.Any("guildID", game.guildID), slog.Any("error", err))
+		}
+		time.Sleep(payoutRetryInterval)
+	}
+	game.Lock()
 	game.SetState(Completed)
+	game.Unlock()
 
 	if err := updateBlackjackMessage(game, false); err != nil {
 		slog.Error("failed to update final blackjack message", slog.Any("error", err))
@@ -569,7 +599,11 @@ func waitForBlackjackPlayers(game *Game) {
 		if time.Until(memberCanJoin) <= 0 {
 			break
 		}
-		if len(game.Players()) >= game.config.MaxPlayers {
+		game.Lock()
+		playerCount := len(game.game.Players())
+		maxPlayers := game.config.MaxPlayers
+		game.Unlock()
+		if playerCount >= maxPlayers {
 			break
 		}
 	}
@@ -577,7 +611,8 @@ func waitForBlackjackPlayers(game *Game) {
 
 // playBlackjackPlayers processes player turns.
 func playBlackjackPlayers(game *Game) {
-	for _, player := range game.Players() {
+	players := game.Players()
+	for _, player := range players {
 		if !player.IsActive() {
 			continue
 		}
@@ -590,10 +625,17 @@ func playBlackjackPlayers(game *Game) {
 
 			hand.SetActive(true)
 			game.clearPendingActions()
+			game.Lock()
+			game.turnID++
+			turnID := game.turnID
+			game.Unlock()
 
 			for hand.IsActive() {
 				// (Re)start the turn countdown for each decision, so taking an action such as
 				// a hit gives the player a fresh timer for their next decision.
+				if game.config.ShowPlayerTurn > 0 {
+					time.Sleep(game.config.ShowPlayerTurn)
+				}
 				game.setTurnDeadline(time.Now().Add(game.config.PlayerTimeout))
 				if err := updateBlackjackMessage(game, true); err != nil {
 					slog.Error("failed to update blackjack active player message", slog.Any("error", err))
@@ -603,16 +645,23 @@ func playBlackjackPlayers(game *Game) {
 				ticker := time.NewTicker(turnTimerUpdateInterval)
 				for acted := false; !acted; {
 					select {
-					case action := <-game.turnChan:
-						acted = true
-						if err := applyBlackjackAction(game, player, action); err != nil {
+					case request := <-game.turnChan:
+						// Requests accepted for an earlier decision can still be in the
+						// buffered channel when this decision starts. Discard them rather
+						// than applying them to the wrong hand.
+						if request.memberID != player.Name() || request.turnID != turnID {
+							continue
+						}
+						if err := applyBlackjackAction(game, player, request.action); err != nil {
 							slog.Warn("failed to apply blackjack action",
 								slog.Any("guildID", game.guildID),
 								slog.String("player", player.Name()),
-								slog.Any("action", action),
+								slog.Any("action", request.action),
 								slog.Any("error", err),
 							)
+							continue
 						}
+						acted = true
 
 					case <-timeout.C:
 						acted = true
@@ -674,6 +723,13 @@ func applyBlackjackAction(game *Game, player *bj.Player, action Action) error {
 
 // playBlackjackDealer processes the dealer turn.
 func playBlackjackDealer(game *Game) {
+	// Reveal the dealer's hole card and publish the turn transition before the
+	// optional pause. Without this update, the message can remain on the last
+	// player-turn state until the dealer has finished playing.
+	if err := updateBlackjackMessage(game, false); err != nil {
+		slog.Error("failed to update blackjack message at start of dealer turn", slog.Any("error", err))
+	}
+
 	if game.config.ShowDealerTurn > 0 {
 		time.Sleep(game.config.ShowDealerTurn)
 	}
@@ -688,17 +744,23 @@ func playBlackjackDealer(game *Game) {
 
 // updateBlackjackMessage updates the original blackjack game message.
 func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
+	game.Lock()
 	if game.interaction == nil {
+		game.Unlock()
 		return nil
 	}
+	interaction := game.interaction
+	embeds := blackjackEmbeds(game, hideDealerCard)
+	components := blackjackComponents(game)
+	game.Unlock()
 
-	_, err := game.interaction.Client().Rest.UpdateInteractionResponse(
-		game.interaction.ApplicationID(),
-		game.interaction.Token(),
+	_, err := interaction.Client().Rest.UpdateInteractionResponse(
+		interaction.ApplicationID(),
+		interaction.Token(),
 		discord.MessageUpdate{
 			Content:    new(""),
-			Embeds:     new(blackjackEmbeds(game, hideDealerCard)),
-			Components: new(blackjackComponents(game)),
+			Embeds:     new(embeds),
+			Components: new(components),
 		},
 	)
 	return err
@@ -715,7 +777,7 @@ func blackjackEmbeds(game *Game, hideDealerCard bool) []discord.Embed {
 	}
 
 	if !game.IsWaitingForPlayers() {
-		for _, player := range game.Players() {
+		for _, player := range game.playersLocked() {
 			embeds = append(embeds, discord.Embed{
 				Type:        discord.EmbedTypeRich,
 				Title:       blackjackPlayerTitle(game, player),
@@ -747,8 +809,8 @@ func blackjackGameEmbedFields(game *Game, hideDealerCard bool) []discord.EmbedFi
 			Inline: new(true),
 		})
 
-		playerNames := make([]string, 0, len(game.Players()))
-		for _, player := range game.Players() {
+		playerNames := make([]string, 0, len(game.playersLocked()))
+		for _, player := range game.playersLocked() {
 			playerNames = append(playerNames, blackjackPlayerName(game, player))
 		}
 
@@ -759,10 +821,10 @@ func blackjackGameEmbedFields(game *Game, hideDealerCard bool) []discord.EmbedFi
 		})
 	}
 
-	if game.Dealer() != nil && len(game.Dealer().Hand().Cards()) > 0 {
+	if game.dealerLocked() != nil && len(game.dealerLocked().Hand().Cards()) > 0 {
 		fields = append(fields, discord.EmbedField{
 			Name:   "Dealer",
-			Value:  game.symbols.GetHand(game.Dealer().Hand(), hideDealerCard),
+			Value:  game.symbols.GetHand(game.dealerLocked().Hand(), hideDealerCard),
 			Inline: new(false),
 		})
 	}
@@ -775,7 +837,7 @@ func blackjackPlayerEmbedColor(game *Game, player *bj.Player) int {
 	if !game.IsDealingHands() {
 		return 0
 	}
-	if game.GetActivePlayer() != player {
+	if game.getActivePlayerLocked() != player {
 		return 0
 	}
 	if !player.HasActiveHands() {
@@ -795,7 +857,7 @@ func blackjackStatus(game *Game) string {
 	case game.IsStartingRound():
 		return "Starting the round..."
 	case game.IsDealingHands():
-		activePlayer := game.GetActivePlayer()
+		activePlayer := game.getActivePlayerLocked()
 		if activePlayer != nil {
 			return p.Sprintf("It is %s's turn.", blackjackPlayerName(game, activePlayer))
 		}
@@ -835,8 +897,9 @@ func blackjackPlayerName(game *Game, player *bj.Player) string {
 // it is currently that player's turn.
 func blackjackPlayerDescription(game *Game, player *bj.Player) string {
 	hands := blackjackPlayerHands(game, player)
-	if game.IsDealingHands() && game.GetActivePlayer() == player {
-		if remaining := game.TurnTimeRemaining(); remaining > 0 {
+	if game.IsDealingHands() && game.getActivePlayerLocked() == player {
+		remaining := game.turnTimeRemaining()
+		if remaining > 0 {
 			return fmt.Sprintf("%s\n%s", blackjackTurnTimer(remaining), hands)
 		}
 	}
@@ -854,7 +917,7 @@ func blackjackTurnTimer(remaining time.Duration) string {
 // blackjackPlayerHands returns the rendered hands for a player.
 func blackjackPlayerHands(game *Game, player *bj.Player) string {
 	hands := make([]string, 0, len(player.Hands()))
-	activePlayer := game.GetActivePlayer()
+	activePlayer := game.getActivePlayerLocked()
 	activeHandIndex := -1
 	if activePlayer == player {
 		activeHandIndex = player.GetCurrentHandNumber()
@@ -887,13 +950,13 @@ func blackjackHandResult(game *Game, hand *bj.Hand) string {
 
 	switch game.EvaluateHand(hand) {
 	case bj.PlayerBlackjack:
-		return blackjackCreditResult(winnings, game.config.PayoutPercent)
+		return blackjackCreditResult(winnings)
 	case bj.PlayerWin:
-		return blackjackCreditResult(winnings, game.config.PayoutPercent)
+		return blackjackCreditResult(winnings)
 	case bj.DealerBlackjack:
-		return blackjackCreditResult(winnings, game.config.PayoutPercent)
+		return blackjackCreditResult(winnings)
 	case bj.DealerWin:
-		return blackjackCreditResult(winnings, game.config.PayoutPercent)
+		return blackjackCreditResult(winnings)
 	case bj.Push:
 		return "Push"
 	default:
@@ -902,12 +965,11 @@ func blackjackHandResult(game *Game, hand *bj.Hand) string {
 }
 
 // blackjackCreditResult formats the hand result with the amount won or lost.
-func blackjackCreditResult(winnings int, payoutPercent int) string {
+func blackjackCreditResult(winnings int) string {
 	p := message.NewPrinter(language.AmericanEnglish)
 
 	switch {
 	case winnings > 0:
-		winnings = winnings * payoutPercent / 100
 		if winnings == 1 {
 			return "Won 1 credit"
 		}
@@ -939,7 +1001,7 @@ func blackjackJoinComponents(game *Game) []discord.LayoutComponent {
 
 // blackjackComponents returns the component rows for the current game state.
 func blackjackComponents(game *Game) []discord.LayoutComponent {
-	if game.Dealer().HasBlackjack() {
+	if game.dealerLocked().HasBlackjack() {
 		return []discord.LayoutComponent{}
 	}
 
@@ -965,7 +1027,7 @@ func blackjackComponents(game *Game) []discord.LayoutComponent {
 
 // blackjackActionButtons returns only the action buttons valid for the current active hand.
 func blackjackActionButtons(game *Game) []discord.InteractiveComponent {
-	activePlayer := game.GetActivePlayer()
+	activePlayer := game.getActivePlayerLocked()
 	if activePlayer == nil {
 		return nil
 	}

@@ -8,8 +8,9 @@ import (
 
 // ChipManager manages the chips for a blackjack player using a bank account.
 type ChipManager struct {
-	game     *Game
-	memberID discordid.SnowflakeID
+	game           *Game
+	memberID       discordid.SnowflakeID
+	reservedCredit int
 }
 
 // NewChipManager returns a new ChipManager for the given guild and member.
@@ -34,8 +35,10 @@ func (c *ChipManager) SetChips(_ int) {
 
 // AddChips adds the specified number of chips to the player's account.
 func (c *ChipManager) AddChips(amount int) {
-	game := c.game
-	amount = amount * game.config.PayoutPercent / 100
+	if c.reservedCredit == amount {
+		c.reservedCredit = 0
+		return
+	}
 	if amount == 0 {
 		slog.Warn("attempted to add zero blackjack chips to account",
 			slog.Any("guildID", c.game.guildID),
@@ -75,6 +78,24 @@ func (c *ChipManager) DeductChips(amount int) error {
 		slog.Any("memberID", c.memberID),
 		slog.Int("amount", amount),
 	)
+	return nil
+}
+
+func (c *ChipManager) reserveCredit(amount int) error {
+	// A credit reservation is represented by a successful deposit. The next
+	// matching AddChips call from the dependency is then consumed as a no-op.
+	if err := bank.GetAccount(c.game.guildID, c.memberID).Deposit(amount); err != nil {
+		return err
+	}
+	c.reservedCredit = amount
+	return nil
+}
+
+func (c *ChipManager) cancelCredit(amount int) error {
+	if c.reservedCredit == amount {
+		c.reservedCredit = 0
+		return bank.GetAccount(c.game.guildID, c.memberID).Withdraw(amount)
+	}
 	return nil
 }
 
