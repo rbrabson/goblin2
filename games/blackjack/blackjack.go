@@ -721,11 +721,11 @@ func (g *Game) hasNonbustedPlayers() bool {
 }
 
 // PayoutResults pays out the results of the blackjack game.
-func (g *Game) PayoutResults() {
+func (g *Game) PayoutResults() error {
 	g.Lock()
 	defer g.Unlock()
 	if g.payoutComplete {
-		return
+		return nil
 	}
 	if g.settledHands == nil {
 		g.settledHands = make(map[*bj.Hand]bool)
@@ -771,6 +771,10 @@ func (g *Game) PayoutResults() {
 		}
 	}
 	g.payoutComplete = allSettled
+	if !allSettled {
+		return errors.New("one or more blackjack payouts could not be settled")
+	}
+	return nil
 }
 
 func (g *Game) creditChips(player *bj.Player, amount int) error {

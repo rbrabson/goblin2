@@ -31,6 +31,7 @@ const (
 
 	// turnTimerUpdateInterval is how often the active player's turn countdown is refreshed.
 	turnTimerUpdateInterval = 5 * time.Second
+	payoutRetryInterval     = 5 * time.Second
 )
 
 var (
@@ -559,7 +560,14 @@ func runBlackjack(game *Game) {
 		playBlackjackDealer(game)
 	}
 
-	game.PayoutResults()
+	for {
+		if err := game.PayoutResults(); err == nil {
+			break
+		} else {
+			slog.Error("failed to settle blackjack payouts; retrying", slog.Any("guildID", game.guildID), slog.Any("error", err))
+		}
+		time.Sleep(payoutRetryInterval)
+	}
 	game.Lock()
 	game.SetState(Completed)
 	game.Unlock()
@@ -617,6 +625,10 @@ func playBlackjackPlayers(game *Game) {
 
 			hand.SetActive(true)
 			game.clearPendingActions()
+			game.Lock()
+			game.turnID++
+			turnID := game.turnID
+			game.Unlock()
 
 			for hand.IsActive() {
 				// (Re)start the turn countdown for each decision, so taking an action such as
@@ -624,10 +636,6 @@ func playBlackjackPlayers(game *Game) {
 				if game.config.ShowPlayerTurn > 0 {
 					time.Sleep(game.config.ShowPlayerTurn)
 				}
-				game.Lock()
-				game.turnID++
-				turnID := game.turnID
-				game.Unlock()
 				game.setTurnDeadline(time.Now().Add(game.config.PlayerTimeout))
 				if err := updateBlackjackMessage(game, true); err != nil {
 					slog.Error("failed to update blackjack active player message", slog.Any("error", err))
