@@ -98,7 +98,9 @@ func (m *Member) cacheKey() memberCacheKey {
 
 // save persists the member and updates the cache.
 func (m *Member) save() {
-	writeMember(m)
+	if err := writeMember(m); err != nil {
+		return
+	}
 	memberCache.Set(m.cacheKey(), *m)
 }
 

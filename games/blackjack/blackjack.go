@@ -246,6 +246,7 @@ func (g *Game) addPlayer(memberID discordid.SnowflakeID) error {
 	player := g.getPlayerLocked(memberID)
 	if err := player.CurrentHand().PlaceBet(g.config.BetAmount); err != nil {
 		g.game.RemovePlayer(playerID)
+		delete(g.chipManagers, playerID)
 		return err
 	}
 

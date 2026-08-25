@@ -34,7 +34,7 @@ func readConfig(guildID discordid.SnowflakeID) *Config {
 }
 
 // writeConfig creates or updates the blackjack configuration in the database
-func writeConfig(config *Config) {
+func writeConfig(config *Config) error {
 	var filter bson.M
 	if !config.ID.IsZero() {
 		filter = bson.M{"_id": config.ID}
@@ -48,7 +48,7 @@ func writeConfig(config *Config) {
 			slog.Any("guildID", config.GuildID),
 			slog.Any("error", err),
 		)
-		return
+		return err
 	}
 
 	if id, ok := result.UpsertedID.(bson.ObjectID); ok {
@@ -58,6 +58,7 @@ func writeConfig(config *Config) {
 	configCache.Set(configCacheKey{
 		guildID: config.GuildID,
 	}, *config)
+	return nil
 }
 
 // readMember loads the blackjack member from the database. If it does not exist, then
@@ -79,7 +80,7 @@ func readMember(guildID, memberID discordid.SnowflakeID) *Member {
 }
 
 // writeMember creates or updates the blackjack member in the database
-func writeMember(member *Member) {
+func writeMember(member *Member) error {
 	var filter bson.M
 	if !member.ID.IsZero() {
 		filter = bson.M{"_id": member.ID}
@@ -94,10 +95,11 @@ func writeMember(member *Member) {
 			slog.Any("memberID", member.MemberID),
 			slog.Any("error", err),
 		)
-		return
+		return err
 	}
 
 	if id, ok := result.UpsertedID.(bson.ObjectID); ok {
 		member.ID = id
 	}
+	return nil
 }

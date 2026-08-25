@@ -309,7 +309,12 @@ func configBetAmountHandler(data discord.SlashCommandInteractionData, e *handler
 
 	config := editableConfig(guildID)
 	config.BetAmount = betAmount
-	writeConfig(config)
+	if err := writeConfig(config); err != nil {
+		return sendBlackjackCommandMessage(e, discord.MessageCreate{
+			Content: "Unable to save the blackjack configuration.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
 
 	p := message.NewPrinter(language.AmericanEnglish)
 	slog.Info("blackjack bet amount updated", slog.Any("guildID", guildID), slog.Int("betAmount", betAmount))
@@ -344,7 +349,12 @@ func configPayoutPercentHandler(data discord.SlashCommandInteractionData, e *han
 
 	config := editableConfig(guildID)
 	config.PayoutPercent = payoutPercent
-	writeConfig(config)
+	if err := writeConfig(config); err != nil {
+		return sendBlackjackCommandMessage(e, discord.MessageCreate{
+			Content: "Unable to save the blackjack configuration.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
 
 	p := message.NewPrinter(language.AmericanEnglish)
 	slog.Info("blackjack payout percent updated", slog.Any("guildID", guildID), slog.Int("payoutPercent", payoutPercent))
@@ -373,7 +383,12 @@ func configSinglePlayerHandler(data discord.SlashCommandInteractionData, e *hand
 
 	config := editableConfig(guildID)
 	config.SinglePlayerMode = singlePlayer
-	writeConfig(config)
+	if err := writeConfig(config); err != nil {
+		return sendBlackjackCommandMessage(e, discord.MessageCreate{
+			Content: "Unable to save the blackjack configuration.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
 
 	p := message.NewPrinter(language.AmericanEnglish)
 	slog.Info("blackjack single-player mode updated", slog.Any("guildID", guildID), slog.Bool("singlePlayerMode", singlePlayer))
