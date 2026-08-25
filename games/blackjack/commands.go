@@ -120,7 +120,7 @@ func playBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.Comm
 
 	member := e.Member()
 	if member == nil {
-		return e.CreateMessage(discord.MessageCreate{
+		return sendBlackjackCommandMessage(e, discord.MessageCreate{
 			Content: "This command can only be used in a server.",
 			Flags:   discord.MessageFlagEphemeral,
 		})
@@ -133,12 +133,12 @@ func playBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.Comm
 
 	game, err := StartGame(guildID, memberID)
 	if err != nil {
-		slog.Debug("failed to start blackjack game",
+		slog.Error("failed to start blackjack game",
 			slog.Any("guildID", guildID),
 			slog.Any("memberID", memberID),
 			slog.Any("error", err),
 		)
-		return e.CreateMessage(discord.MessageCreate{
+		return sendBlackjackCommandMessage(e, discord.MessageCreate{
 			Content: format.FirstToUpper(err.Error()),
 			Flags:   discord.MessageFlagEphemeral,
 		})
@@ -153,6 +153,11 @@ func playBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.Comm
 		Embeds:     blackjackEmbeds(game, false),
 		Components: blackjackJoinComponents(game),
 	}); err != nil {
+		slog.Error("failed to send blackjack game start message",
+			slog.Any("guildID", guildID),
+			slog.Any("memberID", memberID),
+			slog.Any("error", err),
+		)
 		game.EndRound()
 		return err
 	}
@@ -175,7 +180,7 @@ func blackjackStatsHandler(data discord.SlashCommandInteractionData, e *handler.
 
 	member := e.Member()
 	if member == nil {
-		return e.CreateMessage(discord.MessageCreate{
+		return sendBlackjackCommandMessage(e, discord.MessageCreate{
 			Content: "This command can only be used in a server.",
 			Flags:   discord.MessageFlagEphemeral,
 		})
@@ -273,7 +278,7 @@ func blackjackStatsHandler(data discord.SlashCommandInteractionData, e *handler.
 		}
 	}
 
-	return e.CreateMessage(discord.MessageCreate{
+	return sendBlackjackCommandMessage(e, discord.MessageCreate{
 		Embeds: []discord.Embed{embed},
 		Flags:  discord.MessageFlagEphemeral,
 	})
@@ -287,7 +292,7 @@ func configBetAmountHandler(data discord.SlashCommandInteractionData, e *handler
 
 	member := e.Member()
 	if member == nil {
-		return e.CreateMessage(discord.MessageCreate{
+		return sendBlackjackCommandMessage(e, discord.MessageCreate{
 			Content: "This command can only be used in a server.",
 			Flags:   discord.MessageFlagEphemeral,
 		})
@@ -296,7 +301,7 @@ func configBetAmountHandler(data discord.SlashCommandInteractionData, e *handler
 	guildID := discordid.NewSnowflakeID(member.GuildID)
 	betAmount := data.Int("amount")
 	if betAmount <= 0 {
-		return e.CreateMessage(discord.MessageCreate{
+		return sendBlackjackCommandMessage(e, discord.MessageCreate{
 			Content: "Bet amount must be positive.",
 			Flags:   discord.MessageFlagEphemeral,
 		})
@@ -309,7 +314,7 @@ func configBetAmountHandler(data discord.SlashCommandInteractionData, e *handler
 	p := message.NewPrinter(language.AmericanEnglish)
 	slog.Info("blackjack bet amount updated", slog.Any("guildID", guildID), slog.Int("betAmount", betAmount))
 
-	return e.CreateMessage(discord.MessageCreate{
+	return sendBlackjackCommandMessage(e, discord.MessageCreate{
 		Content: p.Sprintf("Bet amount set to %d", betAmount),
 	})
 }
@@ -322,7 +327,7 @@ func configPayoutPercentHandler(data discord.SlashCommandInteractionData, e *han
 
 	member := e.Member()
 	if member == nil {
-		return e.CreateMessage(discord.MessageCreate{
+		return sendBlackjackCommandMessage(e, discord.MessageCreate{
 			Content: "This command can only be used in a server.",
 			Flags:   discord.MessageFlagEphemeral,
 		})
@@ -331,7 +336,7 @@ func configPayoutPercentHandler(data discord.SlashCommandInteractionData, e *han
 	guildID := discordid.NewSnowflakeID(member.GuildID)
 	payoutPercent := data.Int("percent")
 	if payoutPercent < 0 || payoutPercent > 100 {
-		return e.CreateMessage(discord.MessageCreate{
+		return sendBlackjackCommandMessage(e, discord.MessageCreate{
 			Content: "Payout percent must be between 0 and 100.",
 			Flags:   discord.MessageFlagEphemeral,
 		})
@@ -344,7 +349,7 @@ func configPayoutPercentHandler(data discord.SlashCommandInteractionData, e *han
 	p := message.NewPrinter(language.AmericanEnglish)
 	slog.Info("blackjack payout percent updated", slog.Any("guildID", guildID), slog.Int("payoutPercent", payoutPercent))
 
-	return e.CreateMessage(discord.MessageCreate{
+	return sendBlackjackCommandMessage(e, discord.MessageCreate{
 		Content: p.Sprintf("Payout percent set to %d", payoutPercent),
 	})
 }
@@ -357,7 +362,7 @@ func configSinglePlayerHandler(data discord.SlashCommandInteractionData, e *hand
 
 	member := e.Member()
 	if member == nil {
-		return e.CreateMessage(discord.MessageCreate{
+		return sendBlackjackCommandMessage(e, discord.MessageCreate{
 			Content: "This command can only be used in a server.",
 			Flags:   discord.MessageFlagEphemeral,
 		})
@@ -373,7 +378,7 @@ func configSinglePlayerHandler(data discord.SlashCommandInteractionData, e *hand
 	p := message.NewPrinter(language.AmericanEnglish)
 	slog.Info("blackjack single-player mode updated", slog.Any("guildID", guildID), slog.Bool("singlePlayerMode", singlePlayer))
 
-	return e.CreateMessage(discord.MessageCreate{
+	return sendBlackjackCommandMessage(e, discord.MessageCreate{
 		Content: p.Sprintf("Single-player mode set to %t", singlePlayer),
 	})
 }
@@ -386,7 +391,7 @@ func configInfoHandler(_ discord.SlashCommandInteractionData, e *handler.Command
 
 	member := e.Member()
 	if member == nil {
-		return e.CreateMessage(discord.MessageCreate{
+		return sendBlackjackCommandMessage(e, discord.MessageCreate{
 			Content: "This command can only be used in a server.",
 			Flags:   discord.MessageFlagEphemeral,
 		})
@@ -395,7 +400,7 @@ func configInfoHandler(_ discord.SlashCommandInteractionData, e *handler.Command
 	config := GetConfig(discordid.NewSnowflakeID(member.GuildID))
 	inline := true
 
-	return e.CreateMessage(discord.MessageCreate{
+	return sendBlackjackCommandMessage(e, discord.MessageCreate{
 		Content: "Blackjack Configuration",
 		Embeds: []discord.Embed{
 			{
@@ -415,7 +420,7 @@ func configInfoHandler(_ discord.SlashCommandInteractionData, e *handler.Command
 func blackjackJoinButtonHandler(e *handler.ComponentEvent) error {
 	member := e.Member()
 	if member == nil {
-		return e.CreateMessage(discord.MessageCreate{
+		return sendBlackjackComponentMessage(e, discord.MessageCreate{
 			Content: "This command can only be used in a server.",
 			Flags:   discord.MessageFlagEphemeral,
 		})
@@ -431,7 +436,7 @@ func blackjackJoinButtonHandler(e *handler.ComponentEvent) error {
 	}
 
 	if err := game.joinGame(memberID); err != nil {
-		return e.CreateMessage(discord.MessageCreate{
+		return sendBlackjackComponentMessage(e, discord.MessageCreate{
 			Content: format.FirstToUpper(err.Error()),
 			Flags:   discord.MessageFlagEphemeral,
 		})
@@ -452,7 +457,7 @@ func blackjackJoinButtonHandler(e *handler.ComponentEvent) error {
 
 	//return e.DeferUpdateMessage()
 
-	return e.CreateMessage(discord.MessageCreate{
+	return sendBlackjackComponentMessage(e, discord.MessageCreate{
 		Content: format.FirstToUpper("You joined the blackjack game."),
 		Flags:   discord.MessageFlagEphemeral,
 	})
@@ -487,7 +492,7 @@ func blackjackSurrenderButtonHandler(e *handler.ComponentEvent) error {
 func blackjackAction(e *handler.ComponentEvent, action Action) error {
 	member := e.Member()
 	if member == nil {
-		return e.CreateMessage(discord.MessageCreate{
+		return sendBlackjackComponentMessage(e, discord.MessageCreate{
 			Content: "This command can only be used in a server.",
 			Flags:   discord.MessageFlagEphemeral,
 		})
@@ -498,20 +503,20 @@ func blackjackAction(e *handler.ComponentEvent, action Action) error {
 
 	game := GetGame(guildID, getUIDFromComponent(e))
 	if game == nil {
-		return e.CreateMessage(discord.MessageCreate{
+		return sendBlackjackComponentMessage(e, discord.MessageCreate{
 			Content: "No blackjack game is in progress.",
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
 
 	if err := game.PlayerActionRequest(memberID, action); err != nil {
-		return e.CreateMessage(discord.MessageCreate{
+		return sendBlackjackComponentMessage(e, discord.MessageCreate{
 			Content: format.FirstToUpper(err.Error()),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
 
-	return e.DeferUpdateMessage()
+	return deferBlackjackComponentUpdate(e)
 }
 
 // runBlackjack runs the blackjack lifecycle after the slash command interaction has been acknowledged.
@@ -653,7 +658,7 @@ func playBlackjackPlayers(game *Game) {
 							continue
 						}
 						if err := applyBlackjackAction(game, player, request.action); err != nil {
-							slog.Warn("failed to apply blackjack action",
+							slog.Error("failed to apply blackjack action",
 								slog.Any("guildID", game.guildID),
 								slog.String("player", player.Name()),
 								slog.Any("action", request.action),
@@ -666,7 +671,7 @@ func playBlackjackPlayers(game *Game) {
 					case <-timeout.C:
 						acted = true
 						if err := game.PlayerStand(player); err != nil {
-							slog.Warn("failed to auto-stand blackjack player",
+							slog.Error("failed to auto-stand blackjack player",
 								slog.Any("guildID", game.guildID),
 								slog.String("player", player.Name()),
 								slog.Any("error", err),
@@ -1060,6 +1065,33 @@ func updateComponentResponse(e *handler.ComponentEvent, content string) error {
 	_, err := e.UpdateInteractionResponse(discord.MessageUpdate{
 		Content: &content,
 	})
+	if err != nil {
+		slog.Error("failed to send blackjack component response", slog.Any("error", err))
+	}
+	return err
+}
+
+func sendBlackjackCommandMessage(e *handler.CommandEvent, message discord.MessageCreate) error {
+	err := e.CreateMessage(message)
+	if err != nil {
+		slog.Error("failed to send blackjack command response", slog.Any("error", err))
+	}
+	return err
+}
+
+func sendBlackjackComponentMessage(e *handler.ComponentEvent, message discord.MessageCreate) error {
+	err := e.CreateMessage(message)
+	if err != nil {
+		slog.Error("failed to send blackjack component response", slog.Any("error", err))
+	}
+	return err
+}
+
+func deferBlackjackComponentUpdate(e *handler.ComponentEvent) error {
+	err := e.DeferUpdateMessage()
+	if err != nil {
+		slog.Error("failed to defer blackjack component response", slog.Any("error", err))
+	}
 	return err
 }
 
