@@ -553,14 +553,24 @@ func runBlackjack(game *Game) {
 		return
 	}
 
-	if err := updateBlackjackMessage(game, true); err != nil {
-		slog.Error("failed to update blackjack message after deal", slog.Any("error", err))
-	}
-
 	game.Lock()
 	dealerHasBlackjack := game.game.Dealer().HasBlackjack()
+	if dealerHasBlackjack {
+		// Do not publish the dealt hand as an active player turn. A dealer blackjack
+		// ends the hand immediately, so mark it completed before revealing the dealer's
+		// cards and rendering the result.
+		game.SetState(Completed)
+	}
 	game.Unlock()
-	if !dealerHasBlackjack {
+
+	if dealerHasBlackjack {
+		if err := updateBlackjackMessage(game, false); err != nil {
+			slog.Error("failed to update blackjack message after dealer blackjack", slog.Any("error", err))
+		}
+	} else {
+		if err := updateBlackjackMessage(game, true); err != nil {
+			slog.Error("failed to update blackjack message after deal", slog.Any("error", err))
+		}
 		playBlackjackPlayers(game)
 		playBlackjackDealer(game)
 	}
