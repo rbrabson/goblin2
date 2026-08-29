@@ -580,19 +580,9 @@ func runBlackjack(game *Game) {
 
 	game.Lock()
 	dealerHasBlackjack := game.game.Dealer().HasBlackjack()
-	if dealerHasBlackjack {
-		// Do not publish the dealt hand as an active player turn. A dealer blackjack
-		// ends the hand immediately, so mark it completed before revealing the dealer's
-		// cards and rendering the result.
-		game.SetState(Completed)
-	}
 	game.Unlock()
 
-	if dealerHasBlackjack {
-		if err := updateBlackjackMessage(game, false); err != nil {
-			slog.Error("failed to update blackjack message after dealer blackjack", slog.Any("error", err))
-		}
-	} else {
+	if !dealerHasBlackjack {
 		if err := updateBlackjackMessage(game, true); err != nil {
 			slog.Error("failed to update blackjack message after deal", slog.Any("error", err))
 		}
@@ -600,16 +590,9 @@ func runBlackjack(game *Game) {
 		playBlackjackDealer(game)
 	}
 
-	// All player and dealer decisions are complete at this point. Mark the game
-	// completed before settlement so a temporary payout failure cannot leave the
-	// Discord message reporting that the game is still in progress.
-	game.Lock()
-	game.SetState(Completed)
-	game.Unlock()
-	if err := updateBlackjackMessage(game, false); err != nil {
-		slog.Error("failed to update completed blackjack game", slog.Any("error", err))
-	}
-
+	// Settle payouts before publishing the completed state. The completed embed
+	// renders hand results from Hand.Winnings(), so publishing it before this
+	// step can leave users with "Game has ended" but no payout information.
 	for {
 		if err := game.PayoutResults(); err == nil {
 			break
@@ -618,6 +601,10 @@ func runBlackjack(game *Game) {
 		}
 		time.Sleep(payoutRetryInterval)
 	}
+
+	game.Lock()
+	game.SetState(Completed)
+	game.Unlock()
 	if err := updateBlackjackMessage(game, false); err != nil {
 		slog.Error("failed to update final blackjack message", slog.Any("error", err))
 	}
