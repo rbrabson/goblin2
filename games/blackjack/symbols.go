@@ -51,7 +51,9 @@ func (s *Symbols) GetHand(hand *bj.Hand, hidden bool) string {
 	cardsInHand := make([]string, 0, len(hand.Cards()))
 	var sb strings.Builder
 	for idx, card := range hand.Cards() {
-		if hidden && idx == 0 {
+		// The blackjack library deals the dealer's up card first and the hole
+		// card second. It remains the second card if the dealer later hits.
+		if hidden && idx == 1 {
 			cardsInHand = append(cardsInHand, s.Cards.Back)
 		} else {
 			cardsInHand = append(cardsInHand, s.getCard(card))
@@ -116,7 +118,7 @@ func (s *Symbols) GetHandWithoutValue(hand *bj.Hand, hidden bool) string {
 	cards := make([]string, 0, len(hand.Cards()))
 	var sb strings.Builder
 	for idx, card := range hand.Cards() {
-		if hidden && idx == 0 {
+		if hidden && idx == 1 {
 			cards = append(cards, s.Cards.Back)
 		} else {
 			cards = append(cards, s.getCard(card))

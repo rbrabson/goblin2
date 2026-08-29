@@ -590,6 +590,16 @@ func runBlackjack(game *Game) {
 		playBlackjackDealer(game)
 	}
 
+	// All player and dealer decisions are complete at this point. Mark the game
+	// completed before settlement so a temporary payout failure cannot leave the
+	// Discord message reporting that the game is still in progress.
+	game.Lock()
+	game.SetState(Completed)
+	game.Unlock()
+	if err := updateBlackjackMessage(game, false); err != nil {
+		slog.Error("failed to update completed blackjack game", slog.Any("error", err))
+	}
+
 	for {
 		if err := game.PayoutResults(); err == nil {
 			break
@@ -598,10 +608,6 @@ func runBlackjack(game *Game) {
 		}
 		time.Sleep(payoutRetryInterval)
 	}
-	game.Lock()
-	game.SetState(Completed)
-	game.Unlock()
-
 	if err := updateBlackjackMessage(game, false); err != nil {
 		slog.Error("failed to update final blackjack message", slog.Any("error", err))
 	}

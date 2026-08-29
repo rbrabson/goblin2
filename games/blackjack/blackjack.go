@@ -852,8 +852,10 @@ func (g *Game) turnTimeRemaining() time.Duration {
 func handValue(hand *bj.Hand, hidden bool) int {
 	visibleValue := 0
 	aces := 0
-	for idx, card := range hand.Cards() {
-		if hidden && idx == 0 {
+	cardsInHand := hand.Cards()
+	for idx, card := range cardsInHand {
+		// Dealer cards are dealt up card first and hole card second.
+		if hidden && idx == 1 {
 			continue
 		}
 
