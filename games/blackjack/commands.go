@@ -145,21 +145,29 @@ func playBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.Comm
 
 	game, err := StartGame(guildID, memberID)
 	if err != nil {
-		slog.Error("failed to start blackjack game",
+		slog.Warn("failed to start blackjack game",
 			slog.Any("guildID", guildID),
 			slog.Any("memberID", memberID),
 			slog.Any("error", err),
 		)
-		content := format.FirstToUpper(err.Error())
-		if _, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{Content: &content}); updateErr != nil {
-			slog.Error("failed to send blackjack game start error",
+		// The deferred game response is public, so it cannot be changed into an
+		// ephemeral response. Remove the placeholder and send setup errors as an
+		// ephemeral follow-up instead.
+		if deleteErr := e.DeleteInteractionResponse(); deleteErr != nil {
+			slog.Error("failed to delete deferred blackjack game response",
 				slog.Any("guildID", guildID),
 				slog.Any("memberID", memberID),
-				slog.Any("error", updateErr),
+				slog.Any("error", deleteErr),
 			)
+			content := format.FirstToUpper(err.Error())
+			_, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{Content: &content})
 			return updateErr
 		}
-		return nil
+		_, followupErr := e.CreateFollowupMessage(discord.MessageCreate{
+			Content: format.FirstToUpper(err.Error()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+		return followupErr
 	}
 
 	game.Lock()
@@ -474,6 +482,18 @@ func blackjackJoinButtonHandler(e *handler.ComponentEvent) error {
 
 	guildID := discordid.NewSnowflakeID(member.GuildID)
 	memberID := discordid.NewSnowflakeID(member.User.ID)
+
+	// Joining may access the bank before the response is sent. Acknowledge the
+	// component interaction first so a slow account operation cannot expire it.
+	if err := e.DeferCreateMessage(true); err != nil {
+		slog.Error("failed to defer blackjack join response",
+			slog.Any("guildID", guildID),
+			slog.Any("memberID", memberID),
+			slog.Any("error", err),
+		)
+		return err
+	}
+
 	guild.GetGuild(guildID).GetMember(&member.Member)
 
 	game := GetGame(guildID, getUIDFromComponent(e))
@@ -482,10 +502,7 @@ func blackjackJoinButtonHandler(e *handler.ComponentEvent) error {
 	}
 
 	if err := game.joinGame(memberID); err != nil {
-		return sendBlackjackComponentMessage(e, discord.MessageCreate{
-			Content: format.FirstToUpper(err.Error()),
-			Flags:   discord.MessageFlagEphemeral,
-		})
+		return updateComponentResponse(e, format.FirstToUpper(err.Error()))
 	}
 
 	if err := updateBlackjackMessage(game, false); err != nil {
@@ -501,12 +518,7 @@ func blackjackJoinButtonHandler(e *handler.ComponentEvent) error {
 		slog.Any("memberID", memberID),
 	)
 
-	//return e.DeferUpdateMessage()
-
-	return sendBlackjackComponentMessage(e, discord.MessageCreate{
-		Content: format.FirstToUpper("You joined the blackjack game."),
-		Flags:   discord.MessageFlagEphemeral,
-	})
+	return updateComponentResponse(e, format.FirstToUpper("You joined the blackjack game."))
 }
 
 // blackjackHitButtonHandler handles the hit button.
