@@ -161,6 +161,16 @@ func playBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.Comm
 		game.EndRound()
 		return err
 	}
+	if response, err := e.GetInteractionResponse(); err != nil {
+		slog.Error("failed to retrieve blackjack game message",
+			slog.Any("guildID", guildID),
+			slog.Any("error", err),
+		)
+	} else {
+		game.Lock()
+		game.messageID = response.ID
+		game.Unlock()
+	}
 
 	slog.Info("blackjack game started",
 		slog.Any("guildID", guildID),
@@ -722,7 +732,7 @@ func playBlackjackPlayers(game *Game) {
 				ticker.Stop()
 
 				// Clear the countdown as soon as the player acts (or times out). If the hand is
-				// still active the loop restarts it; otherwise this renders the final state.
+				// still active, the loop restarts it; otherwise this renders the final state.
 				game.clearTurnDeadline()
 				if !hand.IsActive() {
 					if err := updateBlackjackMessage(game, true); err != nil {
@@ -786,18 +796,25 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 		return nil
 	}
 	interaction := game.interaction
+	msgID := game.messageID
 	embeds := blackjackEmbeds(game, hideDealerCard)
 	components := blackjackComponents(game)
 	game.Unlock()
 
+	msg := discord.MessageUpdate{
+		Content:    new(""),
+		Embeds:     new(embeds),
+		Components: new(components),
+	}
+	if msgID != 0 {
+		_, err := interaction.Client().Rest.UpdateMessage(interaction.Channel().ID(), msgID, msg)
+		return err
+	}
+
 	_, err := interaction.Client().Rest.UpdateInteractionResponse(
 		interaction.ApplicationID(),
 		interaction.Token(),
-		discord.MessageUpdate{
-			Content:    new(""),
-			Embeds:     new(embeds),
-			Components: new(components),
-		},
+		msg,
 	)
 	return err
 }
