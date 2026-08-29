@@ -129,6 +129,18 @@ func playBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.Comm
 	guildID := discordid.NewSnowflakeID(member.GuildID)
 	memberID := discordid.NewSnowflakeID(member.User.ID)
 
+	// A slash-command interaction must be acknowledged within a few seconds.
+	// Starting a game can involve account/configuration work, so acknowledge it
+	// before doing that work and edit the deferred response below.
+	if err := e.DeferCreateMessage(false); err != nil {
+		slog.Error("failed to defer blackjack game start message",
+			slog.Any("guildID", guildID),
+			slog.Any("memberID", memberID),
+			slog.Any("error", err),
+		)
+		return err
+	}
+
 	guild.GetGuild(guildID).GetMember(&member.Member)
 
 	game, err := StartGame(guildID, memberID)
@@ -138,20 +150,29 @@ func playBlackjackHandler(_ discord.SlashCommandInteractionData, e *handler.Comm
 			slog.Any("memberID", memberID),
 			slog.Any("error", err),
 		)
-		return sendBlackjackCommandMessage(e, discord.MessageCreate{
-			Content: format.FirstToUpper(err.Error()),
-			Flags:   discord.MessageFlagEphemeral,
-		})
+		content := format.FirstToUpper(err.Error())
+		if _, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{Content: &content}); updateErr != nil {
+			slog.Error("failed to send blackjack game start error",
+				slog.Any("guildID", guildID),
+				slog.Any("memberID", memberID),
+				slog.Any("error", updateErr),
+			)
+			return updateErr
+		}
+		return nil
 	}
 
 	game.Lock()
 	game.interaction = e
 	game.Unlock()
 
-	if err := e.CreateMessage(discord.MessageCreate{
-		Content:    "Starting blackjack...",
-		Embeds:     blackjackEmbeds(game, false),
-		Components: blackjackJoinComponents(game),
+	content := "Starting blackjack..."
+	embeds := blackjackEmbeds(game, false)
+	components := blackjackJoinComponents(game)
+	if _, err := e.UpdateInteractionResponse(discord.MessageUpdate{
+		Content:    &content,
+		Embeds:     &embeds,
+		Components: &components,
 	}); err != nil {
 		slog.Error("failed to send blackjack game start message",
 			slog.Any("guildID", guildID),
