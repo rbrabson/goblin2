@@ -24,3 +24,17 @@ func TestSymbolsHideDealerHoleCard(t *testing.T) {
 		t.Fatalf("revealed dealer hand = %q, want %q", got, want)
 	}
 }
+
+func TestSymbolsBlackjackValue(t *testing.T) {
+	symbols := Symbols{
+		Hearts: Suit{Ace: "[ah]"},
+		Spades: Suit{King: "[ks]"},
+	}
+	hand := bj.NewPlayer("player").CurrentHand()
+	hand.DealCard(cards.Card{Rank: cards.Ace, Suit: cards.Hearts})
+	hand.DealCard(cards.Card{Rank: cards.King, Suit: cards.Spades})
+
+	if got, want := symbols.GetHand(hand, false), "[ah][ks] (blackjack)"; got != want {
+		t.Fatalf("blackjack hand = %q, want %q", got, want)
+	}
+}
