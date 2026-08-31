@@ -37,6 +37,7 @@ const (
 	WaitingForPlayers
 	StartingRound
 	DealingHands
+	DealerTurn
 	Completed
 )
 
@@ -442,6 +443,13 @@ func (g *Game) IsDealingHands() bool {
 	g.stateLock.RLock()
 	defer g.stateLock.RUnlock()
 	return g.state == DealingHands
+}
+
+// IsDealerTurn returns whether the dealer is currently playing the hand.
+func (g *Game) IsDealerTurn() bool {
+	g.stateLock.RLock()
+	defer g.stateLock.RUnlock()
+	return g.state == DealerTurn
 }
 
 // IsCompleted returns whether the blackjack game has completed.
@@ -970,6 +978,8 @@ func (s GameState) String() string {
 		return "Starting Round"
 	case DealingHands:
 		return "Dealing Hands"
+	case DealerTurn:
+		return "Dealer Turn"
 	case Completed:
 		return "Completed"
 	default:

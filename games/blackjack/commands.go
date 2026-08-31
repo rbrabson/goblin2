@@ -792,6 +792,7 @@ func playBlackjackDealer(game *Game) {
 	// Reveal the dealer's hole card and publish the turn transition before the
 	// optional pause. Without this update, the message can remain on the last
 	// player-turn state until the dealer has finished playing.
+	game.SetState(DealerTurn)
 	if err := updateBlackjackMessage(game, false); err != nil {
 		slog.Error("failed to update blackjack message at start of dealer turn", slog.Any("error", err))
 	}
@@ -935,6 +936,8 @@ func blackjackStatus(game *Game) string {
 			return p.Sprintf("It is %s's turn.", blackjackPlayerName(game, activePlayer))
 		}
 		return "Game is in progress."
+	case game.IsDealerTurn():
+		return "Dealer's turn."
 	case game.IsCompleted():
 		return "Game has ended."
 	default:
