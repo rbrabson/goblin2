@@ -839,13 +839,11 @@ func playBlackjackDealer(game *Game) {
 	}
 	slog.Info("blackjack dealer phase completed", slog.Any("guildID", game.guildID), slog.String("uid", game.uid), slog.Duration("elapsed", time.Since(started)))
 
-	// Publish the dealer's completed hand before payout work begins. Otherwise a
-	// payout/database delay leaves Discord showing the dealer's initial hand and
-	// makes the game appear frozen in the dealer turn.
+	// Keep settlement as an internal state. Publishing an intermediate
+	// "Settling payouts..." message creates a visible race with the final edit;
+	// the next message update after payout will publish the completed hand and
+	// results atomically.
 	game.SetState(SettlingPayouts)
-	if err := updateBlackjackMessage(game, false); err != nil {
-		slog.Error("failed to update blackjack message after dealer turn", slog.Any("error", err))
-	}
 }
 
 // updateBlackjackMessage updates the original blackjack game message.
