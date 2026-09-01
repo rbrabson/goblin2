@@ -766,13 +766,11 @@ func playBlackjackPlayers(game *Game) {
 				ticker.Stop()
 
 				// Clear the countdown as soon as the player acts (or times out). If the hand is
-				// still active, the loop restarts it; otherwise this renders the final state.
+				// still active, the loop restarts it. When the hand ends, do not publish here:
+				// MoveToNextActiveHand below may immediately select another player, and this
+				// point otherwise renders the misleading "Game is in progress." state with no
+				// active player or buttons.
 				game.clearTurnDeadline()
-				if !hand.IsActive() {
-					if err := updateBlackjackMessage(game, true); err != nil {
-						slog.Error("failed to update blackjack message after player action", slog.Any("error", err))
-					}
-				}
 			}
 
 			hand.SetActive(false)
