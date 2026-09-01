@@ -914,7 +914,14 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 	}
 	playerSummary := make([]string, 0, len(game.game.Players()))
 	for _, player := range game.playersLocked() {
-		playerSummary = append(playerSummary, fmt.Sprintf("%s:%v", player.Name(), player.GetAllHandValues()))
+		// Do not use Player.GetAllHandValues here. The v1.3.9 library implementation
+		// allocates with len as the length and zero capacity, then appends, which
+		// panics (makeslice: cap out of range) for every player with a hand.
+		handValues := make([]int, 0, len(player.Hands()))
+		for _, hand := range player.Hands() {
+			handValues = append(handValues, hand.Value())
+		}
+		playerSummary = append(playerSummary, fmt.Sprintf("%s:%v", player.Name(), handValues))
 	}
 	game.Unlock()
 	slog.Debug("blackjack message update released game lock", slog.Any("guildID", game.guildID), slog.String("uid", game.uid), slog.Duration("elapsed", time.Since(started)))
