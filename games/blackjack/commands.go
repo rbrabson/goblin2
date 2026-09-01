@@ -569,14 +569,22 @@ func blackjackAction(e *handler.ComponentEvent, action Action) error {
 		})
 	}
 
+	// A component interaction must be acknowledged quickly. Queueing the action
+	// can wait for the game lock, so acknowledge first and report validation
+	// failures through an ephemeral follow-up.
+	if err := deferBlackjackComponentUpdate(e); err != nil {
+		return err
+	}
+
 	if err := game.PlayerActionRequest(memberID, action); err != nil {
-		return sendBlackjackComponentMessage(e, discord.MessageCreate{
+		_, followupErr := e.CreateFollowupMessage(discord.MessageCreate{
 			Content: format.FirstToUpper(err.Error()),
 			Flags:   discord.MessageFlagEphemeral,
 		})
+		return followupErr
 	}
 
-	return deferBlackjackComponentUpdate(e)
+	return nil
 }
 
 // runBlackjack runs the blackjack lifecycle after the slash command interaction has been acknowledged.
@@ -794,13 +802,10 @@ func applyBlackjackAction(game *Game, player *bj.Player, action Action) error {
 func playBlackjackDealer(game *Game) {
 	started := time.Now()
 	slog.Info("blackjack dealer phase entered", slog.Any("guildID", game.guildID), slog.String("uid", game.uid))
-	// Reveal the dealer's hole card and publish the turn transition before the
-	// optional pause. Without this update, the message can remain on the last
-	// player-turn state until the dealer has finished playing.
+	// Keep the dealer phase internal. Publishing an intermediate dealer-turn
+	// snapshot can leave users looking at a stale pre-play hand while the final
+	// result is being prepared.
 	game.SetState(DealerTurn)
-	if err := updateBlackjackMessage(game, false); err != nil {
-		slog.Error("failed to update blackjack message at start of dealer turn", slog.Any("error", err))
-	}
 
 	if game.config.ShowDealerTurn > 0 {
 		time.Sleep(game.config.ShowDealerTurn)
