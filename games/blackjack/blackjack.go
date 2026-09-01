@@ -85,6 +85,7 @@ type Game struct {
 	surrenderButton  discord.ButtonComponent
 	uid              string
 	lock             sync.Mutex
+	messageLock      sync.Mutex
 	stateLock        sync.RWMutex
 	chipManagers     map[string]*ChipManager
 }

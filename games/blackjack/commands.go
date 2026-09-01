@@ -848,6 +848,12 @@ func playBlackjackDealer(game *Game) {
 
 // updateBlackjackMessage updates the original blackjack game message.
 func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
+	// Message updates can originate from the game loop and interaction handlers
+	// concurrently. Keep the REST call under this per-game lock so an older
+	// update cannot arrive after and overwrite a newer final-state update.
+	game.messageLock.Lock()
+	defer game.messageLock.Unlock()
+
 	started := time.Now()
 	slog.Debug("blackjack message update waiting for game lock", slog.Any("guildID", game.guildID), slog.String("uid", game.uid))
 	game.Lock()
@@ -869,16 +875,32 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 		Embeds:     new(embeds),
 		Components: new(components),
 	}
+	var err error
 	if msgID != 0 {
-		_, err := interaction.Client().Rest.UpdateMessage(interaction.Channel().ID(), msgID, msg)
-		return err
+		_, err = interaction.Client().Rest.UpdateMessage(interaction.Channel().ID(), msgID, msg)
+	} else {
+		_, err = interaction.Client().Rest.UpdateInteractionResponse(
+			interaction.ApplicationID(),
+			interaction.Token(),
+			msg,
+		)
 	}
-
-	_, err := interaction.Client().Rest.UpdateInteractionResponse(
-		interaction.ApplicationID(),
-		interaction.Token(),
-		msg,
-	)
+	if err != nil {
+		slog.Error("blackjack message update failed",
+			slog.Any("guildID", game.guildID),
+			slog.String("uid", game.uid),
+			slog.Any("messageID", msgID),
+			slog.Bool("hideDealerCard", hideDealerCard),
+			slog.Any("error", err),
+		)
+	} else {
+		slog.Info("blackjack message update succeeded",
+			slog.Any("guildID", game.guildID),
+			slog.String("uid", game.uid),
+			slog.Any("messageID", msgID),
+			slog.Bool("hideDealerCard", hideDealerCard),
+		)
+	}
 	return err
 }
 
