@@ -4,6 +4,5 @@ bet_amount: 5000
 delay_between_games: 10s
 wait_for_players: 15s
 player_timeout: 30s
-show_player_turn: 2s
 show_dealer_turn: 0s
 payout_percent: 100

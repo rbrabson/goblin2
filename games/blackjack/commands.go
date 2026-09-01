@@ -696,7 +696,6 @@ func playBlackjackPlayers(game *Game) {
 			}
 
 			hand.SetActive(true)
-			firstDecision := true
 			game.clearPendingActions()
 			game.Lock()
 			game.turnID++
@@ -706,13 +705,6 @@ func playBlackjackPlayers(game *Game) {
 			for hand.IsActive() {
 				// (Re)start the turn countdown for each decision, so taking an action such as
 				// a hit gives the player a fresh timer for their next decision.
-				// Pause only when a hand's turn begins. A hit leaves the hand active,
-				// so pausing here would make the newly dealt card take the full
-				// show-player-turn duration to appear.
-				if firstDecision && game.config.ShowPlayerTurn > 0 {
-					time.Sleep(game.config.ShowPlayerTurn)
-				}
-				firstDecision = false
 				game.setTurnDeadline(time.Now().Add(game.config.PlayerTimeout))
 				if err := updateBlackjackMessage(game, true); err != nil {
 					slog.Error("failed to update blackjack active player message", slog.Any("error", err))

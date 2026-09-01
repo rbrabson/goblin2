@@ -23,7 +23,6 @@ type Config struct {
 	DelayBetweenGames time.Duration         `bson:"delay_between_games" yaml:"delay_between_games"`
 	WaitForPlayers    time.Duration         `bson:"wait_for_players" yaml:"wait_for_players"`
 	PlayerTimeout     time.Duration         `bson:"player_timeout" yaml:"player_timeout"`
-	ShowPlayerTurn    time.Duration         `bson:"show_player_turn" yaml:"show_player_turn"`
 	ShowDealerTurn    time.Duration         `bson:"show_dealer_turn" yaml:"show_dealer_turn"`
 	PayoutPercent     int                   `bson:"payout_percent" yaml:"payout_percent"`
 	SinglePlayerMode  bool                  `bson:"single_player_mode" yaml:"single_player_mode"`
@@ -90,7 +89,6 @@ func runtimeConfig(cfg *Config) *Config {
 	if cfgCopy.SinglePlayerMode {
 		cfgCopy.MaxPlayers = 1
 		cfgCopy.WaitForPlayers = 0
-		cfgCopy.ShowPlayerTurn = 0
 		cfgCopy.ShowDealerTurn = 0
 	}
 
@@ -107,7 +105,6 @@ func createNewConfig(guildID discordid.SnowflakeID) *Config {
 		DelayBetweenGames: defaultConfig.DelayBetweenGames,
 		WaitForPlayers:    defaultConfig.WaitForPlayers,
 		PlayerTimeout:     defaultConfig.PlayerTimeout,
-		ShowPlayerTurn:    defaultConfig.ShowPlayerTurn,
 		ShowDealerTurn:    defaultConfig.ShowDealerTurn,
 		PayoutPercent:     defaultConfig.PayoutPercent,
 		SinglePlayerMode:  defaultConfig.SinglePlayerMode,
