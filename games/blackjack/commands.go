@@ -849,9 +849,21 @@ func playBlackjackDealer(game *Game) {
 // updateBlackjackMessage updates the original blackjack game message.
 func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 	// Message updates can originate from the game loop and interaction handlers
-	// concurrently. Keep the REST call under this per-game lock so an older
-	// update cannot arrive after and overwrite a newer final-state update.
-	game.messageLock.Lock()
+	// concurrently. Intermediate updates are best-effort: if another REST call
+	// is already in flight, drop this stale snapshot instead of making timer and
+	// interaction updates queue behind Discord. The completed update is critical,
+	// so it waits for the preceding update and is guaranteed to be sent next.
+	completed := game.IsCompleted()
+	if completed {
+		game.messageLock.Lock()
+	} else if !game.messageLock.TryLock() {
+		slog.Debug("skipping overlapping blackjack message update",
+			slog.Any("guildID", game.guildID),
+			slog.String("uid", game.uid),
+			slog.Bool("hideDealerCard", hideDealerCard),
+		)
+		return nil
+	}
 	defer game.messageLock.Unlock()
 
 	started := time.Now()
