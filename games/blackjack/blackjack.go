@@ -42,6 +42,27 @@ const (
 	Completed
 )
 
+func blackjackStateName(state GameState) string {
+	switch state {
+	case NotStarted:
+		return "NotStarted"
+	case WaitingForPlayers:
+		return "WaitingForPlayers"
+	case StartingRound:
+		return "StartingRound"
+	case DealingHands:
+		return "DealingHands"
+	case DealerTurn:
+		return "DealerTurn"
+	case SettlingPayouts:
+		return "SettlingPayouts"
+	case Completed:
+		return "Completed"
+	default:
+		return fmt.Sprintf("GameState(%d)", state)
+	}
+}
+
 type Action int
 
 const (
@@ -86,6 +107,7 @@ type Game struct {
 	uid              string
 	lock             sync.Mutex
 	messageLock      sync.Mutex
+	messageUpdateSeq uint64
 	stateLock        sync.RWMutex
 	chipManagers     map[string]*ChipManager
 }

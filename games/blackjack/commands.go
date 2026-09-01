@@ -1,6 +1,9 @@
 package blackjack
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"goblin2/disgobot"
@@ -855,13 +858,27 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 	// is already in flight, drop this stale snapshot instead of making timer and
 	// interaction updates queue behind Discord. The completed update is critical,
 	// so it waits for the preceding update and is guaranteed to be sent next.
-	completed := game.IsCompleted()
+	game.Lock()
+	game.messageUpdateSeq++
+	updateSeq := game.messageUpdateSeq
+	stateAtRequest := game.state
+	game.Unlock()
+	completed := stateAtRequest == Completed
+	slog.Info("blackjack message update requested",
+		slog.Any("guildID", game.guildID),
+		slog.String("uid", game.uid),
+		slog.Uint64("updateSeq", updateSeq),
+		slog.String("stateAtRequest", blackjackStateName(stateAtRequest)),
+		slog.Bool("hideDealerCard", hideDealerCard),
+	)
 	if completed {
 		game.messageLock.Lock()
 	} else if !game.messageLock.TryLock() {
 		slog.Debug("skipping overlapping blackjack message update",
 			slog.Any("guildID", game.guildID),
 			slog.String("uid", game.uid),
+			slog.Uint64("updateSeq", updateSeq),
+			slog.String("stateAtRequest", blackjackStateName(stateAtRequest)),
 			slog.Bool("hideDealerCard", hideDealerCard),
 		)
 		return nil
@@ -881,6 +898,24 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 	msgID := game.messageID
 	embeds := blackjackEmbeds(game, hideDealerCard)
 	components := blackjackComponents(game)
+	state := game.state
+	activePlayer := game.getActivePlayerLocked()
+	activePlayerID := ""
+	activeHandValue := 0
+	if activePlayer != nil {
+		activePlayerID = activePlayer.Name()
+		if hand := activePlayer.CurrentHand(); hand != nil {
+			activeHandValue = hand.Value()
+		}
+	}
+	dealerValue := 0
+	if dealer := game.dealerLocked(); dealer != nil {
+		dealerValue = dealer.Value()
+	}
+	playerSummary := make([]string, 0, len(game.game.Players()))
+	for _, player := range game.playersLocked() {
+		playerSummary = append(playerSummary, fmt.Sprintf("%s:%v", player.Name(), player.GetAllHandValues()))
+	}
 	game.Unlock()
 	slog.Debug("blackjack message update released game lock", slog.Any("guildID", game.guildID), slog.String("uid", game.uid), slog.Duration("elapsed", time.Since(started)))
 
@@ -889,6 +924,24 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 		Embeds:     new(embeds),
 		Components: new(components),
 	}
+	payload, _ := json.Marshal(msg)
+	payloadHash := sha256.Sum256(payload)
+	slog.Info("blackjack message update prepared",
+		slog.Any("guildID", game.guildID),
+		slog.String("uid", game.uid),
+		slog.Any("messageID", msgID),
+		slog.Uint64("updateSeq", updateSeq),
+		slog.String("state", blackjackStateName(state)),
+		slog.String("status", embeds[0].Fields[0].Name),
+		slog.String("activePlayerID", activePlayerID),
+		slog.Int("activeHandValue", activeHandValue),
+		slog.Int("dealerValue", dealerValue),
+		slog.Any("playerHands", playerSummary),
+		slog.Int("componentRows", len(components)),
+		slog.Bool("hideDealerCard", hideDealerCard),
+		slog.String("payloadSHA256", hex.EncodeToString(payloadHash[:])),
+	)
+	restStarted := time.Now()
 	var err error
 	if msgID != 0 {
 		_, err = interaction.Client().Rest.UpdateMessage(interaction.Channel().ID(), msgID, msg)
@@ -905,6 +958,9 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 			slog.String("uid", game.uid),
 			slog.Any("messageID", msgID),
 			slog.Bool("hideDealerCard", hideDealerCard),
+			slog.Uint64("updateSeq", updateSeq),
+			slog.String("payloadSHA256", hex.EncodeToString(payloadHash[:])),
+			slog.Duration("restElapsed", time.Since(restStarted)),
 			slog.Any("error", err),
 		)
 	} else {
@@ -913,6 +969,9 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 			slog.String("uid", game.uid),
 			slog.Any("messageID", msgID),
 			slog.Bool("hideDealerCard", hideDealerCard),
+			slog.Uint64("updateSeq", updateSeq),
+			slog.String("payloadSHA256", hex.EncodeToString(payloadHash[:])),
+			slog.Duration("restElapsed", time.Since(restStarted)),
 		)
 	}
 	return err
