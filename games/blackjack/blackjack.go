@@ -38,6 +38,7 @@ const (
 	StartingRound
 	DealingHands
 	DealerTurn
+	SettlingPayouts
 	Completed
 )
 
@@ -452,6 +453,13 @@ func (g *Game) IsDealerTurn() bool {
 	return g.state == DealerTurn
 }
 
+// IsSettlingPayouts returns whether the round is settling player results.
+func (g *Game) IsSettlingPayouts() bool {
+	g.stateLock.RLock()
+	defer g.stateLock.RUnlock()
+	return g.state == SettlingPayouts
+}
+
 // IsCompleted returns whether the blackjack game has completed.
 func (g *Game) IsCompleted() bool {
 	g.stateLock.RLock()
@@ -704,15 +712,25 @@ func (g *Game) PlayerActionRequest(memberID discordid.SnowflakeID, action Action
 
 // DealerPlay processes the dealer's play according to blackjack rules.
 func (g *Game) DealerPlay() error {
+	started := time.Now()
+	slog.Info("blackjack dealer play waiting for game lock", slog.Any("guildID", g.guildID), slog.String("uid", g.uid))
 	g.Lock()
-	defer g.Unlock()
+	slog.Info("blackjack dealer play acquired game lock", slog.Any("guildID", g.guildID), slog.String("uid", g.uid), slog.Duration("wait", time.Since(started)))
+	defer func() {
+		g.Unlock()
+		slog.Info("blackjack dealer play released game lock", slog.Any("guildID", g.guildID), slog.String("uid", g.uid), slog.Duration("elapsed", time.Since(started)))
+	}()
 
 	if !g.hasNonbustedPlayers() {
+		slog.Info("blackjack dealer play skipped because all players busted", slog.Any("guildID", g.guildID), slog.String("uid", g.uid))
 		return ErrAllPlayersBusted
 	}
+	slog.Info("blackjack library dealer play starting", slog.Any("guildID", g.guildID), slog.String("uid", g.uid), slog.Int("dealerValue", g.game.Dealer().Value()))
 	if err := g.game.DealerPlay(); err != nil {
+		slog.Error("blackjack library dealer play failed", slog.Any("guildID", g.guildID), slog.String("uid", g.uid), slog.Any("error", err))
 		return err
 	}
+	slog.Info("blackjack library dealer play finished", slog.Any("guildID", g.guildID), slog.String("uid", g.uid), slog.Int("dealerValue", g.game.Dealer().Value()), slog.Duration("elapsed", time.Since(started)))
 
 	return nil
 }
@@ -980,6 +998,8 @@ func (s GameState) String() string {
 		return "Dealing Hands"
 	case DealerTurn:
 		return "Dealer Turn"
+	case SettlingPayouts:
+		return "Settling Payouts"
 	case Completed:
 		return "Completed"
 	default:

@@ -8,6 +8,7 @@ import (
 	"goblin2/internal/discordid"
 	"goblin2/internal/format"
 	"log/slog"
+	"runtime"
 	"strings"
 	"time"
 
@@ -32,6 +33,7 @@ const (
 	// turnTimerUpdateInterval is how often the active player's turn countdown is refreshed.
 	turnTimerUpdateInterval = 5 * time.Second
 	payoutRetryInterval     = 5 * time.Second
+	dealerWatchdogTimeout   = 30 * time.Second
 )
 
 var (
@@ -626,8 +628,12 @@ func runBlackjack(game *Game) {
 	// Settle payouts before publishing the completed state. The completed embed
 	// renders hand results from Hand.Winnings(), so publishing it before this
 	// step can leave users with "Game has ended" but no payout information.
+	payoutAttempt := 0
 	for {
+		payoutAttempt++
+		slog.Info("blackjack payout attempt starting", slog.Any("guildID", game.guildID), slog.String("uid", game.uid), slog.Int("attempt", payoutAttempt))
 		if err := game.PayoutResults(); err == nil {
+			slog.Info("blackjack payout attempt completed", slog.Any("guildID", game.guildID), slog.String("uid", game.uid), slog.Int("attempt", payoutAttempt))
 			break
 		} else {
 			slog.Error("failed to settle blackjack payouts; retrying", slog.Any("guildID", game.guildID), slog.Any("error", err))
@@ -789,6 +795,8 @@ func applyBlackjackAction(game *Game, player *bj.Player, action Action) error {
 
 // playBlackjackDealer processes the dealer turn.
 func playBlackjackDealer(game *Game) {
+	started := time.Now()
+	slog.Info("blackjack dealer phase entered", slog.Any("guildID", game.guildID), slog.String("uid", game.uid))
 	// Reveal the dealer's hole card and publish the turn transition before the
 	// optional pause. Without this update, the message can remain on the last
 	// player-turn state until the dealer has finished playing.
@@ -801,19 +809,54 @@ func playBlackjackDealer(game *Game) {
 		time.Sleep(game.config.ShowDealerTurn)
 	}
 
-	if err := game.DealerPlay(); err != nil && !errors.Is(err, ErrAllPlayersBusted) {
+	// A process-wide SIGQUIT is unsafe here because it can terminate unrelated
+	// blackjack games. Instead, dump goroutine stacks for this game only if the
+	// dealer call remains blocked for an unexpectedly long time.
+	watchdogDone := make(chan struct{})
+	go func() {
+		timer := time.NewTimer(dealerWatchdogTimeout)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			stack := make([]byte, 1<<20)
+			n := runtime.Stack(stack, true)
+			slog.Error("blackjack dealer play watchdog fired",
+				slog.Any("guildID", game.guildID),
+				slog.String("uid", game.uid),
+				slog.Duration("timeout", dealerWatchdogTimeout),
+				slog.String("goroutines", string(stack[:n])),
+			)
+		case <-watchdogDone:
+		}
+	}()
+	err := game.DealerPlay()
+	close(watchdogDone)
+	if err != nil && !errors.Is(err, ErrAllPlayersBusted) {
 		slog.Error("failed during blackjack dealer play",
 			slog.Any("guildID", game.guildID),
 			slog.Any("error", err),
 		)
 	}
+	slog.Info("blackjack dealer phase completed", slog.Any("guildID", game.guildID), slog.String("uid", game.uid), slog.Duration("elapsed", time.Since(started)))
+
+	// Publish the dealer's completed hand before payout work begins. Otherwise a
+	// payout/database delay leaves Discord showing the dealer's initial hand and
+	// makes the game appear frozen in the dealer turn.
+	game.SetState(SettlingPayouts)
+	if err := updateBlackjackMessage(game, false); err != nil {
+		slog.Error("failed to update blackjack message after dealer turn", slog.Any("error", err))
+	}
 }
 
 // updateBlackjackMessage updates the original blackjack game message.
 func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
+	started := time.Now()
+	slog.Debug("blackjack message update waiting for game lock", slog.Any("guildID", game.guildID), slog.String("uid", game.uid))
 	game.Lock()
+	slog.Debug("blackjack message update acquired game lock", slog.Any("guildID", game.guildID), slog.String("uid", game.uid), slog.Duration("wait", time.Since(started)))
 	if game.interaction == nil {
 		game.Unlock()
+		slog.Debug("blackjack message update skipped without interaction", slog.Any("guildID", game.guildID), slog.String("uid", game.uid))
 		return nil
 	}
 	interaction := game.interaction
@@ -821,6 +864,7 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 	embeds := blackjackEmbeds(game, hideDealerCard)
 	components := blackjackComponents(game)
 	game.Unlock()
+	slog.Debug("blackjack message update released game lock", slog.Any("guildID", game.guildID), slog.String("uid", game.uid), slog.Duration("elapsed", time.Since(started)))
 
 	msg := discord.MessageUpdate{
 		Content:    new(""),
@@ -938,6 +982,8 @@ func blackjackStatus(game *Game) string {
 		return "Game is in progress."
 	case game.IsDealerTurn():
 		return "Dealer's turn."
+	case game.IsSettlingPayouts():
+		return "Settling payouts..."
 	case game.IsCompleted():
 		return "Game has ended."
 	default:
