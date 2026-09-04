@@ -2,6 +2,8 @@
 
 This document describes how to configure the `Goblin` bot for a Discord server. It is assumed that the `Goblin` bot has already been installed and is running on the server. The instructions require the Discord server owner to be logged in to the Discord server.
 
+**Note**: some setup steps require accessing Discord via a PC or laptop, and will not work on a mobile device. If you are using a mobile device, you may need to switch to a PC or laptop to complete the setup.
+
 ## Configuring Discord
 
 ### Setting up the Goblin bot's role
