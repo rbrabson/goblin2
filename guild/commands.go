@@ -78,6 +78,7 @@ func roleFromOption(data discord.SlashCommandInteractionData, optionName string,
 	if !ok {
 		slog.Error("invalid role option",
 			slog.String("optionName", optionName),
+			slog.Any("options", data.Options),
 		)
 		return discord.Role{}, ErrRoleNotFound
 	}
@@ -124,7 +125,7 @@ func guildAdminRoleAddHandler(data discord.SlashCommandInteractionData, e *handl
 	}
 
 	guild := GetGuild(discordid.NewSnowflakeID(e.Member().GuildID))
-	role, err := roleFromOption(data, "role", guild.GuildID, e.Client())
+	role, err := roleFromOption(data, "name", guild.GuildID, e.Client())
 	if err != nil {
 		slog.Error("invalid role",
 			slog.Any("guildID", guild.GuildID),
@@ -168,7 +169,7 @@ func guildAdminRoleRemoveHandler(data discord.SlashCommandInteractionData, e *ha
 	}
 
 	guild := GetGuild(discordid.NewSnowflakeID(e.Member().GuildID))
-	role, err := roleFromOption(data, "role", guild.GuildID, e.Client())
+	role, err := roleFromOption(data, "name", guild.GuildID, e.Client())
 	if err != nil {
 		slog.Error("invalid role",
 			slog.Any("guildID", guild.GuildID),
