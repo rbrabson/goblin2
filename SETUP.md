@@ -66,15 +66,15 @@ The following commands are administrative commands, and should only be sent to t
 The following are member commands, and should be sent to the category or channels as desdribed below. They should be configured so that `@everyone` can use the commands.
 
 - `/bank` - all server channels. You can optionally restrict it to the `Game` category.
-- `/blackjack` - to the `#blackjack` channel
-- `/heist` - to the `#heist` channel
+- `/blackjack` - to the `#blackjack` channel.
+- `/heist` - to the `#heist` channel.
 - `/help` - all server channels. You can optionally restrict it to the `Game` category.
-- `/lb` - to the `#leaderboard` channel
+- `/lb` - all server channels. You can optionally restrict it to the `Game` category.
 - `/payday` - all server channels. You can optionally restrict it to the `Game` category.
 - `/payday-stats` - all server channels. You can optionally restrict it to the `Game` category.
-- `/race` - to the `#races` channel
+- `/race` - to the `#races` channel.
 - `/shop` - all server channels. You can optionally restrict it to the `Game` category.
-- `/slots` - to the `#slots` channel
+- `/slots` - to the `#slots` channel.
 
 ### Setting up Goblin permissions in the game channels
 
