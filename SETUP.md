@@ -8,14 +8,6 @@ This document describes how to configure the `Goblin` bot for a Discord server. 
 
 In the server settings, make sure the `Goblin` bot's role is higher than any roles that it may need to manage. If it isn't, then the bot may not be able to assign and remove roles from users.
 
-### Setting the server owners
-
-By default, a newly installed `Goblin` bot does not have any configured owners. This means that any user on the server may issue the most privlidged `/server owner` commands. Therefore, the first step in setting up the server is to set the server owner(s). Use the `/server owner add` command to add one or more server owners. It is recommended that the person installing the server start by adding themselves as a server owner and can then optionally add one or more additional owners.
-
-A server owner can list the current set of server owners using the `/server owner list` command. A server owner can also remove any server owner using the`/server owner remove` command. Since any server owner can remove the person who initially setup the server, you must be extremely careful in who is added as a server owner.
-
-Server owners can safely shut down the server using the `/server shutdown` command. The owners can then check the status of the server using the `/server status` command. Once all services on the server are in the `Stopped` state, it is safe to apply maintenance and/or reboot the server.
-
 ### Setting administrator permissions
 
 To use administrative commands with the Goblin bot, users must have an administrative role assigned to them. When first installed, the Goblin bot assigns the following roles for admin users: `Admin`, `Admins`, `Administrator`, `Mod`, `Mods`, and `Moderator`. You can add additional roles or remove existing ones using the `/guild-admin role add` command, or remove an existing role using the `/guild-admin role remove` command. At any time, you can see the list of existing administrative roles using the `/guild-admin role list` command.
