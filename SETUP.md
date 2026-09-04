@@ -90,6 +90,6 @@ The `Goblin` bot is capable of providing a shop that may be used to purchase rol
 
 To setup a shop, two channels are required. The first is the channel to which to publish the shop. Each item that is added to the shop will appear in a message, with buttons that may be used to purchase the item. It is recommended that this channel be setup so that only members with admin priviledges on the server can post or delete messages. The `Goblin` bot must also be able to post and edit messages in this channel. To set the shop channel, use the `/shop-admin channel` command.
 
-The second channel is to capture a log of all purchases made from the shop, as well as to log when a purchase expires. This channel should be visible to server admins and moderators, but no one else. To set the shop log channel, use the `/shop-admin mod-channel` command.
+The second channel is to capture a log of all purchases made from the shop, as well as to log when a purchase expires. This channel should be visible to members with the `bot-admin` role, server admins, and moderators, but no one else. To set the shop log channel, use the `/shop-admin mod-channel` command.
 
-The shop also supports a `/shop-admin ban` command, which allows server admins and moderators to keep specific members from being able to purchase items from the shop. This is useful if you don't want alternate user accounts from being able to purchase shop items.
+The shop also supports a `/shop-admin ban` command, which allows those with the `bot-admin` role, server admins, and moderators to keep specific members from being able to purchase items from the shop. This is useful if you don't want alternate user accounts from being able to purchase shop items.
