@@ -384,9 +384,9 @@ func configPayoutPercentHandler(data discord.SlashCommandInteractionData, e *han
 
 	guildID := discordid.NewSnowflakeID(member.GuildID)
 	payoutPercent := data.Int("percent")
-	if payoutPercent < 0 || payoutPercent > 100 {
+	if payoutPercent < 0 || payoutPercent > 5000 {
 		return sendBlackjackCommandMessage(e, discord.MessageCreate{
-			Content: "Payout percent must be between 0 and 100.",
+			Content: "Payout percent must be between 0 and 5000.",
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
