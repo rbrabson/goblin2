@@ -140,11 +140,15 @@ func (a *Account) Deposit(amount int) error {
 func (a *Account) DepositIntoCurrent(amount int) error {
 	return a.update(func(acc *Account) error {
 		acc.CurrentBalance += amount
+		if acc.LifetimeBalance < acc.CurrentBalance {
+			acc.LifetimeBalance = acc.CurrentBalance
+		}
 		slog.Debug("deposit to the current balance for the account",
 			slog.Any("guildID", acc.GuildID),
 			slog.Any("memberID", acc.MemberID),
 			slog.Int("amount", amount),
-			slog.Int("balance", acc.CurrentBalance),
+			slog.Int("currentBalance", acc.CurrentBalance),
+			slog.Int("lifetimeBalance", acc.LifetimeBalance),
 		)
 		return nil
 	})
@@ -212,9 +216,6 @@ func (a *Account) SetBalance(amount int) error {
 		acc.CurrentBalance = amount
 		if acc.LifetimeBalance < amount {
 			acc.LifetimeBalance = amount
-		}
-		if acc.MonthlyBalance < amount {
-			acc.MonthlyBalance = amount
 		}
 		slog.Info("admin set the account balance",
 			slog.Any("guildID", acc.GuildID),
