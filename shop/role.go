@@ -55,15 +55,6 @@ func (r *Role) RemoveFromShop(s *Shop) error {
 	return item.removeFromShop(s)
 }
 
-// roleExistsChecks performs checks to see if a role can be added to the shop.
-func roleExistsChecks(guildID discordid.SnowflakeID, roleName string) error {
-	if _, err := getExistingGuildRole(guildID, roleName); err != nil {
-		return err
-	}
-
-	return createChecks(guildID, roleName, roleItemType)
-}
-
 // rolePurchaseChecks performs checks to see if a role can be purchased.
 func rolePurchaseChecks(guildID, memberID discordid.SnowflakeID, roleName string) error {
 	guildRole, err := getExistingGuildRole(guildID, roleName)
@@ -103,7 +94,7 @@ func rolePurchaseChecks(guildID, memberID discordid.SnowflakeID, roleName string
 	return nil
 }
 
-// getExistingGuildRole retrieves an existing role from the guild. If the role does not exist, an error is returned.
+// getExistingGuildRole retrieves a guild role by name, ID, or role mention.
 func getExistingGuildRole(guildID discordid.SnowflakeID, roleName string) (discord.Role, error) {
 	if client == nil {
 		return discord.Role{}, fmt.Errorf("discord client is nil")
@@ -119,7 +110,7 @@ func getExistingGuildRole(guildID discordid.SnowflakeID, roleName string) (disco
 	}
 
 	for _, role := range roles {
-		if role.Name == roleName {
+		if role.Name == roleName || role.ID.String() == roleName || role.Mention() == roleName {
 			return role, nil
 		}
 	}

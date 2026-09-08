@@ -7,7 +7,6 @@ import (
 	"goblin2/internal/format"
 	"goblin2/internal/message"
 	"log/slog"
-	"strconv"
 	"strings"
 
 	"github.com/disgoorg/disgo/discord"
@@ -29,7 +28,7 @@ var (
 					Options: []discord.ApplicationCommandOption{
 						discord.ApplicationCommandOptionString{
 							Name:        "name",
-							Description: "The Discord role name.",
+							Description: "The Discord role name, ID, or mention.",
 							Required:    true,
 						},
 						discord.ApplicationCommandOptionString{
@@ -183,7 +182,15 @@ func addRoleHandler(data discord.SlashCommandInteractionData, e *handler.Command
 		})
 	}
 
-	if err := roleExistsChecks(discordid.NewSnowflakeID(member.GuildID), roleName); err != nil {
+	guildRole, err := getExistingGuildRole(discordid.NewSnowflakeID(member.GuildID), roleName)
+	if err != nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: format.FirstToUpper(err.Error()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+	roleName = guildRole.Name
+	if err := createChecks(discordid.NewSnowflakeID(member.GuildID), roleName, roleItemType); err != nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: format.FirstToUpper(err.Error()),
 			Flags:   discord.MessageFlagEphemeral,
@@ -772,52 +779,17 @@ func formatPurchase(purchase *Purchase) string {
 	return strings.Join(parts, "\n")
 }
 
-// stringValue returns the string value of the given option name from the given slash command interaction data or an empty string if the option is not present.
+// stringValue returns a string option, or an empty string if it is absent.
 func stringValue(data discord.SlashCommandInteractionData, name string) string {
-	value, ok := data.Options[name]
-	if !ok {
-		return ""
-	}
-
-	return fmt.Sprint(value)
+	return data.String(name)
 }
 
-// intValue returns the integer value of the given option name from the given slash command interaction data or 0 if the option is not present or cannot be parsed.
+// intValue returns an integer option, or zero if it is absent.
 func intValue(data discord.SlashCommandInteractionData, name string) int {
-	value, ok := data.Options[name]
-	if !ok {
-		return 0
-	}
-
-	parsed, err := strconv.Atoi(fmt.Sprint(value))
-	if err != nil {
-		slog.Warn("unable to parse int option",
-			slog.String("name", name),
-			slog.Any("value", value),
-			slog.Any("error", err),
-		)
-		return 0
-	}
-
-	return parsed
+	return data.Int(name)
 }
 
-// boolValue returns the boolean value of the given option name from the given slash command interaction data or false if the option is not present or cannot be parsed.
+// boolValue returns a boolean option, or false if it is absent.
 func boolValue(data discord.SlashCommandInteractionData, name string) bool {
-	value, ok := data.Options[name]
-	if !ok {
-		return false
-	}
-
-	parsed, err := strconv.ParseBool(fmt.Sprint(value))
-	if err != nil {
-		slog.Warn("unable to parse bool option",
-			slog.String("name", name),
-			slog.Any("value", value),
-			slog.Any("error", err),
-		)
-		return false
-	}
-
-	return parsed
+	return data.Bool(name)
 }
