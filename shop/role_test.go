@@ -39,3 +39,34 @@ func TestGetExistingGuildRole(t *testing.T) {
 		t.Error("missing role lookup succeeded")
 	}
 }
+
+func TestGetRoleForRemoval(t *testing.T) {
+	previous := client
+	t.Cleanup(func() { client = previous })
+	guildID := discordid.NewSnowflakeID(snowflake.ID(724319470528626738))
+	guildRole := discord.Role{ID: snowflake.ID(724319470528626747), Name: "VIP"}
+	item := Item{GuildID: guildID, Name: guildRole.Name, Type: roleItemType, Price: 1250}
+	key := itemKey(&item)
+	itemCache.Set(key, item)
+	t.Cleanup(func() { itemCache.Delete(key) })
+	client = &bot.Client{Rest: roleLookupRest{roles: []discord.Role{guildRole}}}
+	for _, input := range []string{"VIP", "724319470528626747", "<@&724319470528626747>"} {
+		t.Run(input, func(t *testing.T) {
+			role, err := getRoleForRemoval(guildID, input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if role == nil || role.Name != item.Name || role.Price != item.Price {
+				t.Fatalf("got %+v, want stored VIP item", role)
+			}
+		})
+	}
+	client = nil
+	role, err := getRoleForRemoval(guildID, "VIP")
+	if err != nil || role == nil {
+		t.Fatalf("removal by stored name must work without Discord: role=%+v, err=%v", role, err)
+	}
+	if _, err := getRoleForRemoval(guildID, "<@&724319470528626747>"); err == nil {
+		t.Fatal("expected role resolution error without Discord")
+	}
+}

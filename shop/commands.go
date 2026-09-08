@@ -59,7 +59,7 @@ var (
 					Options: []discord.ApplicationCommandOption{
 						discord.ApplicationCommandOptionString{
 							Name:        "name",
-							Description: "The Discord role name.",
+							Description: "The Discord role name, ID, or mention.",
 							Required:    true,
 						},
 					},
@@ -253,7 +253,13 @@ func removeRoleHandler(data discord.SlashCommandInteractionData, e *handler.Comm
 	}
 
 	roleName := strings.TrimSpace(stringValue(data, "name"))
-	role := GetRole(discordid.NewSnowflakeID(member.GuildID), roleName)
+	role, err := getRoleForRemoval(discordid.NewSnowflakeID(member.GuildID), roleName)
+	if err != nil {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: format.FirstToUpper(err.Error()),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
 	if role == nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: fmt.Sprintf("Role `%s` is not in the shop.", roleName),
@@ -261,6 +267,7 @@ func removeRoleHandler(data discord.SlashCommandInteractionData, e *handler.Comm
 		})
 	}
 
+	roleName = role.Name
 	s := GetShop(member.GuildID.String())
 	if err := role.RemoveFromShop(s); err != nil {
 		return e.CreateMessage(discord.MessageCreate{

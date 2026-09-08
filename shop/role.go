@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"goblin2/internal/discordid"
 	"log/slog"
+	"strings"
 
 	"github.com/disgoorg/disgo/discord"
+	"github.com/disgoorg/snowflake/v2"
 )
 
 const (
@@ -22,6 +24,21 @@ func GetRole(guildID discordid.SnowflakeID, name string) *Role {
 		return nil
 	}
 	return new(Role(*item))
+}
+
+// getRoleForRemoval resolves IDs and mentions before looking up the stored name.
+// Plain names do not require the Discord role to still exist.
+func getRoleForRemoval(guildID discordid.SnowflakeID, name string) (*Role, error) {
+	name = strings.TrimSpace(name)
+	roleID := strings.TrimSuffix(strings.TrimPrefix(name, "<@&"), ">")
+	if _, err := snowflake.Parse(roleID); err == nil {
+		guildRole, err := getExistingGuildRole(guildID, name)
+		if err != nil {
+			return nil, err
+		}
+		name = guildRole.Name
+	}
+	return GetRole(guildID, name), nil
 }
 
 // NewRole creates a new role for the shop.
