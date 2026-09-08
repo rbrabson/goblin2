@@ -70,3 +70,39 @@ func TestGetRoleForRemoval(t *testing.T) {
 		t.Fatal("expected role resolution error without Discord")
 	}
 }
+
+// Constructing a role must not insert it before AddToShop checks for duplicates.
+func TestNewRoleDoesNotPersist(t *testing.T) {
+	previousDB := db
+	db = nil
+	t.Cleanup(func() { db = previousDB })
+	guildID := discordid.NewSnowflakeID(snowflake.ID(724319470528626738))
+	key := itemCacheKey{guildID: guildID, name: "New unsaved role", itemType: roleItemType}
+	t.Cleanup(func() { itemCache.Delete(key) })
+	role := NewRole(guildID, key.name, "A new role", 1250, "24h", true)
+	if role == nil {
+		t.Fatal("NewRole returned nil")
+	}
+	if role.GuildID != guildID || role.Name != key.name || role.Description != "A new role" || role.Type != roleItemType || role.Price != 1250 || role.Duration != "24h" || !role.AutoRenewable {
+		t.Fatalf("unexpected role: %+v", role)
+	}
+	if !role.ID.IsZero() {
+		t.Fatalf("unsaved role has database ID: %v", role.ID)
+	}
+	if _, ok := itemCache.Get(key); ok {
+		t.Fatal("unsaved role was added to the item cache")
+	}
+}
+
+func TestAddToShopRejectsExistingRole(t *testing.T) {
+	guildID := discordid.NewSnowflakeID(snowflake.ID(724319470528626738))
+	role := NewRole(guildID, "Existing role", "", 1250, "", false)
+	item := Item(*role)
+	shop := &Shop{GuildID: guildID.String(), Items: []*Item{&item}}
+	if err := role.AddToShop(shop); err == nil {
+		t.Fatal("expected duplicate role to be rejected")
+	}
+	if len(shop.Items) != 1 {
+		t.Fatalf("shop has %d items, want 1", len(shop.Items))
+	}
+}

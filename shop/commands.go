@@ -198,12 +198,6 @@ func addRoleHandler(data discord.SlashCommandInteractionData, e *handler.Command
 	}
 
 	role := NewRole(discordid.NewSnowflakeID(member.GuildID), roleName, description, price, duration, autoRenewable)
-	if role == nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "Unable to add role to the shop.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
 
 	s := GetShop(member.GuildID.String())
 	if err := role.AddToShop(s); err != nil {
@@ -225,7 +219,7 @@ func addRoleHandler(data discord.SlashCommandInteractionData, e *handler.Command
 		})
 	}
 
-	slog.Info("removed added to shop",
+	slog.Info("role added to shop",
 		slog.Any("guildID", member.GuildID),
 		slog.String("member", member.EffectiveName()),
 		slog.String("role", roleName),

@@ -46,7 +46,7 @@ func getShopItem(guildID discordid.SnowflakeID, name string, itemType string) *I
 	return copyItem(item)
 }
 
-// newShopItem creates a new ShopItem with the given guild ID, name, description, type, and price.
+// newShopItem constructs an unsaved item. addToShop persists it and updates the cache.
 func newShopItem(guildID discordid.SnowflakeID, name string, description string, itemType string, price int, duration string, autoRenewable bool, maxPurchases int) *Item {
 	item := &Item{
 		GuildID:       guildID,
@@ -59,17 +59,7 @@ func newShopItem(guildID discordid.SnowflakeID, name string, description string,
 		MaxPurchases:  maxPurchases,
 	}
 
-	err := writeShopItem(item)
-	if err != nil {
-		slog.Error("unable to write shop item to the database", "guild", guildID, "name", name, "type", itemType, "error", err)
-		return nil
-	}
-
-	itemCache.Set(itemKey(item), *item)
-
-	slog.Info("new shop item created", "guild", guildID, "name", name, "type", itemType)
-
-	return copyItem(item)
+	return item
 }
 
 // UpdateShopItem updates the shop item with the given mutation, retrying on version conflicts.

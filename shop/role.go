@@ -41,7 +41,7 @@ func getRoleForRemoval(guildID discordid.SnowflakeID, name string) (*Role, error
 	return GetRole(guildID, name), nil
 }
 
-// NewRole creates a new role for the shop.
+// NewRole constructs an unsaved role. Call AddToShop to persist it.
 func NewRole(guildID discordid.SnowflakeID, name string, description string, price int, duration string, autoRenewable bool) *Role {
 	item := newShopItem(guildID, name, description, roleItemType, price, duration, autoRenewable, 0)
 	role := (*Role)(item)
