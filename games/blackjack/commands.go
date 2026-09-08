@@ -1,6 +1,7 @@
 package blackjack
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
+	"github.com/disgoorg/disgo/rest"
 	bj "github.com/rbrabson/blackjack"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
@@ -947,15 +949,24 @@ func updateBlackjackMessage(game *Game, hideDealerCard bool) error {
 		slog.String("payloadSHA256", hex.EncodeToString(payloadHash[:])),
 	)
 	restStarted := time.Now()
+	edit := func(ctx context.Context) (*discord.Message, error) {
+		if msgID != 0 {
+			return interaction.Client().Rest.UpdateMessage(interaction.Channel().ID(), msgID, msg, rest.WithCtx(ctx))
+		}
+		return interaction.Client().Rest.UpdateInteractionResponse(interaction.ApplicationID(), interaction.Token(), msg, rest.WithCtx(ctx))
+	}
 	var err error
-	if msgID != 0 {
-		_, err = interaction.Client().Rest.UpdateMessage(interaction.Channel().ID(), msgID, msg)
+	if state == Completed {
+		fetch := func(ctx context.Context) (*discord.Message, error) {
+			if msgID != 0 {
+				return interaction.Client().Rest.GetMessage(interaction.Channel().ID(), msgID, rest.WithCtx(ctx))
+			}
+			return interaction.Client().Rest.GetInteractionResponse(interaction.ApplicationID(), interaction.Token(), rest.WithCtx(ctx))
+		}
+		logger := slog.With("guildID", game.guildID, "uid", game.uid, "messageID", msgID, "updateSeq", updateSeq)
+		err = verifyBlackjackFinalMessage(msg, edit, fetch, logger)
 	} else {
-		_, err = interaction.Client().Rest.UpdateInteractionResponse(
-			interaction.ApplicationID(),
-			interaction.Token(),
-			msg,
-		)
+		_, err = edit(context.Background())
 	}
 	if err != nil {
 		slog.Error("blackjack message update failed",
