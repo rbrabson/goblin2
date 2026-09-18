@@ -1,6 +1,6 @@
 module goblin2
 
-go 1.26
+go 1.27
 
 require (
 	github.com/disgoorg/disgo v0.19.6
