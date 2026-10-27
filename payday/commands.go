@@ -78,9 +78,31 @@ func paydayHandler(_ discord.SlashCommandInteractionData, e *handler.CommandEven
 		slog.Int("paydayAmount", paydayAmount),
 		slog.Int("currentBalance", account.CurrentBalance),
 	)
+	inline := true
 	return e.CreateMessage(discord.MessageCreate{
-		Content: p.Sprintf("You deposited your check of %d into your bank account. You now have %d credits.", paydayAmount, account.CurrentBalance),
-		Flags:   discord.MessageFlagEphemeral,
+		Embeds: []discord.Embed{{
+			Type:  discord.EmbedTypeRich,
+			Title: "Payday Deposit",
+			Color: 0x00ff00,
+			Fields: []discord.EmbedField{
+				{
+					Name:   "Credits Deposited",
+					Value:  p.Sprintf("%d credits", paydayAmount),
+					Inline: &inline,
+				},
+				{
+					Name:   "Current Streak",
+					Value:  p.Sprintf("%d paydays", paydayAccount.CurrentStreak),
+					Inline: &inline,
+				},
+				{
+					Name:   "Longest Streak",
+					Value:  p.Sprintf("%d paydays", paydayAccount.MaxStreak),
+					Inline: &inline,
+				},
+			},
+		}},
+		Flags: discord.MessageFlagEphemeral,
 	})
 }
 
