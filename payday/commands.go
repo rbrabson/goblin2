@@ -129,8 +129,6 @@ func paydayStatsHandler(_ discord.SlashCommandInteractionData, e *handler.Comman
 	pay := paydayAccount.getPayAmount()
 	nextPayday := paydayAccount.getNextPayday().Format(time.DateTime)
 
-	inline := true
-
 	embeds := []discord.Embed{
 		{
 			Type:        discord.EmbedTypeRich,
@@ -141,22 +139,22 @@ func paydayStatsHandler(_ discord.SlashCommandInteractionData, e *handler.Comman
 				{
 					Name:   "Payday Amount",
 					Value:  p.Sprintf("%d", pay),
-					Inline: &inline,
+					Inline: new(true),
 				},
 				{
 					Name:   "Current Streak",
 					Value:  p.Sprintf("%d", currentStreak),
-					Inline: &inline,
+					Inline: new(true),
 				},
 				{
 					Name:   "Max Streak",
 					Value:  p.Sprintf("%d", maxStreak),
-					Inline: &inline,
+					Inline: new(true),
 				},
 				{
 					Name:   "Next Payday",
 					Value:  nextPayday,
-					Inline: &inline,
+					Inline: new(true),
 				},
 			},
 		},
