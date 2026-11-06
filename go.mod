@@ -3,7 +3,7 @@ module goblin2
 go 1.27
 
 require (
-	github.com/disgoorg/disgo v0.19.7-0.20261101233420-18ac6df9b116
+	github.com/disgoorg/disgo v0.20.0
 	github.com/disgoorg/omit v1.0.0
 	github.com/disgoorg/snowflake/v2 v2.0.3
 	github.com/joho/godotenv v1.5.1
